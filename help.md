@@ -9,7 +9,7 @@ The "VM" mentioned below, if no special emphasis, is ngscript's WscVM.
 
 ###Variable
 To define a variable, use `var` statement. 
-**Please notice that if you don't initialize the variable once it is declared, ngscript doesn't guarantee the things in it.**
+**Please notice that if you don't initialize the variable once it is declared, ngscript doesn't guarantee the content in it.**
 
 >**Here is some examples**
 >
@@ -124,4 +124,4 @@ eval excutes the string as code, and return the %eax once the VM returned.
 It is a **REPL** shell, just write your code line, and tap enter to submit.
 If you write a valid statement(include expression, while, for, if, etc.), the VM knows it's time to compile and run, then you can see the outputs. Once the compiled code is run to the end, the VM prints the %eax register value.
 
-Tap Tab to active completion, the completion feature covers useful commands, and global symbols.
+Tap tab to active completion, the completion feature covers useful commands, and global symbols.
