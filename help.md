@@ -123,5 +123,7 @@ eval excutes the string as code, and return the %eax once the VM returned.
 [http://ngscript.sinaapp.com/](http://ngscript.sinaapp.com/) is an online version of ngscript.
 It is a **REPL** shell, just write your code line, and tap enter to submit.
 If you write a valid statement(include expression, while, for, if, etc.), the VM knows it's time to compile and run, then you can see the outputs. Once the compiled code is run to the end, the VM prints the %eax register value.
+**If you wrote an incomplete structure and submitted, the prompt will display as `...`, to tell you continue writing. Only complete syntax structure will trigger a compile-run action.**
+It's useful to submit a `;` (semicolon) to flush the stream, and clear error status.
 
 Tap tab to active completion, the completion feature covers useful commands, and global symbols.
