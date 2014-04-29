@@ -9,6 +9,7 @@ The "VM" mentioned below, if no special emphasis, is ngscript's WscVM.
 
 ###Variable
 To define a variable, use `var` statement. 
+**Please notice that if you don't initialize the variable once it is declared, ngscript doesn't guarantee the things in it.**
 
 >**Here is some examples**
 >
@@ -64,3 +65,56 @@ So ngscript provides a different way to present native objects, that is what I c
 >       array.add(1); array.add(2); array.add(3);   //add something
 >       var ref_get = array.get;                    //make a reference to method of a native object
 >       println(ref_get(1));                        //call the reference to get the element of index 1
+
+###Object
+ngscript's object system is based on environment and closure, and without annoying things like prototype and dynamic scoping.
+
+####ngscript object
+>Define a constructor is like define a named function
+>
+>       function One(name) {
+>           this.hiho = function(){
+>               println("I'm " + name);
+>           };
+>       }
+>
+>Create an object with `new` operator
+>
+>       var newone = new One("wssccc");
+>       newone.hiho();
+>
+
+####Native Java support
+Native Java Classes are also available.
+>Create a instance of ArrayList
+>
+>       var arraylist = new ArrayList();
+>       arraylist.add(1);
+>       arraylist.add(2);
+>       println(arraylist.toString());
+>       arraylist.remove(0);
+>       println(arraylist.toString());
+>
+
+####Import Java class
+java.lang.\* and java.util.\* are imported by default.
+ngscript supports `import` statement, but it's not fully tested yet.
+
+###other
+####typeof
+`typeof` is an operator to retrieve the type information of data. The return value is a string.
+>
+>       println(typeof println);
+>       var a = 1;
+>       println(typeof a);
+>       println(typeof println);
+
+####println
+println is to print a line.
+
+####eval
+eval takes one string parameter, the string can be a valid expression or statements. 
+eval excutes the string as code, and return the %eax once the VM returned.
+>
+>       println(eval("15+20"));
+>
