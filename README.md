@@ -61,10 +61,14 @@ So ngscript provides a different way to present native objects, that is what I c
 
 >When we're making references of native Java's object method, the VM creates a native closure object to present that.
 >
->       var array = new ArrayList();                //native Java ArrayList
->       array.add(1); array.add(2); array.add(3);   //add something
->       var ref_get = array.get;                    //make a reference to method of a native object
->       println(ref_get(1));                        //call the reference to get the element of index 1
+>       //native Java ArrayList
+>       var array = new ArrayList();
+>       //add something
+>       array.add(1); array.add(2); array.add(3);
+>       //make a reference to method of a native object
+>       var ref_get = array.get;
+>       //call the reference to get the element of index 1
+>       println(ref_get(1));
 
 ###Object
 ngscript's object system is based on environment and closure, and without annoying things like prototype and dynamic scoping.
