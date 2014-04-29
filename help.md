@@ -100,8 +100,7 @@ Native Java Classes are also available.
 java.lang.\* and java.util.\* are imported by default.
 ngscript supports `import` statement, but it's not fully tested yet.
 
-###other
-####typeof
+###typeof
 `typeof` is an operator to retrieve the type information of data. The return value is a string.
 >
 >       println(typeof println);
@@ -109,12 +108,20 @@ ngscript supports `import` statement, but it's not fully tested yet.
 >       println(typeof a);
 >       println(typeof println);
 
-####println
+###println
 println is to print a line.
 
-####eval
+###eval
 eval takes one string parameter, the string can be a valid expression or statements. 
 eval excutes the string as code, and return the %eax once the VM returned.
 >
 >       println(eval("15+20"));
 >
+
+##other
+###ngscript online
+[http://ngscript.sinaapp.com/](http://ngscript.sinaapp.com/) is an online version of ngscript.
+It is a **REPL** shell, just write your code line, and tap enter to submit.
+If you write a valid statement(include expression, while, for, if, etc.), the VM knows it's time to compile and run, then you can see the outputs. Once the compiled code is run to the end, the VM prints the %eax register value.
+
+Tap Tab to active completion, the completion feature covers useful commands, and global symbols.
