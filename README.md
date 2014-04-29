@@ -2,7 +2,7 @@
 
 ##Introduction
 ngscript is an embeded script language for Java. It has almost the same features as Javascript, and in addtion, ngscript provides an elegant way to interact with native Java classes and objects. 
-Examples in this text are ready to run on http://ngscript.sinaapp.com/ , except some related to IO operation.
+Examples in this text are ready to run on http://shell.ngscript.org/ , except some related to IO operation.
 The "VM" mentioned below, if no special emphasis, is ngscript's WscVM.
 
 ##Language elements
@@ -124,7 +124,7 @@ eval excutes the string as code, and return the %eax once the VM returned.
 
 ##other
 ###ngscript online
-[http://ngscript.sinaapp.com/](http://ngscript.sinaapp.com/) is an online version of ngscript.
+[http://shell.ngscript.org/](http://shell.ngscript.org/) is an online version of ngscript.
 It is a **REPL** shell, just write your code line, and tap enter to submit.
 If you write a valid statement(include expression, while, for, if, etc.), the VM knows it's time to compile and run, then you can see the outputs. Once the compiled code is run to the end, the VM prints the %eax register value.
 **If you wrote an incomplete structure and submitted, the prompt will display as `...`, to tell you continue writing. Only complete syntax structure will trigger a compile-run action.**
