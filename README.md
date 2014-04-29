@@ -1,7 +1,7 @@
 #ngscript: An overview
 
 ##Introduction
-ngscript is an embeded script language for Java. It provides almost the same features as Javascript, and in addtion, ngscript provide an elegant way to interact with native Java classes and objects. 
+ngscript is an embeded script language for Java. It has almost the same features as Javascript, and in addtion, ngscript provides an elegant way to interact with native Java classes and objects. 
 Examples in this text are ready to run on http://ngscript.sinaapp.com/ , except some related to IO operation.
 The "VM" mentioned below, if no special emphasis, is ngscript's WscVM.
 
