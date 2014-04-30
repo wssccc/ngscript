@@ -59,7 +59,7 @@ The other way around, if `DATA` stores in environment(or enclosure variable), `P
 
 So ngscript provides a different way to present native objects, that is what I called "Native closure".
 
->When we're making references of native Java's object method, the VM creates a native closure object to present that.
+>When we're making references of native Java's object method, the VM creates a native closure object to present it.
 >
 >       //native Java ArrayList
 >       var array = new ArrayList();
@@ -69,6 +69,8 @@ So ngscript provides a different way to present native objects, that is what I c
 >       var ref_get = array.get;
 >       //call the reference to get the element of index 1
 >       println(ref_get(1));
+
+*ngscript's native closure also supports function overriding*
 
 ###Object
 ngscript's object system is based on environment and closure, and without annoying things like prototype and dynamic scoping.
@@ -87,6 +89,11 @@ ngscript's object system is based on environment and closure, and without annoyi
 >       var newone = new One("wssccc");
 >       newone.hiho();
 >
+>Or you can use the empty constructor 
+>
+>       var otherone = new Object();
+>       otherone.hiho = newone.hiho;
+>       otherone.hiho();
 
 ####Native Java support
 Native Java Classes are also available.
@@ -117,7 +124,7 @@ println is to print a line.
 
 ###eval
 eval takes one string parameter, the string can be a valid expression or statements. 
-eval excutes the string as code, and return the %eax once the VM returned.
+eval executes the code, and return the %eax once the VM returned.
 >
 >       println(eval("15+20"));
 >
