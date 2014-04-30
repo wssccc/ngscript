@@ -137,4 +137,4 @@ If you write a valid statement(include expression, while, for, if, etc.), the VM
 **If you wrote an incomplete structure and submitted, the prompt will display as `...`, to tell you continue writing. Only complete syntax structure will trigger a compile-run action.**
 It's useful to submit a `;` (semicolon) to flush the stream, and clear error status.
 
-Tap tab to active completion, the completion feature covers useful commands, and global symbols.
+Tap tab to active completion, the completion feature covers useful commands, and members in current scope.
