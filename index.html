@@ -112,7 +112,7 @@ Primitive types are auto-boxed, but if you call a native method that requires pr
 <p>So ngscript provides a different way to present native objects, that is what I called "Native closure".</p>
 
 <blockquote>
-<p>When we're making references of native Java's object method, the VM creates a native closure object to present that.</p>
+<p>When we're making references of native Java's object method, the VM creates a native closure object to present it.</p>
 
 <pre><code>  //native Java ArrayList
   var array = new ArrayList();
@@ -124,6 +124,8 @@ Primitive types are auto-boxed, but if you call a native method that requires pr
   println(ref_get(1));
 </code></pre>
 </blockquote>
+
+<p><em>ngscript's native closure also supports function overriding</em></p>
 
 <h3>
 <a name="object" class="anchor" href="#object"><span class="octicon octicon-link"></span></a>Object</h3>
@@ -147,6 +149,13 @@ Primitive types are auto-boxed, but if you call a native method that requires pr
 
 <pre><code>  var newone = new One("wssccc");
   newone.hiho();
+</code></pre>
+
+<p>Or you can use the empty constructor </p>
+
+<pre><code>  var otherone = new Object();
+  otherone.hiho = newone.hiho;
+  otherone.hiho();
 </code></pre>
 </blockquote>
 
@@ -195,7 +204,7 @@ ngscript supports <code>import</code> statement, but it's not fully tested yet.<
 <a name="eval" class="anchor" href="#eval"><span class="octicon octicon-link"></span></a>eval</h3>
 
 <p>eval takes one string parameter, the string can be a valid expression or statements. 
-eval excutes the string as code, and return the %eax once the VM returned.</p>
+eval executes the code, and return the %eax once the VM returned.</p>
 
 <blockquote>
 <pre><code>  println(eval("15+20"));
@@ -214,7 +223,7 @@ If you write a valid statement(include expression, while, for, if, etc.), the VM
 <strong>If you wrote an incomplete structure and submitted, the prompt will display as <code>...</code>, to tell you continue writing. Only complete syntax structure will trigger a compile-run action.</strong>
 It's useful to submit a <code>;</code> (semicolon) to flush the stream, and clear error status.</p>
 
-<p>Tap tab to active completion, the completion feature covers useful commands, and global symbols.</p>
+<p>Tap tab to active completion, the completion feature covers useful commands, and members in current scope.</p>
       </section>
     </div>
 
