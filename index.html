@@ -109,16 +109,16 @@ Primitive types are auto-boxed, but if you call a native method that requires pr
 
 <p>The other way around, if <code>DATA</code> stores in environment(or enclosure variable), <code>PROCESS</code> is just a single function, obviously, the combination of <code>DATA</code> and <code>PROCESS</code> is our function closure.</p>
 
-<p>So ngscript provides a different way to present native objects, that is what I called "Native closure".</p>
+<p>So ngscript provides a different way to reference native objects, that is what I called "Native closure".</p>
 
 <blockquote>
-<p>When we're making references of native Java's object method, the VM creates a native closure object to present it.</p>
+<p>When we're making reference to native Java's object method, the VM creates a native closure to store it.</p>
 
 <pre><code>  //native Java ArrayList
   var array = new ArrayList();
   //add something
   array.add(1); array.add(2); array.add(3);
-  //make a reference to method of a native object
+  //reference to method of a native object
   var ref_get = array.get;
   //call the reference to get the element of index 1
   println(ref_get(1));
