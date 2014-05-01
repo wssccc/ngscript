@@ -57,15 +57,15 @@ It's known to all that object is a combination of `DATA` and `PROCESS`. The cent
 
 The other way around, if `DATA` stores in environment(or enclosure variable), `PROCESS` is just a single function, obviously, the combination of `DATA` and `PROCESS` is our function closure.
 
-So ngscript provides a different way to present native objects, that is what I called "Native closure".
+So ngscript provides a different way to reference native objects, that is what I called "Native closure".
 
->When we're making references of native Java's object method, the VM creates a native closure object to present it.
+>When we're making reference to native Java's object method, the VM creates a native closure to store it.
 >
 >       //native Java ArrayList
 >       var array = new ArrayList();
 >       //add something
 >       array.add(1); array.add(2); array.add(3);
->       //make a reference to method of a native object
+>       //reference to method of a native object
 >       var ref_get = array.get;
 >       //call the reference to get the element of index 1
 >       println(ref_get(1));
