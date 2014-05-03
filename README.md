@@ -129,6 +129,23 @@ eval executes the code, and return the %eax once the VM returned.
 >       println(eval("15+20"));
 >
 
+###Error handling
+ngscript supports traditional try...catch statements to handle exceptions. These exceptions can be both ngscript's exception object(inner class name VMException) and Java native excetpion(inherited from Exception class).
+
+>The try...catch statement is like this
+>
+>       try {
+>               println("will throw excepton");
+>               throw "exception";
+>       } catch (e) {
+>               println(e.toString());
+>       }
+
+`throw` statement throws an object as exception body, the object can be anything(integer, string, or something else).
+Catchable Java exceptions can be caught as well, but exceptions such as RuntimeException will not caught by the statement.
+
+The current implementation of the VM catches all unhandled exceptions by default. But it may be useful to throw some of the exceptions to the outer host environment. You can modify the VM by yourself to accomplish this.
+
 ##other
 ###ngscript online
 [http://shell.ngscript.org/](http://shell.ngscript.org/) is an online version of ngscript.
