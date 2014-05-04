@@ -35,7 +35,7 @@ Named function is declared like
 You might as well notice that **named functions are registered in global scope**.
 
 ####Lambda
-ngscript supports anonymous function, in fact, the underlying implements of named function is a variable that stores a anonymous function along with global environment.
+ngscript supports anonymous function, in fact, the underlying implements of named function is a variable that stores an anonymous function along with global environment.
 
 >Instant call of lambda
 >
@@ -97,7 +97,7 @@ ngscript's object system is based on environment and closure, and without annoyi
 
 ####Native Java support
 Native Java Classes are also available.
->Create a instance of ArrayList
+>Create an instance of ArrayList
 >
 >       var arraylist = new ArrayList();
 >       arraylist.add(1);
