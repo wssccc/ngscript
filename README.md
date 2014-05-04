@@ -161,10 +161,7 @@ Coroutine is an useful feature in certain situation. ngscript supports coroutine
 >       }
 >
 >       //create coroutine
->       var co = new Coroutine(f); 
->       //use push to add args
->       co.push("p1");
->       co.push("p2");
+>       var co = new Coroutine(f, "p1", "p2"); 
 >
 >       println("coroutine status=" + co.status());
 >       //call resume to switch to coroutine
