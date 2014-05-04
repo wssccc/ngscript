@@ -146,6 +146,44 @@ Catchable Java exceptions can be caught as well, but exceptions such as RuntimeE
 
 The current implementation of the VM catches all unhandled exceptions by default. But it may be useful to throw some of the exceptions to the outer host environment. You can modify the VM by yourself to accomplish this.
 
+###Coroutine
+Coroutine is an useful feature in certain situation. ngscript supports coroutine by providing a class Coroutine.
+>
+>       //declare a function first
+>       function f(a,b) {
+>               println("first = " + a);
+>               //call yield to switch to previous
+>               //and you can passing a retval
+>               yield(1); 
+>               //when resume at second time
+>               //this coroutine will begins at here
+>               println("second = " + b);
+>       }
+>
+>       //create coroutine
+>       var co = new Coroutine(f); 
+>       //use push to add args
+>       co.push("p1");
+>       co.push("p2");
+>
+>       println("coroutine status=" + co.status());
+>       //call resume to switch to coroutine
+>       //and will returned with a retval
+>       println("resume 1 = " + co.resume());
+>       println("coroutine status=" + co.status());
+>       //the second resume has nothing returned but garbages
+>       println("resume 2 = " + co.resume());
+>       println("coroutine status=" + co.status());
+>       //when trying to resume a coroutine which is already returned
+>       //will throw an exception
+>       try {
+>               println("resume 3:");
+>               println(co.resume());
+>       } catch(e) {
+>               println("you cannot resume a returned coroutine!");
+>       }
+>
+
 ##other
 ###ngscript online
 [http://shell.ngscript.org/](http://shell.ngscript.org/) is an online version of ngscript.
