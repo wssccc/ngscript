@@ -35,7 +35,7 @@
 <a name="introduction" class="anchor" href="#introduction"><span class="octicon octicon-link"></span></a>Introduction</h2>
 
 <p>ngscript is an embeded script language for Java. It has almost the same features as Javascript, and in addtion, ngscript provides an elegant way to interact with native Java classes and objects. 
-Examples in this text are ready to run on <a href="http://shell.ngscript.org/">http://shell.ngscript.org/</a> , except some related to IO operation.
+Examples in this text are ready to run on <a href="http://shell.ngscript.org/">http://shell.ngscript.org/</a> (or <a href="http://ngscript.sinaapp.com">http://ngscript.sinaapp.com</a> for faster access), except some related to IO operation.
 The "VM" mentioned below, if no special emphasis, is ngscript's WscVM.</p>
 
 <h2>
@@ -208,6 +208,70 @@ eval executes the code, and return the %eax once the VM returned.</p>
 
 <blockquote>
 <pre><code>  println(eval("15+20"));
+</code></pre>
+</blockquote>
+
+<h3>
+<a name="error-handling" class="anchor" href="#error-handling"><span class="octicon octicon-link"></span></a>Error handling</h3>
+
+<p>ngscript supports traditional try...catch statements to handle exceptions. These exceptions can be both ngscript's exception object(inner class name VMException) and Java native excetpion(inherited from Exception class).</p>
+
+<blockquote>
+<p>The try...catch statement is like this</p>
+
+<pre><code>  try {
+          println("will throw excepton");
+          throw "exception";
+  } catch (e) {
+          println(e.toString());
+  }
+</code></pre>
+</blockquote>
+
+<p><code>throw</code> statement throws an object as exception body, the object can be anything(integer, string, or something else).
+Catchable Java exceptions can be caught as well, but exceptions such as RuntimeException will not caught by the statement.</p>
+
+<p>The current implementation of the VM catches all unhandled exceptions by default. But it may be useful to throw some of the exceptions to the outer host environment. You can modify the VM by yourself to accomplish this.</p>
+
+<h3>
+<a name="coroutine" class="anchor" href="#coroutine"><span class="octicon octicon-link"></span></a>Coroutine</h3>
+
+<p>Coroutine is an useful feature in certain situation. ngscript supports coroutine by providing a class Coroutine.</p>
+
+<blockquote>
+<pre><code>  //declare a function first
+  function f(a,b) {
+          println("first = " + a);
+          //call yield to switch to previous
+          //and you can passing a retval
+          yield(1); 
+          //when resume at second time
+          //this coroutine will begins at here
+          println("second = " + b);
+  }
+
+  //create coroutine
+  var co = new Coroutine(f); 
+  //use push to add args
+  co.push("p1");
+  co.push("p2");
+
+  println("coroutine status=" + co.status());
+  //call resume to switch to coroutine
+  //and will returned with a retval
+  println("resume 1 = " + co.resume());
+  println("coroutine status=" + co.status());
+  //the second resume has nothing returned but garbages
+  println("resume 2 = " + co.resume());
+  println("coroutine status=" + co.status());
+  //when trying to resume a coroutine which is already returned
+  //will throw an exception
+  try {
+          println("resume 3:");
+          println(co.resume());
+  } catch(e) {
+          println("you cannot resume a returned coroutine!");
+  }
 </code></pre>
 </blockquote>
 
