@@ -1,0 +1,61 @@
+a(1,2,3);
+this.b[0] = 1;
+(1+2)*3;
+function c1(a,b,c,d)
+{
+	this.a = 1;
+	this.b = new array();
+	this.b[0] = 1;
+	this.b[1] = 2;
+}
+
+c= new c1();
+
+(function (a,b,c){
+	return a+b*c;
+})(1,2,3);
+
+if(1){
+	print("caca");
+}
+
+print(c.a);
+
+if(0){
+	print("caca");
+}else{
+	print("else");
+}
+
+function frac(i){
+	if(i==0){
+		return 1;
+	}else{
+		return frac(i-1)*i;
+	}
+}
+
+
+print(frac(5));
+
+for(i=0;i<2;i)
+{
+	break;
+}
+
+
+function err()
+{
+	println("do sth before exception");
+	throw "error occurs";
+	println("this will not appear");
+}
+
+try{
+	err();
+	println("this will not appear");
+}catch(e){
+	System.out.println("caught exception " + e.toString());
+}
+
+println("finally here");

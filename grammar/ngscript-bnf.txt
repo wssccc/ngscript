@@ -1,0 +1,188 @@
+//starter symbol 
+%start <program>;
+%array <statements> <param_list> <params> <package_path>;
+%equiv  <expr> <expr1> <expr2> <expr3> <expr4> <expr5>
+        <expr6> <expr7> <expr8> <nullable_expr> <var_ref>;
+%filter semicolon comma;
+
+<program> ::= <statements>;
+//----------------------------------------------------------------------------
+//statements is a collection of statement;
+
+<statements> ::= NULL;
+<statements> ::= <statement> <statements>;
+
+//----------------------------------------------------------------------------
+//statement forms
+%equiv <statement> <flow_statement> <expr_statement> <fc_statement>;
+
+<statement> ::= semicolon;
+<statement> ::= <flow_statement>;
+<statement> ::= <expr_statement>;
+<statement> ::= <fc_statement>;
+<statement> ::= <throw_exception>;
+<statement> ::= <import_statement>;
+
+<import_statement> ::= import <package_path> semicolon;
+<package_path> ::= ident dot <package_path>;
+<package_path> ::= ident;
+
+<flow_statement> ::= <function_decl>;
+<flow_statement> ::= <if_block>;
+<flow_statement> ::= <for_block>;
+<flow_statement> ::= <if_else_block>;
+<flow_statement> ::= <while_block>;
+<flow_statement> ::= <try_block>;
+<flow_statement> ::= <switch_block>;
+
+<expr_statement> ::= <expr> semicolon;
+<throw_exception> ::= throw <expr> semicolon => <expr>;
+
+<fc_statement> ::= <return_val>;
+<fc_statement> ::= <return_void>;
+<fc_statement> ::= break semicolon;
+<fc_statement> ::= continue semicolon;
+
+<return_val> ::= return <expr> semicolon => <expr>;
+<return_void> ::= return semicolon;
+
+
+//error handling
+//<statement> ::= ERROR semicolon;
+
+//----------------------------------------------------------------------------
+//details of function declaration
+
+<function_decl> ::= function ident lparen <param_list> rparen lcurly <statements> rcurly
+    =>    ident <param_list> <statements>;
+<param_list> ::= ident comma <param_list>;
+<param_list> ::= ident;
+<param_list> ::= NULL;
+//----------------------------------------------------------------------------
+//details of if block and else
+
+<if_block> ::= if lparen <expr> rparen lcurly <statements> rcurly
+    => <expr> <statements> ;
+<if_else_block> ::= if lparen <expr> rparen lcurly <statements> rcurly else lcurly <statements> rcurly 
+    => <expr> <statements> <statements>;
+
+//----------------------------------------------------------------------------
+//details of expr
+
+<expr> ::= <expr> assign <expr1>                => assign <expr> <expr1>;
+//add more += -= *= /= %=
+<expr> ::= <expr1>;
+
+<expr1> ::= <expr1> or <expr2>                  => or <expr1> <expr2>;
+<expr1> ::= <expr2>;
+
+<expr2> ::= <expr2> and <expr3>                 => and <expr2> <expr3>;
+<expr2> ::= <expr3>;
+
+<expr3> ::= <expr3> eq <expr4>                  => eq <expr3> <expr4>;
+<expr3> ::= <expr3> neq <expr4>                 => neq <expr3> <expr4>;
+<expr3> ::= <expr4>;
+
+<expr4> ::= <expr4> gt <expr5>                  => gt <expr4> <expr5>;
+<expr4> ::= <expr4> lt <expr5>                  => lt <expr4> <expr5>;
+<expr4> ::= <expr4> ge <expr5>                  => ge <expr4> <expr5>;
+<expr4> ::= <expr4> le <expr5>                  => le <expr4> <expr5>;
+<expr4> ::= <expr5>;
+
+<expr5> ::= <expr5> add <expr6>                 => add <expr5> <expr6>;
+<expr5> ::= <expr5> sub <expr6>                 => sub <expr5> <expr6>;
+<expr5> ::= <expr6>;
+
+<expr6> ::= <expr6> mul <expr7>                 => mul <expr6> <expr7>;
+<expr6> ::= <expr6> div <expr7>                 => div <expr6> <expr7>;
+<expr6> ::= <expr6> mod <expr7>                 => mod <expr6> <expr7>;
+<expr6> ::= <expr7>;
+
+<expr7> ::= not <expr8>;
+<expr7> ::= s_minus <expr8>;
+<expr7> ::= typeof <expr8>;
+<expr7> ::= new <expr8> lparen <params> rparen  => new <expr8> <params>;
+<expr7> ::= inc <var_ref>;
+<expr7> ::= dec <var_ref>;
+<expr7> ::= <expr8>;
+
+<expr8> ::= <var_ref>;
+<expr8> ::= lparen <expr> rparen                => <expr>;
+<expr8> ::= <expr8> lsqr <expr> rsqr            => array <expr8> <expr>;
+<expr8> ::= <expr8> lparen <params> rparen      => funcall <expr8> <params>;
+<params> ::= <expr> comma <params>;
+<params> ::= <expr> ;
+<params> ::= NULL;
+
+<expr8> ::= lcurly <params> rcurly;
+<expr8> ::= double;
+<expr8> ::= null;
+<expr8> ::= true;
+<expr8> ::= false;
+<expr8> ::= var ident;
+<expr8> ::= integer;
+<expr8> ::= string;
+<expr8> ::= function lparen <param_list> rparen lcurly <statements> rcurly
+    => lambda <param_list> <statements>;
+
+<var_ref> ::= <expr8> dot ident                   => dot <expr8> ident;
+<var_ref> ::= ident;
+
+
+
+
+<for_block> ::= for lparen <nullable_expr> semicolon <nullable_expr> semicolon <nullable_expr> rparen lcurly <statements> rcurly
+    => <nullable_expr> <nullable_expr> <nullable_expr> <statements>;
+
+<nullable_expr> ::= <expr>;
+<nullable_expr> ::= NULL;
+
+<while_block> ::= while lparen <expr> rparen lcurly <statements> rcurly
+    => <expr> <statements>;
+    
+<try_block> ::= try lcurly <hooked_statements> rcurly catch lparen ident rparen
+    lcurly <hooked_statements> rcurly finally lcurly <statements> rcurly
+    => <hooked_statements> ident <hooked_statements> <statements>;
+
+<try_block> ::= try lcurly <hooked_statements> rcurly catch lparen ident rparen
+    lcurly <hooked_statements> rcurly
+    => <hooked_statements> ident <hooked_statements>;
+
+%equiv <statements> <hooked_statements>;
+
+<hooked_statements> ::= <hooked_statement> <hooked_statements>;
+<hooked_statements> ::= NULL;
+
+%equiv <statement> <hooked_statement> <hooked_fc_statement>;
+
+<hooked_statement> ::= <flow_statement>;
+<hooked_statement> ::= <expr_statement>;
+<hooked_statement> ::= <hooked_fc_statement>;
+<hooked_statement> ::= <throw_exception>;
+
+<hooked_fc_statement> ::= <hooked_return_val>;
+<hooked_fc_statement> ::= <hooked_return_void>;
+<hooked_fc_statement> ::= <hooked_break>;
+<hooked_fc_statement> ::= <hooked_continue>;
+
+<hooked_return_val> ::= return <expr> semicolon => <expr>;
+<hooked_return_void> ::= return semicolon;
+<hooked_break> ::= break semicolon;
+<hooked_continue> ::= continue semicolon;
+
+
+<switch_block> ::= switch lparen <expr> rparen lcurly <switch_cases> <default_case> rcurly
+    => <expr> <switch_cases> <default_case>;
+
+<switch_block> ::= switch lparen <expr> rparen lcurly <switch_cases> rcurly
+    => <expr> <switch_cases>;
+
+%array <switch_cases>;
+
+<switch_cases> ::= <switch_case> <switch_cases>;
+<switch_cases> ::= NULL;
+
+<switch_case> ::= case <expr> colon <statements>
+    => <expr> <statements>;
+<default_case> ::= default colon <statements>
+    => <statements>;

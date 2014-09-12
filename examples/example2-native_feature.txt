@@ -1,0 +1,16 @@
+function func() {
+    println("call func");
+}
+
+//reference to class type
+
+println(typeof System.out);
+println(typeof 1);
+println(typeof "11");
+println(typeof func);
+println(typeof println);
+
+var p = System.out.println;
+p(1);
+p("abc");
+p("eval=" + eval("1+1"));

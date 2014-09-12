@@ -1,0 +1,28 @@
+import java.util.ArrayList;
+
+function obj() {
+    var arraylist = new ArrayList();
+    arraylist.add("1");
+    arraylist.add(123);
+
+    this.method1 = function() {
+        println(arraylist.toString());
+        println("element at 1=" + arraylist.get(1));
+    };
+
+    this.method2 = function() {
+        println("before exception");
+        arraylist.get(2);	//this line throws exception
+        println("after exception");
+    };
+}
+
+var instance = new obj();
+instance.method1();
+try {
+    instance.method2();
+} catch (ex) {
+    println(ex);
+} finally {
+    println("finally goes here");
+}
