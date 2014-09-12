@@ -4,9 +4,9 @@
     <meta charset='utf-8'>
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
 
-    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
-    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
-    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
 
     <title>ngscript by wssccc</title>
   </head>
@@ -30,6 +30,8 @@
       <section id="main_content">
         <h1>
 <a name="ngscript-an-overview" class="anchor" href="#ngscript-an-overview"><span class="octicon octicon-link"></span></a>ngscript: An overview</h1>
+
+<p><a href="https://travis-ci.org/wssccc/ngscript"><img src="https://travis-ci.org/wssccc/ngscript.svg?branch=master" alt="Build Status"></a></p>
 
 <h2>
 <a name="introduction" class="anchor" href="#introduction"><span class="octicon octicon-link"></span></a>Introduction</h2>
@@ -251,10 +253,7 @@ Catchable Java exceptions can be caught as well, but exceptions such as RuntimeE
   }
 
   //create coroutine
-  var co = new Coroutine(f); 
-  //use push to add args
-  co.push("p1");
-  co.push("p2");
+  var co = new Coroutine(f, "p1", "p2"); 
 
   println("coroutine status=" + co.status());
   //call resume to switch to coroutine
