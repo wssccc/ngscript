@@ -4,7 +4,6 @@
 package ngscript;
 
 import Lexeroid.LexToken;
-import parseroid.grammar.Symbol;
 import java.io.File;
 import ngscript.vm.WscVM;
 import ngscript.compiler.WscCompiler;
@@ -14,16 +13,14 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import ngscript.common.Instruction;
 import ngscript.parser.WscLexer;
-import ngscript.parser.WscStepParser;
 import ngscript.parser.WscStreamParser;
+import parseroid.grammar.Symbol;
 import parseroid.parser.AstNode;
 import parseroid.parser.Token;
-import parseroid.parser.TokenStream;
 
 /**
  *
@@ -35,58 +32,15 @@ public class WscLang {
      * @param args the command line arguments
      * @throws java.io.IOException
      * @throws java.lang.ClassNotFoundException
-     * @throws parser.ParserException
      * @throws Lexeroid.LexException
      */
     public static void main(String[] args) throws Exception {
         //init
         //interactive(System.in);
-        testStep();
+        //test("testwl.txt");
+        testExamples();
         //test();
         //testbean();
-    }
-
-    static void testbean() throws FileNotFoundException, Exception {
-//        NgscriptBean nb = new NgscriptBean();
-//        Scanner sc = new Scanner(new File("testwl.txt"));
-//        while (sc.hasNextLine()) {
-//            nb.write(sc.nextLine());
-//            System.out.println(nb.readJson().replace("\\n", "\n"));
-//        }
-    }
-
-    static void testStep() throws FileNotFoundException, Exception {
-        WscCompiler defaultCompiler = new WscCompiler("SCS");
-        final WscLexer lex = new WscLexer();
-
-        WscStepParser stepParser = new WscStepParser();
-        WscVM vm = new WscVM(new PrintWriter(System.out), new PrintWriter(System.err));
-
-        Scanner sc = new Scanner(new File("examples/example2-native_feature.txt"));
-        String codeBuffer = "";
-        while (sc.hasNextLine()) {
-            String code = sc.nextLine();
-            codeBuffer += code + "\n";
-            ArrayList<LexToken> tokens = lex.scanLine(code);
-            for (LexToken lt : tokens) {
-                stepParser.feed(new Token(lt.type, lt.line, lt.value));
-                if (stepParser.compilable) {
-                    AstNode ast = stepParser.getAst();
-                    System.out.println(ast.toString());
-                    defaultCompiler.compileCode(ast, codeBuffer);
-                    ArrayList<Instruction> ins = defaultCompiler.getCompiledInstructions();
-                    System.out.println(defaultCompiler.getAssembler().getInfoString(vm.getSize()));
-                    //
-                    vm.loadInstructions(ins);
-                    vm.run();
-                    vm.printEax(false);
-                    stepParser.resetParser();
-                    //reset
-                    lex.reset();
-                    codeBuffer = "";
-                }
-            }
-        }
     }
 
     static String readFile(String filepath) throws FileNotFoundException, IOException {
@@ -101,10 +55,10 @@ public class WscLang {
         return stringBuilder.toString();
     }
 
-    static void test() throws FileNotFoundException, Exception {
+    public static void test(String filename) throws FileNotFoundException, Exception {
 
         //String code = readFile("testwl.txt");
-        ArrayList<Instruction> ins = staticCompile(readFile("testwl.txt"), "MAIN");
+        ArrayList<Instruction> ins = staticCompile(readFile(filename), "MAIN");
         try {
             WscVM vm = new WscVM(new PrintWriter(System.out), new PrintWriter(System.err));
             vm.loadInstructions(ins);
@@ -114,32 +68,46 @@ public class WscLang {
         }
     }
 
+    public static void testExamples() throws Exception {
+        //
+        File folder = new File("examples");
+        File[] files = folder.listFiles();
+        for (File file : files) {
+            if (file.isFile()) {
+                System.out.println("Testing " + file);
+                try {
+                    WscLang.test(file.getPath());
+                } catch (Exception ex) {
+                    System.out.println("Failed while testing " + file);
+                    throw ex;
+                }
+            }
+        }
+    }
+
     public static ArrayList<Instruction> staticCompile(String code, String namespace) throws Exception {
 
         WscCompiler defaultCompiler = new WscCompiler(namespace);
         final WscLexer lex = new WscLexer();
         final ArrayList<LexToken> tokens = lex.scanLine(code);
         WscStreamParser streamParser = new WscStreamParser();
-        AstNode ast = streamParser.parse(new TokenStream() {
-            int i = 0;
-
-            @Override
-            public Token next() {
-                if (i < tokens.size()) {
-                    LexToken lt = tokens.get(i++);
-                    return new Token(lt.type, lt.line, lt.value);
-                } else {
-                    return new Token(Symbol.EOF.identifier);
-                }
-            }
-        });
+        //hold some
+        ArrayList<Token> tokensa = new ArrayList<Token>();
+        for (LexToken lt : tokens) {
+            tokensa.add(new Token(lt.type, lt.line, lt.value));
+        }
+        tokensa.add(new Token(Symbol.EOF.identifier));
+        //
+        Token[] ts = new Token[tokensa.size()];
+        tokensa.toArray(ts);
+        AstNode ast = streamParser.parse(ts);
 
         ArrayList<Instruction> ins = new ArrayList<Instruction>();
         streamParser.reduce(ast);
         WscStreamParser.removeNULL(ast);
         defaultCompiler.compileCode(ast, code);
         ins.addAll(defaultCompiler.getCompiledInstructions());
-        System.out.println(defaultCompiler.getAssembler().getInfoString(0));
+        //System.out.println(defaultCompiler.getAssembler().getInfoString(0));
         return ins;
 
     }

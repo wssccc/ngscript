@@ -34,10 +34,12 @@ public class LALRParser {
         symbolStack.add(Symbol.EOF.identifier);
     }
 
-    public AstNode parse(TokenStream tokenStream) throws ParserException {
+    public AstNode parse(Token[] tokens) throws ParserException {
         initParser();
+        int tokenIndex = 0;
+
         while (true) {
-            Token token = tokenStream.peek();
+            Token token = tokens[tokenIndex];
             Integer state = stateStack.peek();
             ParserAction action = table.get(token.type, state);
 
@@ -73,8 +75,8 @@ public class LALRParser {
                     symbolStack.add(Symbol.ERROR.identifier);
                     astStack.add(new AstNode(new Token("ERROR", token.line)));
                     //abandon input symbol, until a lh symbol maps a non-error action
-                    while (tokenStream.peek() != null) {
-                        token = tokenStream.peek();
+                    while (tokens[tokenIndex] != null) {
+                        token = tokens[tokenIndex];
                         action = table.get(token.type, state);
                         if (action != null) {
                             break;
@@ -83,11 +85,11 @@ public class LALRParser {
                             action = table.get(Symbol.NULL.identifier, state);
                             if (action != null) {
                                 token = new Token(Symbol.NULL.identifier, token.line);
-                                tokenStream.setOnHold();
+                                --tokenIndex;
                                 break;
                             }
                         }
-                        tokenStream.forward();
+                        ++tokenIndex;
                     }
                     if (action == null) {
                         throw new ParserException("Parser exception at error recovery phase 2, no proper error recovery production found. " + original_token.toString() + " \r\n" + origErrorMsg);
@@ -96,7 +98,7 @@ public class LALRParser {
                 } else {
                     //null
                     token = new Token(Symbol.NULL.identifier, token.line);
-                    tokenStream.setOnHold();
+                    --tokenIndex;
                 }
             }
             switch (action.action) {
@@ -104,7 +106,7 @@ public class LALRParser {
                     stateStack.add(new Integer(action.param));
                     symbolStack.add(token.type);
                     astStack.add(new AstNode(token));
-                    tokenStream.forward();
+                    ++tokenIndex;
                     break;
                 case ParserAction.REDUCE:
                     Production pro = table.getProduction(action.param);

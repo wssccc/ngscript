@@ -3,12 +3,13 @@
  */
 package org.ngscript.test;
 
+import java.io.File;
+import ngscript.WscLang;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 /**
  *
@@ -35,10 +36,8 @@ public class ScriptCodeTest {
     public void tearDown() {
     }
 
-    // TODO add test methods here.
-    // The methods must be annotated with annotation @Test. For example:
-    //
     @Test
-    public void nop() {
+    public void testExamples() throws Exception {
+        WscLang.testExamples();
     }
 }
