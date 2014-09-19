@@ -158,11 +158,11 @@ public class WscVM {
         labels.put("coroutine_return_hook_exit", instructions.size());
     }
 
-    public void run() throws InvocationTargetException {
+    public void run() throws InvocationTargetException, WscVMException {
         run(-1);
     }
 
-    public void run(long timeLimit) throws InvocationTargetException {
+    public void run(long timeLimit) throws InvocationTargetException, WscVMException {
         long startTime = System.currentTimeMillis();
         //initial
         exception.write(null);
@@ -203,7 +203,7 @@ public class WscVM {
                     err.println("VM Exception");
                     err.println(ex1.toString());
                     //Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex1);
-                    return;
+                    throw ex1; //do not hold this type
                 }
             } catch (NoSuchMethodException ex) {
                 Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex);
