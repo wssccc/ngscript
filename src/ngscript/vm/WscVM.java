@@ -30,7 +30,7 @@ public class WscVM {
     HashMap<String, Integer> labels = new HashMap<String, Integer>();
 
     HashMap<String, String> imported = new HashMap<String, String>();
-    Stack<MachineState> machine_state_stack = new Stack<MachineState>();
+    Stack<Context> machine_state_stack = new Stack<Context>();
     //machine states
     Instruction helptext;
     Stack<Object> stack = new Stack<Object>();
@@ -186,7 +186,7 @@ public class WscVM {
                 helptext = instruction;
                 continue;
             }
-            //System.out.println("run=" + instruction);
+            //System.out.println("run " + eip + "\t" + instruction);
             Method m;
             try {
                 m = VmCpu.class.getMethod(instruction.op, WscVM.class, String.class, String.class);

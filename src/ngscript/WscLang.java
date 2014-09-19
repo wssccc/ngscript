@@ -37,8 +37,8 @@ public class WscLang {
     public static void main(String[] args) throws Exception {
         //init
         //interactive(System.in);
-        //test("testwl.txt");
-        testExamples();
+        test("examples/example9.txt");
+        //testExamples();
         //test();
         //testbean();
     }
@@ -107,7 +107,7 @@ public class WscLang {
         WscStreamParser.removeNULL(ast);
         defaultCompiler.compileCode(ast, code);
         ins.addAll(defaultCompiler.getCompiledInstructions());
-        //System.out.println(defaultCompiler.getAssembler().getInfoString(0));
+        System.out.println(defaultCompiler.getAssembler().getInfoString(0));
         return ins;
 
     }
