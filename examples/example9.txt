@@ -1,0 +1,25 @@
+function coroutine1(other){
+    println("1. entering coroutine 1");
+    println("2. co1 do sth 1");
+    other.resume();
+    println("5. co1 do sth 2");
+    other.resume();
+    println("8. leaving coroutine 1");
+}
+
+function coroutine2(other){
+    println("3. entering coroutine 2");
+    println("4. co2 do sth 1");
+    other.resume();
+    println("6. co2 do sth 2");
+    println("7. leaving coroutine 2");
+}
+
+var co1 = new Coroutine(coroutine1);
+var co2 = new Coroutine(coroutine2);
+
+co1.push(co2);
+co2.push(co1);
+
+co1.resume();
+println("done");

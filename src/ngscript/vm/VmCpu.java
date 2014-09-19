@@ -352,10 +352,7 @@ public class VmCpu {
     public static void coroutine_return(WscVM vm, String param, String param_extend) {
         Coroutine nativeClosure = (Coroutine) vm.stack.get(vm.stack.size() - 1 - 1);
         nativeClosure.returned();
-        //return to original
-        Integer rip = (Integer) vm.stack.get(vm.stack.size() - 1 - 3);
-        vm.stack.remove(vm.stack.size() - 1 - 3);
-        vm.eip = rip;
+        nativeClosure.switchBack();
     }
 
     public static void new_queue(WscVM vm, String param, String param_extend) {
@@ -467,7 +464,7 @@ public class VmCpu {
     }
 
     public static void save_machine_state(WscVM vm, String param, String param_extend) {
-        MachineState ms = new MachineState(vm);
+        Context ms = new Context(vm);
         vm.machine_state_stack.push(ms);
     }
 
@@ -484,8 +481,8 @@ public class VmCpu {
                 throw new WscVMException(vm, ex.toString());
             }
         } else {
-            MachineState ms = vm.machine_state_stack.pop();
-            ms.writeTo(vm);
+            Context ms = vm.machine_state_stack.pop();
+            ms.restore(vm);
         }
     }
 

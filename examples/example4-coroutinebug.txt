@@ -1,15 +1,21 @@
-function f1(yld){
-    println("fn11");
+function innerFunction(yld){
+    println("entering inner function");
     yld();
-    println("fn12");
+    println("leaving inner function");
 }
 
-function f(a,b) {
-    println("1 " + a);
+function coroutine(a,b) {
+    println("entering coroutine");
+//    println("param 1 = " + a);
+//    println("param 2 = " + b);
     var y = yield;
-    f1(y);
-    println("2 " + b);
+    innerFunction(y);
+    println("leaving coroutine");
 }
 
-var co = new Coroutine(f,"p1","p2");
+var co = new Coroutine(coroutine,"p1","p2");
+println("resume 1");
 co.resume();
+println("resume 2");
+co.resume();
+
