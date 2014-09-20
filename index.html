@@ -1,33 +1,32 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
-    <meta charset='utf-8'>
+    <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
-
-    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
-    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen">
-    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
-
     <title>ngscript by wssccc</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <script src="javascripts/scale.fix.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
   </head>
-
   <body>
-
-    <header>
-      <div class="container">
+    <div class="wrapper">
+      <header>
         <h1>ngscript</h1>
-        <h2>ngscript language site</h2>
-
-        <section id="downloads">
-          <a href="https://github.com/wssccc/ngscript/zipball/master" class="btn">Download as .zip</a>
-          <a href="https://github.com/wssccc/ngscript/tarball/master" class="btn">Download as .tar.gz</a>
-          <a href="https://github.com/wssccc/ngscript" class="btn btn-github"><span class="icon"></span>View on GitHub</a>
-        </section>
-      </div>
-    </header>
-
-    <div class="container">
-      <section id="main_content">
+        <p>ngscript language site</p>
+        <p class="view"><a href="https://github.com/wssccc/ngscript">View the Project on GitHub <small>wssccc/ngscript</small></a></p>
+        <ul>
+          <li><a href="https://github.com/wssccc/ngscript/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/wssccc/ngscript/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/wssccc/ngscript">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
         <h1>
 <a name="ngscript-an-overview" class="anchor" href="#ngscript-an-overview"><span class="octicon octicon-link"></span></a>ngscript: An overview</h1>
 
@@ -36,7 +35,7 @@
 <h2>
 <a name="introduction" class="anchor" href="#introduction"><span class="octicon octicon-link"></span></a>Introduction</h2>
 
-<p>ngscript is an embeded script language for Java. It has almost the same features as Javascript, and in addtion, ngscript provides an elegant way to interact with native Java classes and objects. 
+<p>ngscript is an embedded script language for Java. It has almost the same features as Javascript, in addition, ngscript provides an elegant way to interact with native Java classes and objects. 
 Examples in this text are ready to run on <a href="http://shell.ngscript.org/">http://shell.ngscript.org/</a> (or <a href="http://ngscript.sinaapp.com">http://ngscript.sinaapp.com</a> for faster access), except some related to IO operation.
 The "VM" mentioned below, if no special emphasis, is ngscript's WscVM.</p>
 
@@ -50,7 +49,7 @@ The "VM" mentioned below, if no special emphasis, is ngscript's WscVM.</p>
 <strong>Please notice that if you don't initialize the variable once it is declared, ngscript doesn't guarantee the content in it.</strong></p>
 
 <blockquote>
-<p><strong>Here is some examples</strong></p>
+<p><strong>Here are some examples</strong></p>
 
 <p>Define a variable named as var_name</p>
 
@@ -63,7 +62,7 @@ The "VM" mentioned below, if no special emphasis, is ngscript's WscVM.</p>
 </code></pre>
 </blockquote>
 
-<p>Variables in ngscript seems typeless, but in fact they are all stored as Object in the VM. 
+<p>Variables in ngscript seems typeless, in fact, they are all stored as Object in the VM. 
 Primitive types are auto-boxed, but if you call a native method that requires primitive types, the VM unbox primitives automatically.</p>
 
 <h3>
@@ -84,10 +83,10 @@ Primitive types are auto-boxed, but if you call a native method that requires pr
 <h4>
 <a name="lambda" class="anchor" href="#lambda"><span class="octicon octicon-link"></span></a>Lambda</h4>
 
-<p>ngscript supports anonymous function, in fact, the underlying implements of named function is a variable that stores an anonymous function along with global environment.</p>
+<p>ngscript supports anonymous function, the underlying implements of named function is a variable that stores an anonymous function along with global environment.</p>
 
 <blockquote>
-<p>Instant call of lambda</p>
+<p>Invoking lambda</p>
 
 <pre><code>  (function (){
       println("hello");
@@ -102,14 +101,12 @@ Primitive types are auto-boxed, but if you call a native method that requires pr
 </code></pre>
 </blockquote>
 
-<p><em>If you're looking for more creative usage of lambda, read the SICP wizard book</em></p>
-
 <h4>
 <a name="native-closure" class="anchor" href="#native-closure"><span class="octicon octicon-link"></span></a>Native closure</h4>
 
-<p>It's known to all that object is a combination of <code>DATA</code> and <code>PROCESS</code>. The centeral concept of OOP is the <code>DATA</code> stored in members and the <code>PROCESS</code> defined as methods. </p>
+<p>It's known to all that object is a combination of <code>DATA</code> and <code>PROCESS</code>. The central concept of OOP is the <code>DATA</code> stored in members and the <code>PROCESS</code> defined as methods.</p>
 
-<p>The other way around, if <code>DATA</code> stores in environment(or enclosure variable), <code>PROCESS</code> is just a single function, obviously, the combination of <code>DATA</code> and <code>PROCESS</code> is our function closure.</p>
+<p>The other way around, if <code>DATA</code> stores in environment(or enclosure variable), <code>PROCESS</code> is just a single function, obviously, the combination of <code>DATA</code> and <code>PROCESS</code> is called function closure.</p>
 
 <p>So ngscript provides a different way to reference native objects, that is what I called "Native closure".</p>
 
@@ -260,7 +257,7 @@ Catchable Java exceptions can be caught as well, but exceptions such as RuntimeE
   //and will returned with a retval
   println("resume 1 = " + co.resume());
   println("coroutine status=" + co.status());
-  //the second resume has nothing returned but garbages
+  //the second resume has nothing returned but garbage
   println("resume 2 = " + co.resume());
   println("coroutine status=" + co.status());
   //when trying to resume a coroutine which is already returned
@@ -289,7 +286,11 @@ It's useful to submit a <code>;</code> (semicolon) to flush the stream, and clea
 <p>Tap tab to active completion, the completion feature covers useful commands, and members in current scope.</p>
       </section>
     </div>
-
+    <footer>
+      <p>Project maintained by <a href="https://github.com/wssccc">wssccc</a></p>
+      <p>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></p>
+    </footer>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
     
   </body>
 </html>
