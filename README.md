@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/wssccc/ngscript.svg?branch=master)](https://travis-ci.org/wssccc/ngscript)
 
 ##Introduction
-ngscript is an embeded script language for Java. It has almost the same features as Javascript, and in addtion, ngscript provides an elegant way to interact with native Java classes and objects. 
+ngscript is an embedded script language for Java. It has almost the same features as Javascript, in addition, ngscript provides an elegant way to interact with native Java classes and objects. 
 Examples in this text are ready to run on http://shell.ngscript.org/ (or http://ngscript.sinaapp.com for faster access), except some related to IO operation.
 The "VM" mentioned below, if no special emphasis, is ngscript's WscVM.
 
@@ -13,7 +13,7 @@ The "VM" mentioned below, if no special emphasis, is ngscript's WscVM.
 To define a variable, use `var` statement. 
 **Please notice that if you don't initialize the variable once it is declared, ngscript doesn't guarantee the content in it.**
 
->**Here is some examples**
+>**Here are some examples**
 >
 >Define a variable named as var_name
 >
@@ -23,7 +23,7 @@ To define a variable, use `var` statement.
 >
 >       for (var i = 0; i < 9; ++i) ...
 
-Variables in ngscript seems typeless, but in fact they are all stored as Object in the VM. 
+Variables in ngscript seems typeless, in fact, they are all stored as Object in the VM. 
 Primitive types are auto-boxed, but if you call a native method that requires primitive types, the VM unbox primitives automatically.
 
 ###Function
@@ -37,9 +37,9 @@ Named function is declared like
 You might as well notice that **named functions are registered in global scope**.
 
 ####Lambda
-ngscript supports anonymous function, in fact, the underlying implements of named function is a variable that stores an anonymous function along with global environment.
+ngscript supports anonymous function, the underlying implements of named function is a variable that stores an anonymous function along with global environment.
 
->Instant call of lambda
+>Invoking lambda
 >
 >       (function (){
 >           println("hello");
@@ -52,12 +52,10 @@ ngscript supports anonymous function, in fact, the underlying implements of name
 >       };
 >
 
-*If you're looking for more creative usage of lambda, read the SICP wizard book*
-
 ####Native closure
-It's known to all that object is a combination of `DATA` and `PROCESS`. The centeral concept of OOP is the `DATA` stored in members and the `PROCESS` defined as methods. 
+It's known to all that object is a combination of `DATA` and `PROCESS`. The central concept of OOP is the `DATA` stored in members and the `PROCESS` defined as methods.
 
-The other way around, if `DATA` stores in environment(or enclosure variable), `PROCESS` is just a single function, obviously, the combination of `DATA` and `PROCESS` is our function closure.
+The other way around, if `DATA` stores in environment(or enclosure variable), `PROCESS` is just a single function, obviously, the combination of `DATA` and `PROCESS` is called function closure.
 
 So ngscript provides a different way to reference native objects, that is what I called "Native closure".
 
@@ -170,7 +168,7 @@ Coroutine is an useful feature in certain situation. ngscript supports coroutine
 >       //and will returned with a retval
 >       println("resume 1 = " + co.resume());
 >       println("coroutine status=" + co.status());
->       //the second resume has nothing returned but garbages
+>       //the second resume has nothing returned but garbage
 >       println("resume 2 = " + co.resume());
 >       println("coroutine status=" + co.status());
 >       //when trying to resume a coroutine which is already returned
