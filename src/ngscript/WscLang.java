@@ -37,7 +37,7 @@ public class WscLang {
     public static void main(String[] args) throws Exception {
         //init
         //interactive(System.in);
-        test("examples/example9.txt");
+        test("examples/example4-coroutine-inner.txt");
         //testExamples();
         //test();
         //testbean();

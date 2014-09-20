@@ -349,11 +349,11 @@ public class VmCpu {
         vm.eax.write(new TypeOp(vm).eval("eq", objs[0], objs[1]));
     }
 
-    public static void coroutine_return(WscVM vm, String param, String param_extend) {
-        Coroutine nativeClosure = (Coroutine) vm.stack.get(vm.stack.size() - 1 - 1);
-        nativeClosure.returned();
-        nativeClosure.switchBack();
-    }
+//    public static void coroutine_return(WscVM vm, String param, String param_extend) {
+//        Coroutine nativeClosure = (Coroutine) vm.stack.get(vm.stack.size() - 1 - 1);
+//        nativeClosure.returned();
+//        nativeClosure.switchBack();
+//    }
 
     public static void new_queue(WscVM vm, String param, String param_extend) {
         int n = Integer.parseInt(param);

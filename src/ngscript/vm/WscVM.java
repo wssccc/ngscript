@@ -31,6 +31,8 @@ public class WscVM {
 
     HashMap<String, String> imported = new HashMap<String, String>();
     Stack<Context> machine_state_stack = new Stack<Context>();
+    Stack<Context> contextStack = new Stack<Context>();
+
     //machine states
     Instruction helptext;
     Stack<Object> stack = new Stack<Object>();
@@ -43,7 +45,6 @@ public class WscVM {
 
     public final VmMemRef env = new VmMemRef();
     int eip = 0;
-    boolean halted = false;
     //
 
     PrintWriter out;
@@ -152,33 +153,25 @@ public class WscVM {
         }));
         map.put("Coroutine", new VmMemRef(Coroutine.class));
         //init coroutine return-hook
-        instructions.add(new Instruction("jmp", "coroutine_return_hook_exit"));
-        instructions.add(new Instruction("coroutine_return"));
-        labels.put("coroutine_return_hook", 1);
-        labels.put("coroutine_return_hook_exit", instructions.size());
+//        instructions.add(new Instruction("jmp", "coroutine_return_hook_exit"));
+//        instructions.add(new Instruction("coroutine_return"));
+//        labels.put("coroutine_return_hook", 1);
+//        labels.put("coroutine_return_hook_exit", instructions.size());
     }
 
     public void run() throws InvocationTargetException, WscVMException {
-        run(-1);
-    }
-
-    public void run(long timeLimit) throws InvocationTargetException, WscVMException {
-        long startTime = System.currentTimeMillis();
         //initial
         exception.write(null);
         eax.write(null);
         while (true) {
-            if (timeLimit > 0) {
-                if (System.currentTimeMillis() - startTime > timeLimit) {
-                    System.out.println(System.currentTimeMillis() - startTime);
-                    err.println("VM Time Limit Exceeded");
-                    eip = instructions.size();
+            if (eip < 0 || eip >= instructions.size()) {
+                //halted, try upper context
+                if (!contextStack.isEmpty()) {
+                    Context lastContext = contextStack.pop();
+                    lastContext.restore(this);
+                } else {
                     return;
                 }
-            }
-            if (halted || eip >= instructions.size()) {
-                //halt
-                return;
             }
             Instruction instruction = instructions.get(eip);
             ++eip;

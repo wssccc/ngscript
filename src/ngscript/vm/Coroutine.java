@@ -27,8 +27,7 @@ public final class Coroutine extends VmClosure {
 
     LinkedList<Object> args = new LinkedList<Object>();
     Context context;
-    Context parentContext;
-    String status = STATUS_SUSPENDED;
+    private boolean running = false;//only a flag
 
     public Coroutine(VmClosure closure) {
         super(closure.func_label, new ScopeHash(closure.closure_env), closure.vm);
@@ -46,8 +45,7 @@ public final class Coroutine extends VmClosure {
         args.add(obj);
     }
 
-    void setupCoroutine(VmClosure ref) {
-        parentContext = new Context(vm);
+    final void setupCoroutine(VmClosure ref) {
         context = new Context(vm);
         context.stack = new Stack<Object>();
 
@@ -55,7 +53,7 @@ public final class Coroutine extends VmClosure {
         context.stack.push(args);  //args
         context.stack.push(this);  //callee, for hook
         context.stack.push(null);//no need to know outter env
-        context.stack.push(vm.labels.get("coroutine_return_hook")); //hook return addr
+        context.stack.push(-1); //return address is a halt instruction
 
         context.stack_size = context.stack.size();
 
@@ -83,13 +81,14 @@ public final class Coroutine extends VmClosure {
     }
 
     public void resume() throws WscVMException {
-        if (!STATUS_SUSPENDED.equals(status)) {
+        if (!STATUS_SUSPENDED.equals(this.status())) {
             throw new WscVMException(this.vm, "coroutine is not suspended");
         }
-        status = STATUS_RUNNING;
+        running = true;
         ScopeHash outenv = (ScopeHash) vm.stack.peek();
         //switch context
-        parentContext.save(vm);
+        Context saved = new Context(vm);
+        vm.contextStack.push(saved);
         context.restore(vm);
 //        vm.stack.pop();
 //        vm.stack.pop();//clear frame for resume
@@ -118,15 +117,11 @@ public final class Coroutine extends VmClosure {
          the pops for resume will be used to clear the frame of calling coroutine body
          */
 
-        parentContext.restore(vm);
+        Context saved = vm.contextStack.pop();
+        saved.restore(vm);
         vm.eax.write(retVal); //write return val, dumb
-        status = STATUS_SUSPENDED;
+        running = false;
         return retVal;
-    }
-
-    public void switchBack() {
-        parentContext.eax = vm.eax;
-        parentContext.restore(vm);
     }
 
     public Object yield() {
@@ -134,10 +129,13 @@ public final class Coroutine extends VmClosure {
     }
 
     public String status() {
-        return status;
-    }
-
-    public void returned() {
-        this.status = STATUS_RETURNED;
+        //see if context halts
+        if (context.eip == -1) {
+            return STATUS_RETURNED;
+        } else if (running) {
+            return STATUS_RUNNING;
+        } else {
+            return STATUS_SUSPENDED;
+        }
     }
 }

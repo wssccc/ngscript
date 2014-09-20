@@ -1,0 +1,21 @@
+function innerFunction(yld){
+    println("5. entering inner function");
+    yld();
+    println("7. leaving inner function");
+}
+
+function coroutine(a,b) {
+    println("2. entering coroutine");
+    println("3. param 1 = " + a);
+    println("4. param 2 = " + b);
+    var y = yield;
+    innerFunction(y);
+    println("8. leaving coroutine");
+}
+
+var co = new Coroutine(coroutine,"p1","p2");
+println("1. resume 1");
+co.resume();
+println("6. resume 2");
+co.resume();
+println("9. done");
