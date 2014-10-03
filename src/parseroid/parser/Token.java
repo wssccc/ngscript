@@ -11,32 +11,32 @@ package parseroid.parser;
 public class Token {
 
     public String type;
-    public int line;
     public String value;
+    public int line_no;
 
     public boolean isValidPos() {
-        return line != -1;
+        return line_no != -1;
     }
 
     public Token(String type) {
         this.type = type;
-        this.line = -1;
+        this.line_no = -1;
     }
 
     public Token(String type, int line) {
         this.type = type;
-        this.line = line;
+        this.line_no = line;
     }
 
     public Token(String type, int line, String value) {
         this.type = type;
-        this.line = line;
+        this.line_no = line;
         this.value = value;
     }
 
     @Override
     public String toString() {
-        return "[" + type + (value == null ? "" : "," + value) + "]" + (line >= 0 ? (" line:" + line) : (""));
+        return "\r\n[" + type + (value == null ? "" : "," + value) + "]" + (line_no >= 0 ? (" line:" + line_no) : (""));
     }
 
 }

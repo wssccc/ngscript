@@ -73,7 +73,7 @@ public class LALRParser {
                     stateStack.add(action.param);
                     state = stateStack.peek();
                     symbolStack.add(Symbol.ERROR.identifier);
-                    astStack.add(new AstNode(new Token("ERROR", token.line)));
+                    astStack.add(new AstNode(new Token("ERROR", token.line_no)));
                     //abandon input symbol, until a lh symbol maps a non-error action
                     while (tokens[tokenIndex] != null) {
                         token = tokens[tokenIndex];
@@ -84,7 +84,7 @@ public class LALRParser {
                             //try null
                             action = table.get(Symbol.NULL.identifier, state);
                             if (action != null) {
-                                token = new Token(Symbol.NULL.identifier, token.line);
+                                token = new Token(Symbol.NULL.identifier, token.line_no);
                                 --tokenIndex;
                                 break;
                             }
@@ -97,7 +97,7 @@ public class LALRParser {
                     //
                 } else {
                     //null
-                    token = new Token(Symbol.NULL.identifier, token.line);
+                    token = new Token(Symbol.NULL.identifier, token.line_no);
                     --tokenIndex;
                 }
             }
@@ -204,8 +204,8 @@ public class LALRParser {
                 if (node.contents.get(i).token.isValidPos()) {
                     // node.token.col = node.contents.get(i).token.col;
 
-                    if (node.token.line > node.contents.get(i).token.line || !node.token.isValidPos()) {
-                        node.token.line = node.contents.get(i).token.line;
+                    if (node.token.line_no > node.contents.get(i).token.line_no || !node.token.isValidPos()) {
+                        node.token.line_no = node.contents.get(i).token.line_no;
                         changed = true;
                     }
 

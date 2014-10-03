@@ -7,9 +7,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
-import ngscript.vm.strcuture.NativeClosure;
-import ngscript.vm.strcuture.NativeMemref;
-import ngscript.vm.strcuture.VmMemRef;
+import ngscript.vm.structure.NativeClosure;
+import ngscript.vm.structure.NativeMemref;
+import ngscript.vm.structure.VmMemRef;
 
 /**
  *

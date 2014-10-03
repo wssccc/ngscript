@@ -1,7 +1,7 @@
 /*
  *  wssccc all rights reserved
  */
-package ngscript.vm.strcuture;
+package ngscript.vm.structure;
 
 import java.lang.reflect.Field;
 import java.util.logging.Level;

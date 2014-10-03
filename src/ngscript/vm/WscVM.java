@@ -4,8 +4,8 @@
 package ngscript.vm;
 
 import java.io.PrintWriter;
-import ngscript.vm.strcuture.VmMemRef;
-import ngscript.vm.strcuture.VmClosure;
+import ngscript.vm.structure.VmMemRef;
+import ngscript.vm.structure.VmClosure;
 import ngscript.common.Instruction;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -16,7 +16,7 @@ import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import ngscript.WscLang;
-import ngscript.vm.strcuture.BuiltinClosure;
+import ngscript.vm.structure.BuiltinClosure;
 
 /**
  *
@@ -24,7 +24,6 @@ import ngscript.vm.strcuture.BuiltinClosure;
  */
 public class WscVM {
 
-    int code_section = 0;
     //static data
     ArrayList<Instruction> instructions = new ArrayList<Instruction>();
     HashMap<String, Integer> labels = new HashMap<String, Integer>();
@@ -124,31 +123,6 @@ public class WscVM {
                 //prepare env
                 ScopeHash env = new ScopeHash((ScopeHash) vm.env.read());
                 vm.env.write(env);
-            }
-        }));
-        map.put("eval", new VmMemRef(new BuiltinClosure() {
-            @Override
-            public void invoke(WscVM vm, LinkedList<Object> vars) throws Exception {
-                if (vars.size() != 1) {
-                    throw new WscVMException(vm, "eval takes 1 param");
-                }
-
-                String code = (String) vars.get(0) + ";";
-                ArrayList<Instruction> ins = WscLang.staticCompile(code, "ECS:" + code_section);
-                //manually asm
-                //add header
-                ins.add(0, new Instruction("jmp", "exit_code_section_" + code_section));
-                ins.add(1, new Instruction("label", "begin_code_section_" + code_section));
-                //add tail
-                ins.add(new Instruction("ret"));
-                ins.add(new Instruction("label", "exit_code_section_" + code_section));
-                int oldeip = vm.eip;
-                loadInstructions(ins);
-                //jmp
-                vm.stack.push(oldeip);
-                vm.callstack.push(new VmClosure("begin_code_section_" + code_section, null, WscVM.this));
-                int nip = vm.labels.get("begin_code_section_" + code_section);
-                vm.eip = nip;
             }
         }));
         map.put("Coroutine", new VmMemRef(Coroutine.class));

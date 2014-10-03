@@ -3,7 +3,7 @@
  */
 package ngscript;
 
-import Lexeroid.LexToken;
+import org.ngscript.fastlexer.Lexer;
 import java.io.File;
 import ngscript.vm.WscVM;
 import ngscript.compiler.WscCompiler;
@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import ngscript.common.Instruction;
-import ngscript.parser.WscLexer;
 import ngscript.parser.WscStreamParser;
 import parseroid.grammar.Symbol;
 import parseroid.parser.AstNode;
@@ -29,7 +28,7 @@ import parseroid.parser.Token;
 public class WscLang {
 
     /**
-     * @param args the command line arguments
+     * @param args the command line_no arguments
      * @throws java.io.IOException
      * @throws java.lang.ClassNotFoundException
      * @throws Lexeroid.LexException
@@ -37,7 +36,7 @@ public class WscLang {
     public static void main(String[] args) throws Exception {
         //init
         //interactive(System.in);
-        test("examples/example4-coroutine-inner.txt");
+        test("examples/example2-native_feature.txt");
         //testExamples();
         //test();
         //testbean();
@@ -56,7 +55,6 @@ public class WscLang {
     }
 
     public static void test(String filename) throws FileNotFoundException, Exception {
-
         //String code = readFile("testwl.txt");
         ArrayList<Instruction> ins = staticCompile(readFile(filename), "MAIN");
         try {
@@ -86,15 +84,14 @@ public class WscLang {
     }
 
     public static ArrayList<Instruction> staticCompile(String code, String namespace) throws Exception {
-
         WscCompiler defaultCompiler = new WscCompiler(namespace);
-        final WscLexer lex = new WscLexer();
-        final ArrayList<LexToken> tokens = lex.scanLine(code);
+        final ArrayList<Token> tokens = Lexer.scan(code);
+        System.out.println(tokens);
         WscStreamParser streamParser = new WscStreamParser();
         //hold some
         ArrayList<Token> tokensa = new ArrayList<Token>();
-        for (LexToken lt : tokens) {
-            tokensa.add(new Token(lt.type, lt.line, lt.value));
+        for (Token lt : tokens) {
+            tokensa.add(new Token(lt.type, lt.line_no, lt.value));
         }
         tokensa.add(new Token(Symbol.EOF.identifier));
         //

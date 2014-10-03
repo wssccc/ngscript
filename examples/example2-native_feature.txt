@@ -13,4 +13,3 @@ println(typeof println);
 var p = System.out.println;
 p(1);
 p("abc");
-p("eval=" + eval("1+1"));

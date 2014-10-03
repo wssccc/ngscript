@@ -24,7 +24,7 @@ public class WscAssembler {
     }
 
     public String label(String name, AstNode ast) {
-        String label_name = ast.token.type + "_$" + ast.token.line + "_" + name;
+        String label_name = ast.token.type + "_$" + ast.token.line_no + "_" + name;
         int i;
         if (labels.containsKey(label_name)) {
             //search for distinct label

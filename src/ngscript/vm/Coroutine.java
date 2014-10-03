@@ -10,10 +10,10 @@ import java.util.LinkedList;
 import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import ngscript.vm.strcuture.NativeClosure;
-import ngscript.vm.strcuture.VmClosure;
-import ngscript.vm.strcuture.VmMemRef;
-import ngscript.vm.strcuture.undefined;
+import ngscript.vm.structure.NativeClosure;
+import ngscript.vm.structure.VmClosure;
+import ngscript.vm.structure.VmMemRef;
+import ngscript.vm.structure.undefined;
 
 /**
  *

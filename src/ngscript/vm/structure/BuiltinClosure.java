@@ -1,7 +1,7 @@
 /*
  *  wssccc all rights reserved
  */
-package ngscript.vm.strcuture;
+package ngscript.vm.structure;
 
 import java.util.LinkedList;
 import ngscript.vm.WscVM;

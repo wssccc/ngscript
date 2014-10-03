@@ -4,9 +4,9 @@
 package ngscript.vm;
 
 import java.lang.reflect.Array;
-import ngscript.vm.strcuture.VmMemRef;
-import ngscript.vm.strcuture.VmClosure;
-import ngscript.vm.strcuture.NativeClosure;
+import ngscript.vm.structure.VmMemRef;
+import ngscript.vm.structure.VmClosure;
+import ngscript.vm.structure.NativeClosure;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -14,8 +14,8 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import ngscript.vm.strcuture.BuiltinClosure;
-import ngscript.vm.strcuture.undefined;
+import ngscript.vm.structure.BuiltinClosure;
+import ngscript.vm.structure.undefined;
 
 /**
  *

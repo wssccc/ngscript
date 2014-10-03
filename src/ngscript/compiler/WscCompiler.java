@@ -50,8 +50,8 @@ public class WscCompiler {
     }
 
     void printDebug(AstNode ast) {
-        if (printedLines != ast.token.line) {
-            while (printedLines < ast.token.line) {
+        if (printedLines != ast.token.line_no) {
+            while (printedLines < ast.token.line_no) {
                 asm.emit("//", sc.hasNextLine() ? sc.nextLine() : "no line", "" + printedLines);
                 ++printedLines;
             }

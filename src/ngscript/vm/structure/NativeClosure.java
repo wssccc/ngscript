@@ -1,7 +1,7 @@
 /*
  *  wssccc all rights reserved
  */
-package ngscript.vm.strcuture;
+package ngscript.vm.structure;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
