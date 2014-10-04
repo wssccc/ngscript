@@ -44,59 +44,13 @@ public class LALRParser {
             ParserAction action = table.get(token.type, state);
 
             if (action == null) {
-                //try NULL sym
+                //try NULL symbol
                 action = table.get(Symbol.NULL.identifier, state);
                 if (action == null) {
                     //error occured
-                    String origErrorMsg = "Expecting " + table.getExpectation(state);
-                    Token original_token = token;
-                    //try pop stack, until error can shift
-                    while (!stateStack.empty()) {
-                        state = stateStack.peek();
-                        action = table.get(Symbol.ERROR.identifier, state);
-                        if (action != null) {
-                            if (action.action == 's') {
-                                break;
-                            }
-                        }
-                        stateStack.pop();
-                        symbolStack.pop();
-                        if (!astStack.isEmpty()) {
-                            astStack.pop();
-                        }
-                    }
-                    //if still has no action, raise error
-                    if (action == null) {
-                        throw new ParserException("Parser exception at error recovery phase 1, no near shift action found. " + original_token.toString() + " [state=" + state + "]\r\n" + origErrorMsg);
-                    }
-                    //shift error in
-                    stateStack.add(action.param);
-                    state = stateStack.peek();
-                    symbolStack.add(Symbol.ERROR.identifier);
-                    astStack.add(new AstNode(new Token("ERROR", token.line_no)));
-                    //abandon input symbol, until a lh symbol maps a non-error action
-                    while (tokens[tokenIndex] != null) {
-                        token = tokens[tokenIndex];
-                        action = table.get(token.type, state);
-                        if (action != null) {
-                            break;
-                        } else {
-                            //try null
-                            action = table.get(Symbol.NULL.identifier, state);
-                            if (action != null) {
-                                token = new Token(Symbol.NULL.identifier, token.line_no);
-                                --tokenIndex;
-                                break;
-                            }
-                        }
-                        ++tokenIndex;
-                    }
-                    if (action == null) {
-                        throw new ParserException("Parser exception at error recovery phase 2, no proper error recovery production found. " + original_token.toString() + " \r\n" + origErrorMsg);
-                    }
-                    //
+                    throw new ParserException("Parser exception while reading " + token.toString() + " \r\n" + table.getExpectation(state));
                 } else {
-                    //null
+                    //reject 1 symbol
                     token = new Token(Symbol.NULL.identifier, token.line_no);
                     --tokenIndex;
                 }

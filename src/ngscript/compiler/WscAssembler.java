@@ -17,11 +17,6 @@ public class WscAssembler {
 
     ArrayList<Instruction> instructions = new ArrayList<Instruction>();
     HashMap<String, Integer> labels = new HashMap<String, Integer>();
-    String namespace;
-
-    public WscAssembler(String namespace) {
-        this.namespace = namespace;
-    }
 
     public String label(String name, AstNode ast) {
         String label_name = ast.token.type + "_$" + ast.token.line_no + "_" + name;
@@ -33,7 +28,7 @@ public class WscAssembler {
             i = 0;
         }
         labels.put(label_name, i);
-        return label_name + (i == 0 ? "" : i) + '#' + namespace;
+        return label_name + (i == 0 ? "" : i);
     }
 
     public void emit(String opr, String param, String param_extend) {
@@ -74,19 +69,25 @@ public class WscAssembler {
     public String getInfoString(int offset) {
         StringBuilder builder = new StringBuilder();
         int i = 0;
+        int type = 0;
         for (Instruction instruction : instructions) {
             if (!instruction.op.equals("//")) {
-
+                if (type == 1) {
+                    builder.append("//------------------------------------------------");
+                    builder.append("\n");
+                }
+                type = 0;
                 builder.append(String.format("%08d", i + offset));
                 builder.append('\t');
-
                 builder.append(instruction.toString());
                 builder.append("\n");
             } else {
-                builder.append("//------------------------------------------------");
-                builder.append("\n");
+                if (type == 0) {
+                    builder.append("//------------------------------------------------");
+                    builder.append("\n");
+                }
+                type = 1;
                 builder.append(instruction.toString());
-                builder.append("\n");
                 builder.append("\n");
             }
 

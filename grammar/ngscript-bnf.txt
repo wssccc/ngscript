@@ -1,8 +1,10 @@
-//starter symbol 
+//starter symbol
 %start <program>;
 %array <statements> <param_list> <params> <package_path>;
 %equiv  <expr> <expr1> <expr2> <expr3> <expr4> <expr5>
-        <expr6> <expr7> <expr8> <nullable_expr> <var_ref>;
+        <expr6> <expr7> <expr8> <nullable_expr>
+        <expr_bit_or> <expr_bit_xor> <expr_bit_and> <expr_cond>
+        <expr9>;
 %filter semicolon comma;
 
 <program> ::= <statements>;
@@ -69,18 +71,34 @@
 //----------------------------------------------------------------------------
 //details of expr
 
-<expr> ::= <expr> assign <expr1>                => assign <expr> <expr1>;
 //add more += -= *= /= %=
-<expr> ::= <expr1>;
+<expr> ::= <expr> assign <expr_cond>                => assign <expr> <expr_cond>;
+<expr> ::= <expr_cond> ;
+
+<expr_cond> ::= <expr_cond> question_mark <expr1> colon <expr1>
+    => cond <expr_cond> <expr1> <expr1>;
+    
+<expr_cond> ::= <expr1> ;
 
 <expr1> ::= <expr1> or <expr2>                  => or <expr1> <expr2>;
 <expr1> ::= <expr2>;
 
-<expr2> ::= <expr2> and <expr3>                 => and <expr2> <expr3>;
-<expr2> ::= <expr3>;
+<expr2> ::= <expr2> and <expr_bit_or>                 => and <expr2> <expr_bit_or>;
+<expr2> ::= <expr_bit_or>;
+
+<expr_bit_or> ::= <expr_bit_or> bit_or <expr_bit_xor>                 => bit_or <expr_bit_or> <expr_bit_xor>;
+<expr_bit_or> ::= <expr_bit_xor>;
+
+<expr_bit_xor> ::= <expr_bit_xor> bit_xor <expr_bit_and>                 => bit_xor <expr_bit_xor> <expr_bit_and>;
+<expr_bit_xor> ::= <expr_bit_and>;
+
+<expr_bit_and> ::= <expr_bit_and> bit_and <expr3>                 => bit_and <expr_bit_and> <expr3>;
+<expr_bit_and> ::= <expr3>;
 
 <expr3> ::= <expr3> eq <expr4>                  => eq <expr3> <expr4>;
+<expr3> ::= <expr3> veq <expr4>                  => veq <expr3> <expr4>;
 <expr3> ::= <expr3> neq <expr4>                 => neq <expr3> <expr4>;
+<expr3> ::= <expr3> vneq <expr4>                 => vneq <expr3> <expr4>;
 <expr3> ::= <expr4>;
 
 <expr4> ::= <expr4> gt <expr5>                  => gt <expr4> <expr5>;
@@ -98,38 +116,58 @@
 <expr6> ::= <expr6> mod <expr7>                 => mod <expr6> <expr7>;
 <expr6> ::= <expr7>;
 
+<expr7> ::= sub <expr8>     => neg <expr8>;
 <expr7> ::= not <expr8>;
-<expr7> ::= s_minus <expr8>;
 <expr7> ::= typeof <expr8>;
 <expr7> ::= new <expr8> lparen <params> rparen  => new <expr8> <params>;
-<expr7> ::= inc <var_ref>;
-<expr7> ::= dec <var_ref>;
+<expr7> ::= inc <expr8>;
+<expr7> ::= dec <expr8>;
+<expr7> ::= <expr8> inc => post_inc <expr8>;
+<expr7> ::= <expr8> dec => post_dec <expr8>;
 <expr7> ::= <expr8>;
 
-<expr8> ::= <var_ref>;
 <expr8> ::= lparen <expr> rparen                => <expr>;
-<expr8> ::= <expr8> lsqr <expr> rsqr            => array <expr8> <expr>;
+
+<expr8> ::= <expr8> dot ident                   => dot <expr8> ident;
+<expr8> ::= var ident;
+<expr8> ::= ident;
+
 <expr8> ::= <expr8> lparen <params> rparen      => funcall <expr8> <params>;
 <params> ::= <expr> comma <params>;
 <params> ::= <expr> ;
 <params> ::= NULL;
 
-<expr8> ::= lcurly <params> rcurly;
-<expr8> ::= double;
-<expr8> ::= null;
-<expr8> ::= true;
-<expr8> ::= false;
-<expr8> ::= var ident;
-<expr8> ::= integer;
-<expr8> ::= string;
-<expr8> ::= function lparen <param_list> rparen lcurly <statements> rcurly
+<expr8> ::= <expr8> lsqr <expr> rsqr            => array <expr8> <expr>;
+
+<expr8> ::= <expr9> ;
+
+//literals
+<expr9> ::= undefined;
+<expr9> ::= double;
+<expr9> ::= null;
+<expr9> ::= true;
+<expr9> ::= false;
+<expr9> ::= integer;
+<expr9> ::= string;
+<expr9> ::= function lparen <param_list> rparen lcurly <statements> rcurly
     => lambda <param_list> <statements>;
 
-<var_ref> ::= <expr8> dot ident                   => dot <expr8> ident;
-<var_ref> ::= ident;
+//array literal
+<expr9> ::= lsqr <array_items> rsqr => array_new <array_items>;
+%array <array_items>;
+<array_items> ::= <expr> comma <array_items>;
+<array_items> ::= <expr> ;
+<array_items> ::= NULL ;
 
+//object literal
+%array <kvps>;
+<expr9> ::= lcurly <kvps> rcurly    => object_new <kvps>;
+<kvps> ::= NULL ;
+<kvps> ::= <kvp> ;
+<kvps> ::= <kvp> comma <kvps>;
 
-
+<kvp> ::= ident colon <expr>    => ident <expr>;
+<kvp> ::= string colon <expr> => string <expr>;
 
 <for_block> ::= for lparen <nullable_expr> semicolon <nullable_expr> semicolon <nullable_expr> rparen lcurly <statements> rcurly
     => <nullable_expr> <nullable_expr> <nullable_expr> <statements>;

@@ -36,7 +36,7 @@ public class Token {
 
     @Override
     public String toString() {
-        return "\r\n[" + type + (value == null ? "" : "," + value) + "]" + (line_no >= 0 ? (" line:" + line_no) : (""));
+        return "[" + type + (value == null ? "" : "," + value) + "]" + (line_no >= 0 ? (" line:" + line_no) : (""));
     }
 
 }

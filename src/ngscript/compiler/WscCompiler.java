@@ -3,9 +3,9 @@
  */
 package ngscript.compiler;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Scanner;
 import java.util.Stack;
 import java.util.logging.Level;
@@ -26,9 +26,28 @@ public class WscCompiler {
     Stack<String> continueStack = new Stack<String>();
     Stack<String> breakStack = new Stack<String>();
     Stack<String> finallyStack = new Stack<String>();
+    final HashSet<String> binaryOp;
 
-    public WscCompiler(String namespace) {
-        asm = new WscAssembler(namespace);
+    public WscCompiler() {
+        asm = new WscAssembler();
+        binaryOp = new HashSet<String>();
+        binaryOp.add("or");
+        binaryOp.add("bit_xor");
+        binaryOp.add("bit_or");
+        binaryOp.add("bit_and");
+        binaryOp.add("eq");
+        binaryOp.add("neq");
+        binaryOp.add("lt");
+        binaryOp.add("gt");
+        binaryOp.add("le");
+        binaryOp.add("ge");
+        binaryOp.add("veq");
+        binaryOp.add("vneq");
+        binaryOp.add("mul");
+        binaryOp.add("mod");
+        binaryOp.add("div");
+        binaryOp.add("add");
+        binaryOp.add("sub");
     }
 
     public ArrayList<Instruction> getCompiledInstructions() {
@@ -42,7 +61,7 @@ public class WscCompiler {
     public void compileCode(AstNode ast, String referCode) {
         asm.instructions.clear();
         sc = new Scanner(referCode);
-        printedLines = -1;
+        printedLines = 0;
         compile(ast);
         while (sc.hasNextLine()) {
             asm.emit("//", sc.nextLine(), "" + printedLines);
@@ -52,7 +71,8 @@ public class WscCompiler {
     void printDebug(AstNode ast) {
         if (printedLines != ast.token.line_no) {
             while (printedLines < ast.token.line_no) {
-                asm.emit("//", sc.hasNextLine() ? sc.nextLine() : "no line", "" + printedLines);
+                String line = sc.hasNextLine() ? sc.nextLine() : "no line";
+                asm.emit("//", line, "" + printedLines);
                 ++printedLines;
             }
         }
@@ -66,16 +86,8 @@ public class WscCompiler {
         try {
             Method m = this.getClass().getDeclaredMethod("compile_" + ast.token.type, AstNode.class);
             m.invoke(this, ast);
-        } catch (NoSuchMethodException ex) {
-            Logger.getLogger(WscCompiler.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IllegalAccessException ex) {
-            Logger.getLogger(WscCompiler.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IllegalArgumentException ex) {
-            Logger.getLogger(WscCompiler.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (SecurityException ex) {
-            Logger.getLogger(WscCompiler.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (InvocationTargetException ex) {
-            Logger.getLogger(WscCompiler.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (Exception ex) {
+            Logger.getLogger(WscCompiler.class.getName()).log(Level.SEVERE, null, ex.getCause());
         }
     }
 
@@ -128,13 +140,9 @@ public class WscCompiler {
             if (!byref) {
                 asm.emit("mov", "%eax", "[%eax]");
             }
-        } else if (header.equals("mul") || header.equals("mod") || header.equals("div") || header.equals("add") || header.equals("sub")) {
-            makeParam2(child);
-            asm.emit(header);
         } else if (header.equals("new")) {
             _compile_funcall(ast);
             asm.emit("new_op");
-
         } else if (header.equals("lambda")) {
             compile_lambda(ast);
         } else if (header.equals("funcall")) {
@@ -147,6 +155,17 @@ public class WscCompiler {
         } else if (header.equals("inc")) {
             compile_expr(child.get(1), true); //param1
             asm.emit("inc");
+        } else if (header.equals("post_inc")) {
+            compile_expr(child.get(1), true); //param1
+            asm.emit("post_inc");
+        } else if (header.equals("dec")) {
+            compile_expr(child.get(1), true); //param1
+            asm.emit("dec");
+        } else if (header.equals("post_dec")) {
+            compile_expr(child.get(1), true); //param1
+            asm.emit("post_dec");
+        } else if (header.equals("undefined")) {
+            asm.emit("undefined");
         } else if (header.equals("ident")) {
             if (!byref) {
                 asm.emit("mov", "%eax", '[' + child.get(0).token.value + ']');
@@ -183,11 +202,39 @@ public class WscCompiler {
         } else if (header.equals("typeof")) {
             compile_expr(child.get(1)); //param1
             asm.emit("typeof");
-        } else if (header.equals("eq") || header.equals("neq") || header.equals("lt") || header.equals("gt") || header.equals("le") || header.equals("ge")) {
+        } else if (header.equals("neg")) {
+            compile_expr(child.get(1)); //param1
+            asm.emit("neg");
+        } else if (header.equals("cond")) {
+            String falseLabel = asm.label("falsePart", ast);
+            String exitLabel = asm.label("exitPart", ast);
+
+            compile_expr(child.get(1));
+            asm.emit("jz", falseLabel);
+            compile_expr(child.get(2));
+            asm.emit("jmp", exitLabel);
+            asm.emit("label", falseLabel);
+            compile_expr(child.get(2));
+            asm.emit("label", exitLabel);
+        } else if (binaryOp.contains(header)) {
             makeParam2(child);
             asm.emit(header);
+        } else if (header.equals("array_new")) {
+            for (int i = 0; i < child.get(1).contents.size(); i++) {
+                compile_expr(child.get(1).contents.get(i));
+                asm.emit("push", "%eax");
+            }
+            asm.emit("array_new", child.get(1).contents.size() + "");
+        } else if (header.equals("object_new")) {
+            for (int i = 0; i < child.get(1).contents.size(); i++) {
+                asm.emit("string", child.get(1).contents.get(i).contents.get(0).token.value);
+                asm.emit("push", "%eax");
+                compile_expr(child.get(1).contents.get(i).contents.get(1));
+                asm.emit("push", "%eax");
+            }
+            asm.emit("object_new", child.get(1).contents.size() + "");
         } else {
-            throw new WscCompilerException(this, "unknown expr " + child);
+            throw new WscCompilerException(this, "unknown expr \r\n" + child);
         }
     }
 

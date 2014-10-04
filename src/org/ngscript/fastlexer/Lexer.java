@@ -43,7 +43,8 @@ public class Lexer {
             }
         }
         //read token
-        switch (ss.read()) {
+        char chr;
+        switch (chr = ss.read()) {
             case '/':
                 if (ss.peek() == '/') {
                     marker = ss.pos + 1;
@@ -57,7 +58,20 @@ public class Lexer {
                     return ss.token("div");
                 }
             case '.':
-                return ss.token("dot");
+                chr = ss.peek();
+                if (isNumeric(chr)) {
+                    marker = ss.pos - 1;
+                    while (true) {
+                        chr = ss.peek();
+                        if (chr == 'e' || isNumeric(chr)) {
+                            ss.forward();
+                        } else {
+                            return ss.token("double", substr(marker, ss.pos));
+                        }
+                    }
+                } else {
+                    return ss.token("dot");
+                }
             case ';':
                 return ss.token("semicolon");
             case '(':
@@ -73,9 +87,25 @@ public class Lexer {
             case ']':
                 return ss.token("rsqr");
             case '=':
-                return determine('=', "eq", "assign");
+                if (ss.tryRead('=')) {
+                    if (ss.tryRead('=')) {
+                        return ss.token("veq");
+                    } else {
+                        return ss.token("eq");
+                    }
+                } else {
+                    return ss.token("assign");
+                }
             case '!':
-                return determine('=', "neq", "not");
+                if (ss.tryRead('=')) {
+                    if (ss.tryRead('=')) {
+                        return ss.token("vneq");
+                    } else {
+                        return ss.token("neq");
+                    }
+                } else {
+                    return ss.token("not");
+                }
             case '<':
                 return determine('=', "le", "lt");
             case '>':
@@ -84,6 +114,8 @@ public class Lexer {
                 return ss.token("comma");
             case '|':
                 return determine('|', "or", "bit_or");
+            case '^':
+                return ss.token("xor");
             case '&':
                 return determine('&', "and", "bit_and");
             case ':':
@@ -114,7 +146,6 @@ public class Lexer {
             case SourceStream.EOF:
                 return null;
             default:
-                char chr = ss.ch[ss.pos - 1];
                 if (isAlphabet(chr) || chr == '_') {
                     marker = ss.pos - 1;
                     while (true) {
@@ -143,7 +174,6 @@ public class Lexer {
                     }
                 }
         }
-        char chr = ss.ch[ss.pos - 1];
         throw new LexerException("unexpected char '" + chr + "'(" + (int) chr + ")" + ss.toString());
     }
 

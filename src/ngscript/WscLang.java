@@ -36,8 +36,8 @@ public class WscLang {
     public static void main(String[] args) throws Exception {
         //init
         //interactive(System.in);
-        test("examples/example2-native_feature.txt");
-        //testExamples();
+        //test("deprecated/rose.txt");
+        testExamples();
         //test();
         //testbean();
     }
@@ -56,7 +56,7 @@ public class WscLang {
 
     public static void test(String filename) throws FileNotFoundException, Exception {
         //String code = readFile("testwl.txt");
-        ArrayList<Instruction> ins = staticCompile(readFile(filename), "MAIN");
+        ArrayList<Instruction> ins = staticCompile(readFile(filename));
         try {
             WscVM vm = new WscVM(new PrintWriter(System.out), new PrintWriter(System.err));
             vm.loadInstructions(ins);
@@ -83,10 +83,10 @@ public class WscLang {
         }
     }
 
-    public static ArrayList<Instruction> staticCompile(String code, String namespace) throws Exception {
-        WscCompiler defaultCompiler = new WscCompiler(namespace);
+    public static ArrayList<Instruction> staticCompile(String code) throws Exception {
+        WscCompiler defaultCompiler = new WscCompiler();
         final ArrayList<Token> tokens = Lexer.scan(code);
-        System.out.println(tokens);
+        //System.out.println(tokens);
         WscStreamParser streamParser = new WscStreamParser();
         //hold some
         ArrayList<Token> tokensa = new ArrayList<Token>();
@@ -98,10 +98,10 @@ public class WscLang {
         Token[] ts = new Token[tokensa.size()];
         tokensa.toArray(ts);
         AstNode ast = streamParser.parse(ts);
-
         ArrayList<Instruction> ins = new ArrayList<Instruction>();
         streamParser.reduce(ast);
         WscStreamParser.removeNULL(ast);
+        //System.out.println(ast);
         defaultCompiler.compileCode(ast, code);
         ins.addAll(defaultCompiler.getCompiledInstructions());
         System.out.println(defaultCompiler.getAssembler().getInfoString(0));

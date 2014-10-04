@@ -33,8 +33,8 @@ public class Instruction {
         if (op.equals("//")) {
             return op + ' ' + (param == null ? "" : param);
         } else {
-            return op + (op.length() > 8 ? '\t' : "\t\t") + (param == null ? "" : param) + (param_extend == null ? "" : "," + param_extend);
-
+            //return op + (op.length() > 8 ? '\t' : "\t\t") + (param == null ? "" : param) + (param_extend == null ? "" : "," + param_extend);
+            return String.format("%-15s%-30s", op, (param == null ? "" : param) + (param_extend == null ? "" : "," + param_extend));
         }
 
     }

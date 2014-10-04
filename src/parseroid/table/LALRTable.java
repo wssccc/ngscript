@@ -47,31 +47,10 @@ public class LALRTable implements Serializable {
                 if (entry.get(i).action == ParserAction.REDUCE && action.action == ParserAction.SHIFT) {
                     //reduce-shift collision
                     throw new RuntimeException("reduce-shift collision symbol=" + sym + " status=" + status);
-//                    int last = Priori.getPriori(g.getProduction(entry.get(i).param));
-//                    int now = Priori.getPriori(sym);
-//                    if (now > last) {
-//                        entry.put(status, action);
-//                        return;
-//                    }
-//                    if (now < last) {
-//                        return;
-//                    }
-//                    if (now == last) {
-//                        return;
-//                    }
                 }
                 if (entry.get(i).action == ParserAction.REDUCE && action.action == ParserAction.REDUCE) {
                     //reduce-reduce collision
                     throw new RuntimeException("reduce-shift collision symbol=" + sym + " status=" + status);
-//                    int last = Priori.getPriori(g.getProduction(entry.get(i).param));
-//                    int now = Priori.getPriori(g.getProduction(action.param));
-//                    if (now > last) {
-//                        entry.put(status, action);
-//                        return;
-//                    }
-//                    if (now < last) {
-//                        return;
-//                    }
                 }
 
                 throw new RuntimeException("sym=" + sym + " status=" + i + " already exsits");
