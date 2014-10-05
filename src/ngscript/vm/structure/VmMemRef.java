@@ -10,19 +10,12 @@ package ngscript.vm.structure;
 public class VmMemRef {
 
     private Object value;
-    private int type;
 
     public VmMemRef() {
         this.value = null;
     }
 
-    public VmMemRef(Object obj_v, int type) {
-        this.type = type;
-        this.value = obj_v;
-    }
-
     public VmMemRef(Object obj_v) {
-        this.type = 0;
         this.value = obj_v;
     }
 
@@ -32,6 +25,11 @@ public class VmMemRef {
 
     public Object read() {
         return this.value;
+    }
+
+    @Override
+    public String toString() {
+        return "VmMemRef{" + "value=" + value + '}';
     }
 
 }

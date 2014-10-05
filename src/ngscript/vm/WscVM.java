@@ -15,8 +15,9 @@ import java.util.LinkedList;
 import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import ngscript.WscLang;
+import ngscript.vm.cpu.AutoCreatedCpuDispatcher;
 import ngscript.vm.structure.BuiltinClosure;
+import test.DrawWindow;
 
 /**
  *
@@ -24,6 +25,7 @@ import ngscript.vm.structure.BuiltinClosure;
  */
 public class WscVM {
 
+    HashMap<String, Method> cpuMethodCache = new HashMap<String, Method>();
     //static data
     ArrayList<Instruction> instructions = new ArrayList<Instruction>();
     HashMap<String, Integer> labels = new HashMap<String, Integer>();
@@ -56,6 +58,7 @@ public class WscVM {
         eip = 0;
         env.write(new ScopeHash(null));
         init_builtins((ScopeHash) env.read());
+        //init_builtins(func);
     }
 
     public int getSize() {
@@ -68,12 +71,8 @@ public class WscVM {
         }
     }
 
-    VmMemRef lookup(String member) throws WscVMException {
-        return lookup(member, false);
-    }
-
-    VmMemRef lookup(String member, boolean isMember) throws WscVMException {
-        return ((ScopeHash) env.read()).lookup(member, this, isMember);
+    public VmMemRef lookup(String member) throws WscVMException {
+        return ((ScopeHash) env.read()).lookup(member, this, false);
     }
 
     Class[] getParamTypes(int offset) {
@@ -117,6 +116,36 @@ public class WscVM {
                 out.flush();
             }
         }));
+        map.put("showWindow", new VmMemRef(new BuiltinClosure() {
+            @Override
+            public void invoke(WscVM vm, LinkedList<Object> vars) {
+                java.awt.EventQueue.invokeLater(new Runnable() {
+                    public void run() {
+                        new DrawWindow().setVisible(true);
+                    }
+                });
+            }
+        }));
+        map.put("draw", new VmMemRef(new BuiltinClosure() {
+            @Override
+            public void invoke(WscVM vm, LinkedList<Object> vars) {
+                int x = (Integer) vars.get(0);
+                int y = (Integer) vars.get(1);
+                int r = (Integer) vars.get(2);
+                int g = (Integer) vars.get(3);
+                int b = (Integer) vars.get(4);
+                DrawWindow.draw(x, y, r, g, b);
+            }
+        }));
+        map.put("print", new VmMemRef(new BuiltinClosure() {
+            @Override
+            public void invoke(WscVM vm, LinkedList<Object> vars) {
+                for (Object var : vars) {
+                    out.print(var);
+                }
+                out.flush();
+            }
+        }));
         map.put("Object", new VmMemRef(new BuiltinClosure() {
             @Override
             public void invoke(WscVM vm, LinkedList<Object> vars) {
@@ -147,6 +176,7 @@ public class WscVM {
                     return;
                 }
             }
+
             Instruction instruction = instructions.get(eip);
             ++eip;
             if (instruction.op.equals("//")) {
@@ -154,10 +184,20 @@ public class WscVM {
                 continue;
             }
             //System.out.println("run " + eip + "\t" + instruction);
-            Method m;
             try {
-                m = VmCpu.class.getMethod(instruction.op, WscVM.class, String.class, String.class);
+                //instant accleration
+                if (AutoCreatedCpuDispatcher.dispatch(instruction, this)) {
+                    continue;
+                }
+                Method m;
+                if (cpuMethodCache.containsKey(instruction.op)) {
+                    m = cpuMethodCache.get(instruction.op);
+                } else {
+                    m = VmCpu.class.getMethod(instruction.op, WscVM.class, String.class, String.class);
+                    cpuMethodCache.put(instruction.op, m);
+                }
                 m.invoke(VmCpu.class, this, instruction.param, instruction.param_extend);
+
             } catch (InvocationTargetException ex) {
                 try {
                     //System.out.println(ex.getCause().toString());
@@ -169,7 +209,7 @@ public class WscVM {
                 } catch (WscVMException ex1) {
                     err.println("VM Exception");
                     err.println(ex1.toString());
-                    //Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex1);
+                    Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex1.getCause());
                     throw ex1; //do not hold this type
                 }
             } catch (NoSuchMethodException ex) {
@@ -184,6 +224,8 @@ public class WscVM {
             } catch (IllegalArgumentException ex) {
                 Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex);
                 return;
+            } catch (Exception ex) {
+                Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
     }

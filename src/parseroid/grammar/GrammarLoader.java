@@ -80,7 +80,6 @@ public class GrammarLoader {
                         //uninitialized
                         produce_length = q.size();
                     } else {
-                        //System.out.println("");
                     }
                     Symbol[] produces = new Symbol[produce_length];
 

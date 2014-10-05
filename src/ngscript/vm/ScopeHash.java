@@ -10,6 +10,7 @@ import java.util.HashMap;
 import ngscript.vm.structure.NativeClosure;
 import ngscript.vm.structure.NativeMemref;
 import ngscript.vm.structure.VmMemRef;
+import ngscript.vm.structure.undefined;
 
 /**
  *
@@ -17,6 +18,7 @@ import ngscript.vm.structure.VmMemRef;
  */
 public class ScopeHash extends HashMap<String, VmMemRef> {
 
+    HashMap<String, VmMemRef> cache = new HashMap<String, VmMemRef>();
     ScopeHash parent;
 
     public ScopeHash(ScopeHash parent) {
@@ -24,7 +26,13 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
     }
 
     VmMemRef lookup(String member, WscVM vm) throws WscVMException {
-        return lookup(member, vm, false);
+        if (cache.containsKey(member)) {
+            return cache.get(member);
+        } else {
+            VmMemRef ref = lookup(member, vm, false);
+            cache.put(member, ref);
+            return ref;
+        }
     }
 
     VmMemRef lookup(String member, WscVM vm, boolean isMember) throws WscVMException {
@@ -41,7 +49,6 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
         if (member.equals("%exception")) {
             return vm.exception;
         }
-
         //lookup hash
         return lookupHash(member, vm, isMember);
     }
@@ -52,7 +59,7 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
         } else {
             if (isMember) {
                 //throw new Runtime-Exception("no member " + varName + " found.");
-                VmMemRef mem = new VmMemRef();
+                VmMemRef mem = new VmMemRef(undefined.value);
                 this.put(member, mem);
                 return mem;
             } else {
@@ -81,12 +88,12 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
                     //nothing happend...
                 }
                 //try java.io
-//                try {
-//                    Class cls = Class.forName("java.io." + member);
-//                    return new VmMemRef(cls);
-//                } catch (ClassNotFoundException ex) {
-//                    //nothing happend...
-//                }
+                try {
+                    Class cls = Class.forName("java.io." + member);
+                    return new VmMemRef(cls);
+                } catch (ClassNotFoundException ex) {
+                    //nothing happend...
+                }
                 //imports
                 //try import
                 if (vm.imported.containsKey(member)) {

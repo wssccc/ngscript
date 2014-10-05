@@ -17,6 +17,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import ngscript.common.Instruction;
 import ngscript.parser.WscStreamParser;
+import ngscript.vm.ScopeHash;
 import parseroid.grammar.Symbol;
 import parseroid.parser.AstNode;
 import parseroid.parser.Token;
@@ -36,8 +37,9 @@ public class WscLang {
     public static void main(String[] args) throws Exception {
         //init
         //interactive(System.in);
-        //test("deprecated/rose.txt");
-        testExamples();
+        test("deprecated/rose.txt");
+        //test("examples/example10.txt");
+        //testExamples();
         //test();
         //testbean();
     }

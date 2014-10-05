@@ -17,7 +17,6 @@ public class TypeCheck {
 
     static {
         HashSet<Class> int_set = new HashSet<Class>();
-
         int_set.add(Integer.class);
         int_set.add(Object.class);
         int_set.add(int.class);
@@ -30,7 +29,7 @@ public class TypeCheck {
         db_set.add(Double.class);
         db_set.add(Object.class);
         db_set.add(double.class);
-        db_set.add(float.class);
+        //db_set.add(float.class);
 
         supers.put(Double.class, db_set);
         supers.put(double.class, db_set);

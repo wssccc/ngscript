@@ -31,7 +31,6 @@ public class WscCompiler {
     public WscCompiler() {
         asm = new WscAssembler();
         binaryOp = new HashSet<String>();
-        binaryOp.add("or");
         binaryOp.add("bit_xor");
         binaryOp.add("bit_or");
         binaryOp.add("bit_and");
@@ -214,11 +213,23 @@ public class WscCompiler {
             compile_expr(child.get(2));
             asm.emit("jmp", exitLabel);
             asm.emit("label", falseLabel);
-            compile_expr(child.get(2));
+            compile_expr(child.get(3));
             asm.emit("label", exitLabel);
         } else if (binaryOp.contains(header)) {
             makeParam2(child);
             asm.emit(header);
+        } else if (header.equals("or")) {
+            String exit = asm.label("exit_or", ast);
+            compile_expr(child.get(1));
+            asm.emit("jnz", exit);
+            compile_expr(child.get(2));
+            asm.emit("label", exit);
+        } else if (header.equals("and")) {
+            String exit = asm.label("exit_and", ast);
+            compile_expr(child.get(1));
+            asm.emit("jz", exit);
+            compile_expr(child.get(2));
+            asm.emit("label", exit);
         } else if (header.equals("array_new")) {
             for (int i = 0; i < child.get(1).contents.size(); i++) {
                 compile_expr(child.get(1).contents.get(i));

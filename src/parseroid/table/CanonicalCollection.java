@@ -16,31 +16,40 @@ import java.util.Set;
 public class CanonicalCollection {
 
     public ArrayList<ItemSet> cc = new ArrayList<ItemSet>();
-    Grammar g;
+    Grammar referGrammar;
 
     public CanonicalCollection(Grammar g) {
-        this.g = g;
+        this.referGrammar = g;
     }
 
+    /**
+     * build CanonicalCollection for LALR(1)
+     */
     public void buildCC() {
+        //store expanded items
         Set<ItemSet> expanded = new HashSet<ItemSet>();
         boolean changed = true;
         while (changed) {
             changed = false;
             for (int i = 0; i < cc.size(); ++i) {
+                //expand each itemset
                 ItemSet itemSet = cc.get(i);
                 if (!expanded.contains(itemSet)) {
                     expanded.add(itemSet);
                     changed = true;
-                    //
+                    //get valid inputs of the itemSet
                     ArrayList<Symbol> inputs = itemSet.getInputs();
+                    //use each input to generate GOTO itemset
                     for (Symbol sym : inputs) {
                         ItemSet newItemSet = itemSet.getGoto(sym);
-                        newItemSet.closure(g);
+                        //create closure(expand inner)
+                        newItemSet.closure(referGrammar);
+                        //this is used to reduce the number of itemsets
                         ItemSet sameh = getSameHeart(newItemSet);
                         if (sameh.merge(newItemSet)) {
                             expanded.remove(sameh);
                         }
+                        //link with go edge
                         itemSet.go.put(sym, sameh);
                     }
                 }
@@ -48,8 +57,13 @@ public class CanonicalCollection {
         }
     }
 
+    /**
+     * build action table
+     *
+     * @return
+     */
     public LALRTable buildTable() {
-        LALRTable table = new LALRTable(g);
+        LALRTable table = new LALRTable(referGrammar);
         for (ItemSet itemSet : cc) {
             for (Item item : itemSet.items) {
                 if (item.pos < item.production.produces.length) {
@@ -60,7 +74,7 @@ public class CanonicalCollection {
                 } else {
                     for (Symbol lhsym : item.lookahead.values()) {
                         if (lhsym.isTerminal) {
-                            if (lhsym == Symbol.EOF && item.production.eq(g.getRootProduction())) {
+                            if (lhsym == Symbol.EOF && item.production.eq(referGrammar.getRootProduction())) {
                                 table.add(lhsym.identifier, itemSet.id, ParserAction.accept());
                             } else {
                                 table.add(lhsym.identifier, itemSet.id, ParserAction.reduce(item.production.id));

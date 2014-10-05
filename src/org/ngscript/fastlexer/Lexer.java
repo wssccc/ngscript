@@ -163,8 +163,12 @@ public class Lexer {
                     marker = ss.pos - 1;
                     while (true) {
                         chr = ss.peek();
-                        if (chr == '.' || chr == 'e') {
+                        if (chr == '.') {
                             ss.forward();
+                            type = "double";
+                        } else if (chr == 'e') {
+                            ss.forward();
+                            ss.forward(); //skip a digit
                             type = "double";
                         } else if (isNumeric(chr)) {
                             ss.forward();

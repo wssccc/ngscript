@@ -27,7 +27,7 @@ public class VmCpu {
 
         VmMemRef v1 = vm.lookup(param);
         Object val;
-        if (param_extend.endsWith("]") && param_extend.startsWith("[")) {
+        if (param_extend.charAt(0) == '[') {
             //value
             String varName = param_extend.substring(1, param_extend.length() - 1);
             VmMemRef v2 = vm.lookup(varName);
@@ -46,6 +46,39 @@ public class VmCpu {
             }
         }
         v1.write(val);
+    }
+
+    public static void array_new(WscVM vm, String param, String param_extend) throws WscVMException {
+        int length = Integer.parseInt(param);
+        ScopeHash list = new ScopeHash((ScopeHash) vm.env.read());
+
+        for (int i = 0; i < length; i++) {
+            Object object = vm.stack.pop();
+            list.put("" + i, new VmMemRef(object));
+        }
+        vm.eax.write(list);
+    }
+
+    public static void object_new(WscVM vm, String param, String param_extend) throws WscVMException {
+        ScopeHash sh = new ScopeHash((ScopeHash) vm.env.read());
+        int size = Integer.parseInt(param);
+        for (int i = 0; i < size; i++) {
+            Object v = vm.stack.pop();
+            String k = (String) vm.stack.pop();
+            VmMemRef vref = new VmMemRef(v);
+            sh.put(k, vref);
+        }
+        vm.eax.write(sh);
+    }
+
+    public static void neg(WscVM vm, String param, String param_extend) throws WscVMException {
+        Object eax = vm.eax.read();
+        if (eax instanceof Integer) {
+            vm.eax.write(-((Integer) eax));
+        }
+        if (eax instanceof Double) {
+            vm.eax.write(-((Double) eax));
+        }
     }
 
     public static void push(WscVM vm, String param, String param_extend) throws WscVMException {
@@ -75,7 +108,9 @@ public class VmCpu {
             ScopeHash env = (ScopeHash) objs[0];
             VmMemRef ref = env.lookup(member, vm, true);
             vm.eax.write(ref);
-            return;
+            if (!(ref.read() instanceof undefined)) {
+                return;
+            }
         }
         Object ref = ScopeHash.lookupNative(objs[0], member, vm);
 
@@ -86,7 +121,7 @@ public class VmCpu {
         throw new WscVMException(vm, member + " is not a member of " + _getObjInfo(objs[0]));
     }
 
-    public static String _getObjInfo(Object obj) {
+    private static String _getObjInfo(Object obj) {
         if (obj != null) {
             return obj.getClass().getName() + "[" + obj.toString() + "]";
         } else {
@@ -96,13 +131,21 @@ public class VmCpu {
 
     public static void array_ref(WscVM vm, String param, String param_extend) throws WscVMException {
         Object[] objs = get_op_params_2(vm);
-        if (!(objs[0] instanceof ScopeHash)) {
-            throw new WscVMException(vm, "not an array object");
+        if (objs[0] instanceof ScopeHash) {
+            ScopeHash env = (ScopeHash) objs[0];
+            String member = "" + objs[1];
+            VmMemRef ref = env.lookup(member, vm, true);
+            vm.eax.write(ref);
+            return;
         }
-        ScopeHash env = (ScopeHash) objs[0];
-        String member = "" + objs[1];
-        VmMemRef ref = env.lookup(member, vm, true);
-        vm.eax.write(ref);
+        if (objs[0] instanceof ArrayList) {
+            ArrayList env = (ArrayList) objs[0];
+            int member = (int) Double.parseDouble("" + objs[1]);
+            VmMemRef ref = (VmMemRef) env.get(member);
+            vm.eax.write(ref);
+            return;
+        }
+        throw new WscVMException(vm, "not an array object");
     }
 
     public static void static_func(WscVM vm, String param, String param_extend) throws WscVMException {
@@ -115,7 +158,11 @@ public class VmCpu {
         if (obj.getClass().isAnonymousClass()) {
             vm.eax.write(obj.getClass().getSuperclass().getName());
         } else {
-            vm.eax.write(obj.getClass().getName());
+            if ("ngscript.vm.structure".equals(obj.getClass().getPackage().getName())) {
+                vm.eax.write(obj.getClass().getSimpleName());
+            } else {
+                vm.eax.write(obj.getClass().getName());
+            }
         }
     }
 
@@ -175,28 +222,36 @@ public class VmCpu {
         }
     }
 
-    public static void inc(WscVM vm, String param, String param_extend) {
+    private static void _addEaxObj(WscVM vm, int num, boolean retOrig) {
         VmMemRef addr = (VmMemRef) vm.eax.read();
         Object val = addr.read();
         if (val instanceof Integer) {
-            addr.write(((Integer) val) + 1);
+            addr.write(((Integer) val) + num);
         }
         if (val instanceof Double) {
-            addr.write(((Double) val) + 1);
+            addr.write(((Double) val) + num);
         }
-        vm.eax.write(addr.read());
+        if (retOrig) {
+            vm.eax.write(val);
+        } else {
+            vm.eax.write(addr.read());
+        }
+    }
+
+    public static void inc(WscVM vm, String param, String param_extend) {
+        _addEaxObj(vm, 1, false);
     }
 
     public static void dec(WscVM vm, String param, String param_extend) throws WscVMException {
-        VmMemRef addr = vm.lookup(param);
-        Object val = addr.read();
-        if (val instanceof Integer) {
-            addr.write(((Integer) val) - 1);
-        }
-        if (val instanceof Double) {
-            addr.write(((Double) val) - 1);
-        }
-        vm.eax.write(addr.read());
+        _addEaxObj(vm, -1, false);
+    }
+
+    public static void post_inc(WscVM vm, String param, String param_extend) {
+        _addEaxObj(vm, 1, true);
+    }
+
+    public static void post_dec(WscVM vm, String param, String param_extend) throws WscVMException {
+        _addEaxObj(vm, -1, true);
     }
 
     public static void pop(WscVM vm, String param, String param_extend) throws WscVMException {
@@ -232,17 +287,7 @@ public class VmCpu {
 
     public static void jz(WscVM vm, String param, String param_extend) throws WscVMException {
         Object testObj = vm.eax.read();
-        int val = 0;
-        if (testObj == null) {
-            val = 0;
-        } else if (testObj instanceof Boolean) {
-            val = ((Boolean) testObj) ? 1 : 0;
-        } else if (testObj instanceof Integer) {
-            val = ((Integer) testObj);
-        } else if (testObj instanceof Object) {
-            val = 1;
-        }
-        if (val == 0) {
+        if (!testValue(testObj)) {
             if (vm.labels.containsKey(param)) {
                 int nip = vm.labels.get(param);
                 vm.eip = nip;
@@ -253,7 +298,8 @@ public class VmCpu {
     }
 
     public static void jnz(WscVM vm, String param, String param_extend) throws WscVMException {
-        if ((Integer) vm.eax.read() != 0) {
+        Object testObj = vm.eax.read();
+        if (testValue(testObj)) {
             if (vm.labels.containsKey(param)) {
                 int nip = vm.labels.get(param);
                 vm.eip = nip;
@@ -261,6 +307,24 @@ public class VmCpu {
                 throw new WscVMException(vm, "jump to no where");
             }
         }
+    }
+
+    static boolean testValue(Object testObj) {
+        boolean val = false;
+        if (testObj == null) {
+            val = false;
+        } else if (testObj instanceof Boolean) {
+            val = ((Boolean) testObj);
+        } else if (testObj instanceof Integer) {
+            val = ((Integer) testObj) != 0;
+        } else if (testObj instanceof Double) {
+            val = Math.abs((Double) testObj) > Double.MIN_NORMAL;
+        } else if (testObj instanceof undefined) {
+            val = false;
+        } else if (testObj instanceof Object) {
+            val = true;
+        }
+        return val;
     }
 
     public static void label(WscVM vm, String param, String param_extend) {
@@ -280,12 +344,17 @@ public class VmCpu {
         vm.eax.write(Double.parseDouble(param));
     }
 
+    public static void undefined(WscVM vm, String param, String param_extend) {
+        vm.eax.write(undefined.value);
+    }
+
     public static void string(WscVM vm, String param, String param_extend) {
         String str = param;
         if (str.startsWith("\"") && str.endsWith("\"")) {
             //quote string
             str = str.substring(1, str.length() - 1);
         }
+        str = str.replace("\\n", "\n");
         vm.eax.write(str);
     }
 
@@ -321,34 +390,74 @@ public class VmCpu {
 
     public static void add(WscVM vm, String param, String param_extend) throws WscVMException {
         Object[] objs = get_op_params_2(vm);
-        vm.eax.write(new TypeOp(vm).eval("add", objs[0], objs[1]));
+        vm.eax.write(TypeOp.eval(TypeOp.OP_ADD, objs[0], objs[1]));
+    }
+
+    public static void bit_and(WscVM vm, String param, String param_extend) throws WscVMException {
+        Object[] objs = get_op_params_2(vm);
+        vm.eax.write(getInteger(vm, objs[0]) & getInteger(vm, objs[1]));
+    }
+
+    public static void bit_or(WscVM vm, String param, String param_extend) throws WscVMException {
+        Object[] objs = get_op_params_2(vm);
+        vm.eax.write(getInteger(vm, objs[0]) | getInteger(vm, objs[1]));
+    }
+
+    public static void bit_xor(WscVM vm, String param, String param_extend) throws WscVMException {
+        Object[] objs = get_op_params_2(vm);
+        vm.eax.write(getInteger(vm, objs[0]) ^ getInteger(vm, objs[1]));
     }
 
     public static void sub(WscVM vm, String param, String param_extend) throws WscVMException {
         Object[] objs = get_op_params_2(vm);
-        vm.eax.write(new TypeOp(vm).eval("sub", objs[0], objs[1]));
+        vm.eax.write(TypeOp.eval(TypeOp.OP_SUB, objs[0], objs[1]));
     }
 
     public static void mul(WscVM vm, String param, String param_extend) throws WscVMException {
         Object[] objs = get_op_params_2(vm);
-        vm.eax.write(new TypeOp(vm).eval("mul", objs[0], objs[1]));
+        vm.eax.write(TypeOp.eval(TypeOp.OP_MUL, objs[0], objs[1]));
     }
 
     public static void mod(WscVM vm, String param, String param_extend) throws WscVMException {
         Object[] objs = get_op_params_2(vm);
-        vm.eax.write(new TypeOp(vm).eval("mod", objs[0], objs[1]));
+        vm.eax.write(TypeOp.eval(TypeOp.OP_MOD, objs[0], objs[1]));
     }
 
     public static void div(WscVM vm, String param, String param_extend) throws WscVMException {
         Object[] objs = get_op_params_2(vm);
-        vm.eax.write(new TypeOp(vm).eval("div", objs[0], objs[1]));
+        vm.eax.write(TypeOp.eval(TypeOp.OP_DIV, objs[0], objs[1]));
+    }
+
+    static boolean testEq(Object obj1, Object obj2) {
+        if (obj1 == obj2) {
+            return true;
+        }
+        if (obj1 == null || obj2 == null) {
+            return false;
+        }
+        return obj1.toString().equals(obj2.toString());
     }
 
     public static void eq(WscVM vm, String param, String param_extend) throws WscVMException {
         Object[] objs = get_op_params_2(vm);
-        vm.eax.write(new TypeOp(vm).eval("eq", objs[0], objs[1]));
+        //vm.eax.write(new TypeOp(vm).eval("eq", objs[0], objs[1]));
+        vm.eax.write(testEq(objs[0], objs[1]));
     }
 
+    public static void veq(WscVM vm, String param, String param_extend) throws WscVMException {
+        Object[] objs = get_op_params_2(vm);
+        vm.eax.write(testEq(objs[0], objs[1]));
+    }
+
+    public static void neq(WscVM vm, String param, String param_extend) throws WscVMException {
+        Object[] objs = get_op_params_2(vm);
+        vm.eax.write(!testEq(objs[0], objs[1]));
+    }
+
+    public static void vneq(WscVM vm, String param, String param_extend) throws WscVMException {
+        Object[] objs = get_op_params_2(vm);
+        vm.eax.write(!testEq(objs[0], objs[1]));
+    }
 //    public static void coroutine_return(WscVM vm, String param, String param_extend) {
 //        Coroutine nativeClosure = (Coroutine) vm.stack.get(vm.stack.size() - 1 - 1);
 //        nativeClosure.returned();
@@ -415,9 +524,12 @@ public class VmCpu {
             }
             try {
                 Object val = properMethod.invoke(closure.caller, vars.toArray());
+                if (val instanceof Long) {
+                    val = ((Long) val).intValue();
+                }
                 vm.eax.write(val);
             } catch (Exception ex) {
-                vm.exception.write(new WscVMException(vm, ex.getCause().toString()));
+                vm.exception.write(new WscVMException(vm, ex.getCause() == null ? ex.toString() : ex.getCause().toString()));
                 restore_machine_state(vm, null, null);
             }
             return;
@@ -531,6 +643,24 @@ public class VmCpu {
         }
         if (obj instanceof Double) {
             return (Double) obj;
+        }
+        if (obj instanceof Long) {
+            Long l = (Long) obj;
+            return l.intValue();
+        }
+        throw new WscVMException(vm, "invalid type");
+    }
+
+    static int getInteger(WscVM vm, Object obj) throws WscVMException {
+        if (obj instanceof Integer) {
+            return (Integer) obj;
+        }
+        if (obj instanceof Double) {
+            return ((Double) obj).intValue();
+        }
+        if (obj instanceof Long) {
+            Long l = (Long) obj;
+            return l.intValue();
         }
         throw new WscVMException(vm, "invalid type");
     }

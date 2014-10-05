@@ -3,17 +3,20 @@ var zBuffer = [];
 var SIZE = 500;
 var h = -250;
 
-var round = Math.floor;
-
+var round = Math.round;
+var cos = Math.cos;
+var sin = Math.sin;
+var pow = Math.pow;
+var rand = Math.random;
 
 function surface(a, b, c) {
 	if(c > 60) {
 		// The rose STICK.
 		// There is only one value greater than 60, which is 60.8108108108.
 		return {
-			x: Math.sin(a * 7) * (13 + 5 / (.2 + Math.pow(b * 4, 4))) - Math.sin(b) * 50,
+			x: sin(a * 7) * (13 + 5 / (.2 + pow(b * 4, 4))) - sin(b) * 50,
 			y: b * SIZE + 50,
-			z: 625 + Math.cos(a * 7) * (13 + 5 / (.2 + Math.pow(b * 4, 4))) + b * 400,
+			z: 625 + cos(a * 7) * (13 + 5 / (.2 + pow(b * 4, 4))) + b * 400,
 			r: a * 1 - b / 2,
 			g: a
 		};
@@ -33,13 +36,13 @@ function surface(a, b, c) {
 			// The value of c is not used to draw the leaves - only its parity is used.
 			var j = c & 1;   // Is c odd or even?
 			var n = j ? 6 : 4;
-			var o = .5 / (a + .01) + Math.cos(b * 125) * 3 - a * 300;
+			var o = .5 / (a + .01) + cos(b * 125) * 3 - a * 300;
 			var w = b * h;
 			return {
-				x: o * Math.cos(n) + w * Math.sin(n) + j * 610 - 390,
-				y: o * Math.sin(n) - w * Math.cos(n) + 550 - j * 350,
-				z: 1180 + Math.cos(B + A) * 99 - j * 300,
-				r: .4 - a * .1 + Math.pow(1 - B * B, -h * 6) * .15 - a * b * .4 + Math.cos(a + b) / 5 + Math.pow(Math.cos((o * (a + 1) + (B > 0 ? w : -w)) / 25), 30) * .1 * (1 - B * B),
+				x: o * cos(n) + w * sin(n) + j *  610 - 390,
+				y: o * sin(n) - w * cos(n) + 550 - j * 350,
+				z: 1180 + cos(B + A) * 99 - j * 300,
+				r: .4 - a * .1 + pow(1 - B * B, -h * 6) * .15 - a * b * .4 + cos(a + b) / 5 + pow(cos((o * (a + 1) + (B > 0 ? w : -w)) / 25), 30) * .1 * (1 - B * B),
 				g: o / 1e3 + .7 - o * w * 3e-6
 			};
 		}
@@ -50,12 +53,12 @@ function surface(a, b, c) {
 			c = c * 1.16 - .15;
 			var o = a * 45 - 20;
 			var w = b * b * h;
-			var z = o * Math.sin(c) + w * Math.cos(c) + 620;
+			var z = o * sin(c) + w * cos(c) + 620;
 			return {
-				x: o * Math.cos(c) - w * Math.sin(c),
-				y: 28 + Math.cos(B * .5) * 99 - b * b * b * 60 - z / 2 - h,
+				x: o * cos(c) - w * sin(c),
+				y: 28 + cos(B * .5) * 99 - b * b * b * 60 - z / 2 - h,
 				z: z,
-				r: (b * b * .3 + Math.pow((1 - (A * A)), 7) * .15 + .3) * b,
+				r: (b * b * .3 + pow((1 - (A * A)), 7) * .15 + .3) * b,
 				g: b * .7
 			};
 		}
@@ -63,19 +66,19 @@ function surface(a, b, c) {
 		// The 24 PETALS.
 		// There are 24 values for which c <= 32, one for each petal.
 		var o = A * (2 - b) * (80 - c * 2);
-		var w = 99 - Math.cos(A) * 120 - Math.cos(b) * (-h - c * 4.9) + Math.cos(Math.pow(1 - b, 7)) * 50 + c * 2;
-		var z = o * Math.sin(c) + w * Math.cos(c) + 700;
+		var w = 99 - cos(A) * 120 - cos(b) * (-h - c * 4.9) + cos(pow(1 - b, 7)) * 50 + c * 2;
+		var z = o * sin(c) + w * cos(c) + 700;
 		return {
-			x: o * Math.cos(c) - w * Math.sin(c),
-			y: B * 99 - Math.cos(Math.pow(b, 7)) * 50 - c / 3 - z / 1.35 + 450,
+			x: o * cos(c) - w * sin(c),
+			y: B * 99 - cos(pow(b, 7)) * 50 - c / 3 - z / 1.35 + 450,
 			z: z,
 			r: (1 - b / 1.2) * .9 + a * .1,
-			g: Math.pow((1 - b), 20) / 4 + .05
+			g: pow((1 - b), 20) / 4 + .05
 		};
 	}
 }
 
-
+showWindow();
 var canvasbuf = [];
 
 function render() {
@@ -86,7 +89,7 @@ function render() {
 		var c = part / .74;
 		// See the table in the end of this file.
 
-		var point = surface(Math.random(), Math.random(), c);
+		var point = surface(rand(), rand(), c);
 		if(point) {
 			var z = point.z;
 			var x = round(point.x * SIZE / z - h);
@@ -101,7 +104,8 @@ function render() {
                 r = (r > 0)? r: 0;
                 g = (g > 0)? g: 0;
                 b = (b > 0)? b: 0;
-                canvasbuf[x + y * SIZE] = r + " " + g + " " + b;
+				draw(x,y,r,g,b);
+                //canvasbuf[x + y * SIZE] = r + " " + g + " " + b;
 			}
 		}
 	}
@@ -109,19 +113,14 @@ function render() {
 
 
 for (var i = 0; i < 1000; i++) {
+	println("rendering " + i);
     render();
-    launchgc();
 }
 
 print("P3\n");
 print(SIZE, " ", SIZE, "\n");
 print("255\n");
-for (var x = 0; x < SIZE * SIZE; x++) {
-    if (canvasbuf[x] !== undefined) {
-        print(canvasbuf[x], "\n");
-    }
-    else {
-        // print("255 255 255\n");
-        print("0 0 0\n");
-    }
-}
+
+//println(canvasbuf);
+println(canvasbuf.size());
+
