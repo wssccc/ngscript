@@ -13,7 +13,7 @@ import ngscript.common.Instruction;
 public class Context {
 
     Object eax;
-    Object env;
+    ScopeHash env;
     int eip;
     Instruction helptext;
     int stack_size;

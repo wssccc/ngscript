@@ -26,10 +26,11 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
     }
 
     VmMemRef lookup(String member, WscVM vm) throws WscVMException {
-        if (cache.containsKey(member)) {
-            return cache.get(member);
+        VmMemRef ref = cache.get(member);
+        if (ref != null) {
+            return ref;
         } else {
-            VmMemRef ref = lookup(member, vm, false);
+            ref = lookup(member, vm, false);
             cache.put(member, ref);
             return ref;
         }
@@ -54,66 +55,67 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
     }
 
     private VmMemRef lookupHash(String member, WscVM vm, boolean isMember) throws WscVMException {
-        if (this.containsKey(member)) {
-            return this.get(member);
+        VmMemRef ref = this.get(member);
+        if (ref != null) {
+            return ref;
+        }
+
+        if (isMember) {
+            //throw new Runtime-Exception("no member " + varName + " found.");
+            VmMemRef mem = new VmMemRef(undefined.value);
+            this.put(member, mem);
+            return mem;
         } else {
-            if (isMember) {
-                //throw new Runtime-Exception("no member " + varName + " found.");
-                VmMemRef mem = new VmMemRef(undefined.value);
-                this.put(member, mem);
-                return mem;
-            } else {
-                //find in env link
-                ScopeHash env = parent;
-                //
-                while (env != null) {
-                    if (env.containsKey(member)) {
-                        return env.get(member);
-                    } else {
-                        env = env.parent;
-                    }
+            //find in env link
+            ScopeHash env = parent;
+            //
+            while (env != null) {
+                if (env.containsKey(member)) {
+                    return env.get(member);
+                } else {
+                    env = env.parent;
                 }
-                //try java.util
-                try {
-                    Class cls = Class.forName("java.util." + member);
-                    return new VmMemRef(cls);
-                } catch (ClassNotFoundException ex) {
-                    //nothing happend...
-                }
-                //try java.lang
-                try {
-                    Class cls = Class.forName("java.lang." + member);
-                    return new VmMemRef(cls);
-                } catch (ClassNotFoundException ex) {
-                    //nothing happend...
-                }
-                //try java.io
-                try {
-                    Class cls = Class.forName("java.io." + member);
-                    return new VmMemRef(cls);
-                } catch (ClassNotFoundException ex) {
-                    //nothing happend...
-                }
-                //imports
-                //try import
-                if (vm.imported.containsKey(member)) {
-                    try {
-                        Class cls = Class.forName(vm.imported.get(member));
-                        return new VmMemRef(cls);
-                    } catch (ClassNotFoundException ex) {
-                        //nothing happend...
-                    }
-                }
-
-                //try java.lang
-                try {
-                    Class cls = Class.forName("java.lang." + member);
-                    return new VmMemRef(cls);
-                } catch (ClassNotFoundException ex) {
-
-                }
-                throw new WscVMException(vm, member + " is not declared");
             }
+            //try java.util
+            try {
+                Class cls = Class.forName("java.util." + member);
+                return new VmMemRef(cls);
+            } catch (ClassNotFoundException ex) {
+                //nothing happend...
+            }
+            //try java.lang
+            try {
+                Class cls = Class.forName("java.lang." + member);
+                return new VmMemRef(cls);
+            } catch (ClassNotFoundException ex) {
+                //nothing happend...
+            }
+            //try java.io
+            try {
+                Class cls = Class.forName("java.io." + member);
+                return new VmMemRef(cls);
+            } catch (ClassNotFoundException ex) {
+                //nothing happend...
+            }
+            //imports
+            //try import
+            if (vm.imported.containsKey(member)) {
+                try {
+                    Class cls = Class.forName(vm.imported.get(member));
+                    return new VmMemRef(cls);
+                } catch (ClassNotFoundException ex) {
+                    //nothing happend...
+                }
+            }
+
+            //try java.lang
+            try {
+                Class cls = Class.forName("java.lang." + member);
+                return new VmMemRef(cls);
+            } catch (ClassNotFoundException ex) {
+
+            }
+            throw new WscVMException(vm, member + " is not declared");
         }
     }
 

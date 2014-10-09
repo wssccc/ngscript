@@ -17,7 +17,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import ngscript.common.Instruction;
 import ngscript.parser.WscStreamParser;
-import ngscript.vm.ScopeHash;
 import parseroid.grammar.Symbol;
 import parseroid.parser.AstNode;
 import parseroid.parser.Token;
@@ -32,13 +31,14 @@ public class WscLang {
      * @param args the command line_no arguments
      * @throws java.io.IOException
      * @throws java.lang.ClassNotFoundException
-     * @throws Lexeroid.LexException
      */
     public static void main(String[] args) throws Exception {
         //init
         //interactive(System.in);
+        long time = System.currentTimeMillis();
         test("deprecated/rose.txt");
-        //test("examples/example10.txt");
+        System.out.println("execute time " + (System.currentTimeMillis() - time) + " ms");
+        //test("examples/example9.txt");
         //testExamples();
         //test();
         //testbean();

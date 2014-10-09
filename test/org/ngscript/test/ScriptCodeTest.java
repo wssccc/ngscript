@@ -3,7 +3,6 @@
  */
 package org.ngscript.test;
 
-import java.io.File;
 import ngscript.WscLang;
 import org.junit.After;
 import org.junit.AfterClass;

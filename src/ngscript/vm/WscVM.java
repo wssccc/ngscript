@@ -44,7 +44,7 @@ public class WscVM {
     public final VmMemRef eax = new VmMemRef();
     final VmMemRef exception = new VmMemRef();
 
-    public final VmMemRef env = new VmMemRef();
+    public final VmMemRef<ScopeHash> env = new VmMemRef();
     int eip = 0;
     //
 
@@ -72,7 +72,7 @@ public class WscVM {
     }
 
     public VmMemRef lookup(String member) throws WscVMException {
-        return ((ScopeHash) env.read()).lookup(member, this, false);
+        return env.read().lookup(member, this, false);
     }
 
     Class[] getParamTypes(int offset) {
@@ -120,6 +120,7 @@ public class WscVM {
             @Override
             public void invoke(WscVM vm, LinkedList<Object> vars) {
                 java.awt.EventQueue.invokeLater(new Runnable() {
+                    @Override
                     public void run() {
                         new DrawWindow().setVisible(true);
                     }
@@ -186,17 +187,18 @@ public class WscVM {
             //System.out.println("run " + eip + "\t" + instruction);
             try {
                 //instant accleration
-                if (AutoCreatedCpuDispatcher.dispatch(instruction, this)) {
-                    continue;
-                }
-                Method m;
-                if (cpuMethodCache.containsKey(instruction.op)) {
-                    m = cpuMethodCache.get(instruction.op);
-                } else {
-                    m = VmCpu.class.getMethod(instruction.op, WscVM.class, String.class, String.class);
-                    cpuMethodCache.put(instruction.op, m);
-                }
-                m.invoke(VmCpu.class, this, instruction.param, instruction.param_extend);
+                AutoCreatedCpuDispatcher.dispatch(instruction, this);
+//                if (AutoCreatedCpuDispatcher.dispatch(instruction, this)) {
+//                    continue;
+//                }
+//                Method m;
+//                if (cpuMethodCache.containsKey(instruction.op)) {
+//                    m = cpuMethodCache.get(instruction.op);
+//                } else {
+//                    m = VmCpu.class.getMethod(instruction.op, WscVM.class, String.class, String.class);
+//                    cpuMethodCache.put(instruction.op, m);
+//                }
+//                m.invoke(VmCpu.class, this, instruction.param, instruction.param_extend);
 
             } catch (InvocationTargetException ex) {
                 try {

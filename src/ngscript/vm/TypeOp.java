@@ -61,7 +61,7 @@ public class TypeOp {
             case 13:
                 return opString(opc, o1, o2);
             default:
-                throw new RuntimeException("cannot  " + opc + " " + o1 + " " + o2);
+                return opString(opc, o1, o2);
         }
     }
 

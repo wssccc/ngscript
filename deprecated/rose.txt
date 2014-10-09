@@ -122,5 +122,4 @@ print(SIZE, " ", SIZE, "\n");
 print("255\n");
 
 //println(canvasbuf);
-println(canvasbuf.size());
-
+//println(canvasbuf.size());

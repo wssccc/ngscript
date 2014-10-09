@@ -6,24 +6,25 @@ package ngscript.vm.structure;
 /**
  *
  * @author wssccc <wssccc@qq.com>
+ * @param <T>
  */
-public class VmMemRef {
+public class VmMemRef<T> {
 
-    private Object value;
+    private T value;
 
     public VmMemRef() {
         this.value = null;
     }
 
-    public VmMemRef(Object obj_v) {
+    public VmMemRef(T obj_v) {
         this.value = obj_v;
     }
 
-    public void write(Object v) {
+    public void write(T v) {
         this.value = v;
     }
 
-    public Object read() {
+    public T read() {
         return this.value;
     }
 

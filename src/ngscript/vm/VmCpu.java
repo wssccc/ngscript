@@ -108,10 +108,9 @@ public class VmCpu {
             ScopeHash env = (ScopeHash) objs[0];
             VmMemRef ref = env.lookup(member, vm, true);
             vm.eax.write(ref);
-            if (!(ref.read() instanceof undefined)) {
-                return;
-            }
+            return;
         }
+        //member of native
         Object ref = ScopeHash.lookupNative(objs[0], member, vm);
 
         if (ref != null) {
@@ -264,7 +263,7 @@ public class VmCpu {
             return;
         }
         if (param.equals("%env")) {
-            vm.env.write(vm.stack.pop());
+            vm.env.write((ScopeHash) vm.stack.pop());
             return;
         }
 
@@ -569,7 +568,8 @@ public class VmCpu {
             }
             //
             //prepare env with an instance
-            vm.env.write(properCons.newInstance(vars.toArray()));
+            vm.stack.push(properCons.newInstance(vars.toArray()));
+            vm.env.write(null);
             return;
         }
         throw new WscVMException(vm, "unexpected callee");
@@ -618,13 +618,16 @@ public class VmCpu {
     }
 
     public static void new_op(WscVM vm, String param, String param_extend) {
-        //identify natice object and script object
-        Object envobj = vm.env.read();
+        //identify native object and script object
+        Object newObject = vm.env.read();
+        if (newObject == null) {
+            //native object
+            newObject = vm.stack.pop();
+        }
         ScopeHash old_env = (ScopeHash) vm.stack.pop();
         Object cons = vm.stack.pop();
 
-        vm.eax.write(envobj);
-
+        vm.eax.write(newObject);
         vm.env.write(old_env);
         vm.stack.pop(); //params
     }
