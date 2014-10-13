@@ -26,7 +26,7 @@ public class WscVMException extends Exception {
                 .append("\r\n========== VM STATUS ==========\r\n")
                 .append("%eip = ").append(vm.eip).append("\r\n")
                 .append("ins = ").append(vm.instructions.get(vm.eip - 1)).append("\r\n")
-                .append("%env = ").append(((ScopeHash) vm.env.read()).toString()).append("\r\n")
+                .append("%env = ").append((vm.env.read()).toString()).append("\r\n")
                 .append("%eax = ").append(vm.eax.read() == null ? "null" : vm.eax.read().toString()).append("\r\n")
                 .append("==============================\r\n");
         return sb.toString();
