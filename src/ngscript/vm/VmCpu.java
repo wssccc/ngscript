@@ -23,6 +23,29 @@ import ngscript.vm.structure.undefined;
  */
 public class VmCpu {
 
+    public static void deref(WscVM vm, String param, String param_extend) throws WscVMException {
+        VmMemRef v1;
+        if (param.equals("%eax")) {
+            v1 = (VmMemRef) vm.eax.read();
+        } else {
+            v1 = vm.lookup(param);
+        }
+        vm.eax.write(v1.read());
+    }
+
+    public static void mov_eax(WscVM vm, String param, String param_extend) throws WscVMException {
+        VmMemRef v1 = vm.lookup(param);
+        vm.eax.write(v1);
+    }
+
+    public static void mov_exception_eax(WscVM vm, String param, String param_extend) throws WscVMException {
+        vm.exception.write(vm.eax.read());
+    }
+
+    public static void mov_eax_exception(WscVM vm, String param, String param_extend) throws WscVMException {
+        vm.eax.write(vm.exception.read());
+    }
+
     public static void mov(WscVM vm, String param, String param_extend) throws WscVMException {
 
         VmMemRef v1 = vm.lookup(param);
@@ -81,20 +104,16 @@ public class VmCpu {
         }
     }
 
-    public static void push(WscVM vm, String param, String param_extend) throws WscVMException {
-        if (param.equals("%eax")) {
-            vm.stack.push(vm.eax.read());
-            return;
-        }
-        if (param.equals("%env")) {
-            vm.stack.push(vm.env.read());
-            return;
-        }
-        if (param.equals("%eip")) {
-            vm.stack.push(vm.eip);
-            return;
-        }
-        throw new WscVMException(vm, "unknown instruction push " + param + " " + param_extend);
+    public static void push_eax(WscVM vm, String param, String param_extend) throws WscVMException {
+        vm.stack.push(vm.eax.read());
+    }
+
+    public static void push_env(WscVM vm, String param, String param_extend) throws WscVMException {
+        vm.stack.push(vm.env.read());
+    }
+
+    public static void push_eip(WscVM vm, String param, String param_extend) throws WscVMException {
+        vm.stack.push(vm.eip);
     }
 
     public static void set_var(WscVM vm, String param, String param_extend) {
@@ -154,6 +173,27 @@ public class VmCpu {
 
     public static void typeof(WscVM vm, String param, String param_extend) throws WscVMException {
         Object obj = vm.eax.read();
+        //common types
+        if (obj == undefined.value) {
+            vm.eax.write("undefined");
+            return;
+        }
+        if (obj == null) {
+            vm.eax.write("object");
+            return;
+        }
+        if (obj instanceof Integer) {
+            vm.eax.write("number");
+            return;
+        }
+        if (obj instanceof Double) {
+            vm.eax.write("number");
+            return;
+        }
+        if (obj instanceof String) {
+            vm.eax.write("string");
+            return;
+        }
         if (obj.getClass().isAnonymousClass()) {
             vm.eax.write(obj.getClass().getSuperclass().getName());
         } else {
@@ -253,21 +293,16 @@ public class VmCpu {
         _addEaxObj(vm, -1, true);
     }
 
-    public static void pop(WscVM vm, String param, String param_extend) throws WscVMException {
-        if (param == null) {
-            vm.stack.pop();
-            return;
-        }
-        if (param.equals("%eax")) {
-            vm.eax.write(vm.stack.pop());
-            return;
-        }
-        if (param.equals("%env")) {
-            vm.env.write((ScopeHash) vm.stack.pop());
-            return;
-        }
+    public static void pop_eax(WscVM vm, String param, String param_extend) throws WscVMException {
+        vm.eax.write(vm.stack.pop());
+    }
 
-        throw new WscVMException(vm, "unknown instruction push" + param + " " + param_extend);
+    public static void pop_env(WscVM vm, String param, String param_extend) throws WscVMException {
+        vm.env.write((ScopeHash) vm.stack.pop());
+    }
+
+    public static void pop(WscVM vm, String param, String param_extend) throws WscVMException {
+        vm.stack.pop();
     }
 
     public static void jmp(WscVM vm, String param, String param_extend) throws WscVMException {
@@ -439,7 +474,7 @@ public class VmCpu {
 
     public static void eq(WscVM vm, String param, String param_extend) throws WscVMException {
         Object[] objs = get_op_params_2(vm);
-        //vm.eax.write(new TypeOp(vm).eval("eq", objs[0], objs[1]));
+        //vm.eax.value=(new TypeOp(vm).eval("eq", objs[0], objs[1]));
         vm.eax.write(testEq(objs[0], objs[1]));
     }
 

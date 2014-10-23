@@ -22,16 +22,28 @@ public class AutoCreatedCpuDispatcher {
             VmCpu.pop(vm, instruction.param, instruction.param_extend);
             return true;
         }
-        if (instruction.op.equals("push")) {
-            VmCpu.push(vm, instruction.param, instruction.param_extend);
-            return true;
-        }
         if (instruction.op.equals("peek")) {
             VmCpu.peek(vm, instruction.param, instruction.param_extend);
             return true;
         }
         if (instruction.op.equals("eq")) {
             VmCpu.eq(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
+        if (instruction.op.equals("deref")) {
+            VmCpu.deref(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
+        if (instruction.op.equals("mov_exception_eax")) {
+            VmCpu.mov_exception_eax(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
+        if (instruction.op.equals("mov_eax_exception")) {
+            VmCpu.mov_eax_exception(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
+        if (instruction.op.equals("mov_eax")) {
+            VmCpu.mov_eax(vm, instruction.param, instruction.param_extend);
             return true;
         }
         if (instruction.op.equals("mov")) {
@@ -50,12 +62,40 @@ public class AutoCreatedCpuDispatcher {
             VmCpu.neg(vm, instruction.param, instruction.param_extend);
             return true;
         }
+        if (instruction.op.equals("push_eax")) {
+            VmCpu.push_eax(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
+        if (instruction.op.equals("push_env")) {
+            VmCpu.push_env(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
+        if (instruction.op.equals("push_eip")) {
+            VmCpu.push_eip(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
         if (instruction.op.equals("set_var")) {
             VmCpu.set_var(vm, instruction.param, instruction.param_extend);
             return true;
         }
         if (instruction.op.equals("member_ref")) {
             VmCpu.member_ref(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
+        if (instruction.op.equals("clear_call_stack")) {
+            VmCpu.clear_call_stack(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
+        if (instruction.op.equals("save_machine_state")) {
+            VmCpu.save_machine_state(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
+        if (instruction.op.equals("drop_machine_state")) {
+            VmCpu.drop_machine_state(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
+        if (instruction.op.equals("restore_machine_state")) {
+            VmCpu.restore_machine_state(vm, instruction.param, instruction.param_extend);
             return true;
         }
         if (instruction.op.equals("array_ref")) {
@@ -104,6 +144,14 @@ public class AutoCreatedCpuDispatcher {
         }
         if (instruction.op.equals("post_dec")) {
             VmCpu.post_dec(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
+        if (instruction.op.equals("pop_eax")) {
+            VmCpu.pop_eax(vm, instruction.param, instruction.param_extend);
+            return true;
+        }
+        if (instruction.op.equals("pop_env")) {
+            VmCpu.pop_env(vm, instruction.param, instruction.param_extend);
             return true;
         }
         if (instruction.op.equals("jmp")) {
@@ -200,22 +248,6 @@ public class AutoCreatedCpuDispatcher {
         }
         if (instruction.op.equals("test")) {
             VmCpu.test(vm, instruction.param, instruction.param_extend);
-            return true;
-        }
-        if (instruction.op.equals("clear_call_stack")) {
-            VmCpu.clear_call_stack(vm, instruction.param, instruction.param_extend);
-            return true;
-        }
-        if (instruction.op.equals("save_machine_state")) {
-            VmCpu.save_machine_state(vm, instruction.param, instruction.param_extend);
-            return true;
-        }
-        if (instruction.op.equals("drop_machine_state")) {
-            VmCpu.drop_machine_state(vm, instruction.param, instruction.param_extend);
-            return true;
-        }
-        if (instruction.op.equals("restore_machine_state")) {
-            VmCpu.restore_machine_state(vm, instruction.param, instruction.param_extend);
             return true;
         }
         if (instruction.op.equals("clear_null")) {

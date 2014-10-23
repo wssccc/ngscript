@@ -124,7 +124,7 @@ public class WscCompiler {
         String header = child.get(0).token.type;
         if (header.equals("assign")) {
             compile_expr(child.get(1), true);
-            asm.emit("push", "%eax");
+            asm.emit("push_eax");
             compile_expr(child.get(2));
             asm.emit("assign");
         } else if (header.equals("integer") || header.equals("string")) {
@@ -133,11 +133,11 @@ public class WscCompiler {
             asm.emit("double_", child.get(0).token.value);
         } else if (header.equals("dot")) {
             compile_expr(child.get(1));
-            asm.emit("push", "%eax");
+            asm.emit("push_eax");
             asm.emit("string", child.get(2).token.value);
             asm.emit("member_ref");
             if (!byref) {
-                asm.emit("mov", "%eax", "[%eax]");
+                asm.emit("deref", "%eax");
             }
         } else if (header.equals("new")) {
             _compile_funcall(ast);
@@ -147,8 +147,7 @@ public class WscCompiler {
         } else if (header.equals("funcall")) {
             //prepare env
             _compile_funcall(ast);
-            asm.emit("pop", "%env");
-            //asm.emit("mov", "env", "%eax");
+            asm.emit("pop_env");
             asm.emit("pop");//pop params
             asm.emit("pop");//pop function body
         } else if (header.equals("inc")) {
@@ -167,9 +166,9 @@ public class WscCompiler {
             asm.emit("undefined");
         } else if (header.equals("ident")) {
             if (!byref) {
-                asm.emit("mov", "%eax", '[' + child.get(0).token.value + ']');
+                asm.emit("deref", child.get(0).token.value);
             } else {
-                asm.emit("mov", "%eax", child.get(0).token.value);
+                asm.emit("mov_eax", child.get(0).token.value);
             }
         } else if (header.equals("var")) {
             if (!child.get(1).token.type.equals("ident")) {
@@ -178,15 +177,15 @@ public class WscCompiler {
             asm.emit("clear", "%eax");
             asm.emit("set_var", child.get(1).token.value);
             if (!byref) {
-                asm.emit("mov", "%eax", '[' + child.get(1).token.value + ']');
+                asm.emit("deref", child.get(1).token.value);
             } else {
-                asm.emit("mov", "%eax", child.get(1).token.value);
+                asm.emit("mov_eax", child.get(1).token.value);
             }
         } else if (header.equals("array")) {
             makeParam2(child);
             asm.emit("array_ref");
             if (!byref) {
-                asm.emit("mov", "%eax", "[%eax]");
+                asm.emit("deref", "%eax");
             }
         } else if (header.equals("typeof")) {
             compile_expr(child.get(1)); //param1
@@ -233,15 +232,15 @@ public class WscCompiler {
         } else if (header.equals("array_new")) {
             for (int i = 0; i < child.get(1).contents.size(); i++) {
                 compile_expr(child.get(1).contents.get(i));
-                asm.emit("push", "%eax");
+                asm.emit("push_eax");
             }
             asm.emit("array_new", child.get(1).contents.size() + "");
         } else if (header.equals("object_new")) {
             for (int i = 0; i < child.get(1).contents.size(); i++) {
                 asm.emit("string", child.get(1).contents.get(i).contents.get(0).token.value);
-                asm.emit("push", "%eax");
+                asm.emit("push_eax");
                 compile_expr(child.get(1).contents.get(i).contents.get(1));
-                asm.emit("push", "%eax");
+                asm.emit("push_eax");
             }
             asm.emit("object_new", child.get(1).contents.size() + "");
         } else {
@@ -251,7 +250,7 @@ public class WscCompiler {
 
     void makeParam2(ArrayList<AstNode> child) throws WscCompilerException {
         compile_expr(child.get(1)); //param1
-        asm.emit("push", "%eax");
+        asm.emit("push_eax");
         compile_expr(child.get(2)); //param2
     }
 
@@ -346,7 +345,7 @@ public class WscCompiler {
         String breakLabel = asm.label("break", ast);
         breakStack.push(breakLabel);
         compile_expr(ast.contents.get(0));
-        asm.emit("push", "%eax");
+        asm.emit("push_eax");
 
         String nextBody = null;
         for (int i = 0; i < ast.contents.get(1).contents.size() - 1; i++) {
@@ -384,15 +383,15 @@ public class WscCompiler {
         asm.emit("jnz", catchLabel);
         compile_statements(ast.contents.get(0));
         asm.emit("drop_machine_state");
-        asm.emit("push", "%eip");
+        asm.emit("push_eip");
         asm.emit("jmp", finallyLabel);
         asm.emit("jmp", exitLabel);
         asm.emit("label", catchLabel);
-        asm.emit("mov", "%eax", "%exception");
+        asm.emit("mov_eax_exception");
         asm.emit("set_var", ast.contents.get(1).token.value);
         asm.emit("clear", "%exception");
         compile_statements(ast.contents.get(2));
-        asm.emit("push", "%eip");
+        asm.emit("push_eip");
         asm.emit("jmp", finallyLabel);
         asm.emit("jmp", exitLabel);
         asm.emit("label", finallyLabel);
@@ -400,7 +399,7 @@ public class WscCompiler {
             compile_statements(ast.contents.get(3));
         }
         asm.emit("clear_call_stack");
-        asm.emit("pop", "%eax");
+        asm.emit("pop_eax");
         asm.emit("jmp", "offset", "1");
         asm.emit("label", exitLabel);
         finallyStack.pop();
@@ -408,7 +407,7 @@ public class WscCompiler {
 
     private void compile_throw_exception(AstNode ast) throws WscCompilerException {
         compile_expr(ast.contents.get(0));
-        asm.emit("mov", "%exception", "%eax");
+        asm.emit("mov_exception_eax");
         asm.emit("restore_machine_state");
     }
 
@@ -473,7 +472,7 @@ public class WscCompiler {
     }
 
     void _compile_call_finally() {
-        asm.emit("push", "%eip");
+        asm.emit("push_eip");
         asm.emit("jmp", finallyStack.peek());
     }
 
@@ -494,16 +493,16 @@ public class WscCompiler {
             if (!content.token.type.equals("NULL")) {
                 ++param_n;
                 compile_expr(content);
-                asm.emit("push", "%eax");
+                asm.emit("push_eax");
             }
         }
         asm.emit("new_queue", param_n + "");
-        asm.emit("push", "%eax");
+        asm.emit("push_eax");
         //function body
         compile_expr(ast.contents.get(1));
-        asm.emit("push", "%eax");
+        asm.emit("push_eax");
 
-        asm.emit("push", "%env");
+        asm.emit("push_env");
         asm.emit("call");
     }
 }
