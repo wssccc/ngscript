@@ -1,9 +1,7 @@
 /* DO NOT WRITE ANYTHING MANUALLY */package org.ngscript.vm.cpu;
 
-import org.ngscript.vm.VmCpu;
-import org.ngscript.vm.WscVMException;
-import org.ngscript.vm.WscVM;
 import org.ngscript.common.Instruction;
+import org.ngscript.vm.*;
 
 public class AutoCreatedCpuDispatcher {
 
