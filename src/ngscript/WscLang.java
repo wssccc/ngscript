@@ -35,11 +35,11 @@ public class WscLang {
     public static void main(String[] args) throws Exception {
         //init
         //interactive(System.in);
-        long time = System.currentTimeMillis();
-        test("deprecated/rose.txt");
-        System.out.println("execute time " + (System.currentTimeMillis() - time) + " ms");
+        //long time = System.currentTimeMillis();
+        //test("deprecated/rose.txt");
+        //System.out.println("execute time " + (System.currentTimeMillis() - time) + " ms");
         //test("examples/example9.txt");
-        //testExamples();
+        testExamples();
         //test();
         //testbean();
     }
@@ -59,13 +59,9 @@ public class WscLang {
     public static void test(String filename) throws FileNotFoundException, Exception {
         //String code = readFile("testwl.txt");
         ArrayList<Instruction> ins = staticCompile(readFile(filename));
-        try {
-            WscVM vm = new WscVM(new PrintWriter(System.out), new PrintWriter(System.err));
-            vm.loadInstructions(ins);
-            vm.run();
-        } catch (InvocationTargetException ex) {
-            Logger.getLogger(WscLang.class.getName()).log(Level.SEVERE, null, ex);
-        }
+        WscVM vm = new WscVM(new PrintWriter(System.out), new PrintWriter(System.err));
+        vm.loadInstructions(ins);
+        vm.run();
     }
 
     public static void testExamples() throws Exception {

@@ -163,7 +163,7 @@ public class WscVM {
 //        labels.put("coroutine_return_hook_exit", instructions.size());
     }
 
-    public void run() throws InvocationTargetException, WscVMException {
+    public void run() throws InvocationTargetException, WscVMException, Exception {
         //initial
         exception.write(null);
         eax.write(null);
@@ -214,20 +214,9 @@ public class WscVM {
                     Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex1.getCause());
                     throw ex1; //do not hold this type
                 }
-            } catch (NoSuchMethodException ex) {
-                Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex);
-                return;
-            } catch (SecurityException ex) {
-                Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex);
-                return;
-            } catch (IllegalAccessException ex) {
-                Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex);
-                return;
-            } catch (IllegalArgumentException ex) {
-                Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex);
-                return;
             } catch (Exception ex) {
                 Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex);
+                throw ex;
             }
         }
     }
