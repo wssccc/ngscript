@@ -3,7 +3,7 @@
  */
 package org.ngscript.fastlexer;
 
-import parseroid.parser.Token;
+import org.ngscript.parseroid.parser.Token;
 
 /**
  *

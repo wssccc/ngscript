@@ -3,7 +3,9 @@
  */
 package org.ngscript.test;
 
-import ngscript.WscLang;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.ngscript.WscLang;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -37,6 +39,11 @@ public class ScriptCodeTest {
 
     @Test
     public void testExamples() throws Exception {
-        WscLang.testExamples();
+        try {
+            WscLang.testExamples();
+        } catch (Exception ex) {
+            Logger.getLogger(ScriptCodeTest.class.getName()).log(Level.SEVERE, null, ex);
+            throw ex;
+        }
     }
 }

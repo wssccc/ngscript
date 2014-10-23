@@ -4,7 +4,7 @@
 package org.ngscript.fastlexer;
 
 import java.util.ArrayList;
-import parseroid.parser.Token;
+import org.ngscript.parseroid.parser.Token;
 
 /**
  *
