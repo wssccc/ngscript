@@ -11,10 +11,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.ngscript.common.Instruction;
 import org.ngscript.parser.WscStreamParser;
 import org.ngscript.parseroid.grammar.Symbol;
@@ -35,11 +32,12 @@ public class WscLang {
     public static void main(String[] args) throws Exception {
         //init
         //interactive(System.in);
-        //long time = System.currentTimeMillis();
-        //test("deprecated/rose.txt");
-        //System.out.println("execute time " + (System.currentTimeMillis() - time) + " ms");
+        long time = System.currentTimeMillis();
+        test("deprecated/rose.txt");
+        //test("examples/example11-fibrec.txt");
+        System.out.println("execute time " + (System.currentTimeMillis() - time) + " ms");
         //test("examples/example9.txt");
-        testExamples();
+        //testExamples();
         //test();
         //testbean();
     }
