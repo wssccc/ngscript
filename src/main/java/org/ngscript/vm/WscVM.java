@@ -4,7 +4,6 @@
 package org.ngscript.vm;
 
 import org.ngscript.common.Instruction;
-import org.ngscript.common.OpCode;
 import org.ngscript.j2se.DrawWindow;
 import org.ngscript.vm.inst.InstBinding;
 import org.ngscript.vm.inst.InstMap;
@@ -108,7 +107,7 @@ public class WscVM {
     final void loadLabels(ArrayList<InstBinding> ins) {
         int offset = instructions.size();
         for (int i = 0; i < ins.size(); ++i) {
-            if (ins.get(i).op== OpCode.LABEL) {
+            if (ins.get(i).op.equals("label")) {
                 labels.put(ins.get(i).param, i + offset);
             }
         }

@@ -1,7 +1,6 @@
 package org.ngscript.compiler;
 
 import org.ngscript.common.Instruction;
-import org.ngscript.common.OpCode;
 import org.ngscript.parseroid.parser.AstNode;
 
 import java.util.ArrayList;
@@ -48,26 +47,26 @@ public class WscAssembler {
     }
 
     public void emit(String opr, String param, String param_extend) {
-        instructions.add(new Instruction(OpCode.valueOf(opr.toUpperCase()), param, param_extend));
+        instructions.add(new Instruction(opr, param, param_extend));
     }
 
     public void emit(String opr, String param) {
-        instructions.add(new Instruction(OpCode.valueOf(opr.toUpperCase()), param));
+        instructions.add(new Instruction(opr, param));
     }
 
     public void emit(String opr) {
-        instructions.add(new Instruction(OpCode.valueOf(opr.toUpperCase())));
+        instructions.add(new Instruction(opr));
     }
 
     public static Instruction parseLine(String instruction) {
         int sep = instruction.indexOf(' ');
         if (sep == -1) {
-            return new Instruction(OpCode.valueOf(instruction));
+            return new Instruction(instruction);
         } else {
             String op = instruction.substring(0, sep);
             String params = instruction.substring(sep + 1);
 
-            return new Instruction(OpCode.valueOf(op), params);
+            return new Instruction(op, params);
 
         }
     }
