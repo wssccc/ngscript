@@ -9,20 +9,20 @@ package org.ngscript.common;
  */
 public class Instruction {
 
-    public String op;
+    public OpCode op;
     public String param;
     public String paramExtended;
 
-    public Instruction(String op) {
+    public Instruction(OpCode op) {
         this.op = op;
     }
 
-    public Instruction(String op, String param) {
+    public Instruction(OpCode op, String param) {
         this.op = op;
         this.param = param;
     }
 
-    public Instruction(String op, String param, String paramExtended) {
+    public Instruction(OpCode op, String param, String paramExtended) {
         this.op = op;
         this.param = param;
         this.paramExtended = paramExtended;
@@ -31,9 +31,8 @@ public class Instruction {
     @Override
     public String toString() {
         if (op.equals("//")) {
-            return op + ' ' + (param == null ? "" : param);
+            return op.name() + ' ' + (param == null ? "" : param);
         } else {
-            //return op + (op.length() > 8 ? '\t' : "\t\t") + (param == null ? "" : param) + (paramExtended == null ? "" : "," + paramExtended);
             return String.format("%-15s%-30s", op, (param == null ? "" : param) + (paramExtended == null ? "" : "," + paramExtended));
         }
 
