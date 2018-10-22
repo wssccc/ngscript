@@ -75,6 +75,7 @@ public class WscLang {
         WscStreamParser.removeNULL(ast);
         //System.out.println(ast);
         defaultCompiler.compileCode(ast, code);
+        defaultCompiler.getAssembler().doOptimize();
         ins.addAll(defaultCompiler.getCompiledInstructions());
         System.out.println(defaultCompiler.getAssembler().getInfoString(0));
         return ins;
