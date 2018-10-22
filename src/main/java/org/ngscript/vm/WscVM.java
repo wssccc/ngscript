@@ -4,6 +4,7 @@
 package org.ngscript.vm;
 
 import org.ngscript.common.Instruction;
+import org.ngscript.common.OpCode;
 import org.ngscript.j2se.DrawWindow;
 import org.ngscript.vm.cpu.AutoCreatedCpuDispatcher;
 import org.ngscript.vm.structure.BuiltinClosure;
@@ -100,7 +101,7 @@ public class WscVM {
     final void loadLabels(ArrayList<Instruction> ins) {
         int offset = instructions.size();
         for (int i = 0; i < ins.size(); ++i) {
-            if (ins.get(i).op.equals("label")) {
+            if (ins.get(i).op== OpCode.LABEL) {
                 labels.put(ins.get(i).param, i + offset);
             }
         }

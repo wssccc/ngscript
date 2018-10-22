@@ -2,199 +2,201 @@
 package org.ngscript.vm.cpu;
 
 import org.ngscript.common.Instruction;
-import org.ngscript.vm.*;
+import org.ngscript.vm.VmCpu;
+import org.ngscript.vm.WscVM;
+import org.ngscript.vm.WscVMException;
 
 public class AutoCreatedCpuDispatcher {
     public static boolean dispatch(Instruction instruction, WscVM vm) throws WscVMException, Exception {
         switch (instruction.op) {
-            case "add":
+            case ADD:
                 VmCpu.add(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "clear":
+            case CLEAR:
                 VmCpu.clear(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "lt":
+            case LT:
                 VmCpu.lt(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "pop":
+            case POP:
                 VmCpu.pop(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "peek":
+            case PEEK:
                 VmCpu.peek(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "eq":
-                VmCpu.eq(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "deref":
-                VmCpu.deref(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "dec":
-                VmCpu.dec(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "post_inc":
-                VmCpu.post_inc(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "le":
-                VmCpu.le(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "inc":
-                VmCpu.inc(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "pop_eax":
-                VmCpu.pop_eax(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "post_dec":
-                VmCpu.post_dec(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "ge":
-                VmCpu.ge(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "gt":
-                VmCpu.gt(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "assign":
-                VmCpu.assign(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "pop_env":
-                VmCpu.pop_env(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "jmp":
-                VmCpu.jmp(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "jz":
-                VmCpu.jz(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "jnz":
-                VmCpu.jnz(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "label":
-                VmCpu.label(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "new_closure":
-                VmCpu.new_closure(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "integer":
-                VmCpu.integer(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "double_":
-                VmCpu.double_(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "undefined":
-                VmCpu.undefined(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "string":
-                VmCpu.string(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "dequeue":
-                VmCpu.dequeue(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "ret":
-                VmCpu.ret(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "bit_and":
-                VmCpu.bit_and(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "bit_or":
-                VmCpu.bit_or(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "bit_xor":
-                VmCpu.bit_xor(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "sub":
-                VmCpu.sub(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "mul":
-                VmCpu.mul(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "mod":
-                VmCpu.mod(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "div":
-                VmCpu.div(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "veq":
-                VmCpu.veq(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "neq":
-                VmCpu.neq(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "vneq":
-                VmCpu.vneq(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "new_queue":
-                VmCpu.new_queue(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "call":
-                VmCpu.call(vm, instruction.param, instruction.paramExtended);
-                return true;
-            case "test":
+            case TEST:
                 VmCpu.test(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "clear_null":
-                VmCpu.clear_null(vm, instruction.param, instruction.paramExtended);
+            case EQ:
+                VmCpu.eq(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "new_op":
-                VmCpu.new_op(vm, instruction.param, instruction.paramExtended);
+            case DEREF:
+                VmCpu.deref(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "mov_exception_eax":
-                VmCpu.mov_exception_eax(vm, instruction.param, instruction.paramExtended);
+            case DEC:
+                VmCpu.dec(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "mov_eax_exception":
-                VmCpu.mov_eax_exception(vm, instruction.param, instruction.paramExtended);
+            case CALL:
+                VmCpu.call(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "clear_call_stack":
+            case CLEAR_CALL_STACK:
                 VmCpu.clear_call_stack(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "save_machine_state":
-                VmCpu.save_machine_state(vm, instruction.param, instruction.paramExtended);
+            case SUB:
+                VmCpu.sub(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "drop_machine_state":
-                VmCpu.drop_machine_state(vm, instruction.param, instruction.paramExtended);
+            case VEQ:
+                VmCpu.veq(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "restore_machine_state":
-                VmCpu.restore_machine_state(vm, instruction.param, instruction.paramExtended);
+            case NEQ:
+                VmCpu.neq(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "mov_eax":
-                VmCpu.mov_eax(vm, instruction.param, instruction.paramExtended);
+            case BIT_XOR:
+                VmCpu.bit_xor(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "mov":
-                VmCpu.mov(vm, instruction.param, instruction.paramExtended);
+            case BIT_AND:
+                VmCpu.bit_and(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "array_new":
-                VmCpu.array_new(vm, instruction.param, instruction.paramExtended);
+            case VNEQ:
+                VmCpu.vneq(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "object_new":
-                VmCpu.object_new(vm, instruction.param, instruction.paramExtended);
+            case DIV:
+                VmCpu.div(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "neg":
-                VmCpu.neg(vm, instruction.param, instruction.paramExtended);
+            case MUL:
+                VmCpu.mul(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "push_eax":
-                VmCpu.push_eax(vm, instruction.param, instruction.paramExtended);
+            case DEQUEUE:
+                VmCpu.dequeue(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "push_env":
-                VmCpu.push_env(vm, instruction.param, instruction.paramExtended);
+            case NEW_OP:
+                VmCpu.new_op(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "push_eip":
-                VmCpu.push_eip(vm, instruction.param, instruction.paramExtended);
+            case NEW_QUEUE:
+                VmCpu.new_queue(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "set_var":
-                VmCpu.set_var(vm, instruction.param, instruction.paramExtended);
+            case BIT_OR:
+                VmCpu.bit_or(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "member_ref":
-                VmCpu.member_ref(vm, instruction.param, instruction.paramExtended);
+            case RET:
+                VmCpu.ret(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "array_ref":
-                VmCpu.array_ref(vm, instruction.param, instruction.paramExtended);
+            case UNDEFINED:
+                VmCpu.undefined(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "static_func":
-                VmCpu.static_func(vm, instruction.param, instruction.paramExtended);
+            case MOD:
+                VmCpu.mod(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "typeof":
+            case CLEAR_NULL:
+                VmCpu.clear_null(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case TYPEOF:
                 VmCpu.typeof(vm, instruction.param, instruction.paramExtended);
                 return true;
-            case "import_":
+            case INC:
+                VmCpu.inc(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case POP_EAX:
+                VmCpu.pop_eax(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case ASSIGN:
+                VmCpu.assign(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case JNZ:
+                VmCpu.jnz(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case LABEL:
+                VmCpu.label(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case NEW_CLOSURE:
+                VmCpu.new_closure(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case PUSH_ENV:
+                VmCpu.push_env(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case SET_VAR:
+                VmCpu.set_var(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case POST_INC:
+                VmCpu.post_inc(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case MOV_EAX:
+                VmCpu.mov_eax(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case OBJECT_NEW:
+                VmCpu.object_new(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case GE:
+                VmCpu.ge(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case POP_ENV:
+                VmCpu.pop_env(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case JZ:
+                VmCpu.jz(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case POST_DEC:
+                VmCpu.post_dec(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case JMP:
+                VmCpu.jmp(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case MOV:
+                VmCpu.mov(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case ARRAY_NEW:
+                VmCpu.array_new(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case PUSH_EAX:
+                VmCpu.push_eax(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case PUSH_EIP:
+                VmCpu.push_eip(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case MEMBER_REF:
+                VmCpu.member_ref(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case NEG:
+                VmCpu.neg(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case STATIC_FUNC:
+                VmCpu.static_func(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case IMPORT_:
                 VmCpu.import_(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case ARRAY_REF:
+                VmCpu.array_ref(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case GT:
+                VmCpu.gt(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case LE:
+                VmCpu.le(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case DOUBLE_:
+                VmCpu.double_(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case INTEGER:
+                VmCpu.integer(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case MOV_EXCEPTION_EAX:
+                VmCpu.mov_exception_eax(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case MOV_EAX_EXCEPTION:
+                VmCpu.mov_eax_exception(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case STRING:
+                VmCpu.string(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case RESTORE_MACHINE_STATE:
+                VmCpu.restore_machine_state(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case SAVE_MACHINE_STATE:
+                VmCpu.save_machine_state(vm, instruction.param, instruction.paramExtended);
+                return true;
+            case DROP_MACHINE_STATE:
+                VmCpu.drop_machine_state(vm, instruction.param, instruction.paramExtended);
                 return true;
         }
         return false;

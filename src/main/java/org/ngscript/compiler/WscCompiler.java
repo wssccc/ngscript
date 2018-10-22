@@ -3,6 +3,10 @@
  */
 package org.ngscript.compiler;
 
+import org.ngscript.common.Instruction;
+import org.ngscript.common.OpCode;
+import org.ngscript.parseroid.parser.AstNode;
+
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -10,8 +14,6 @@ import java.util.Scanner;
 import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.ngscript.common.Instruction;
-import org.ngscript.parseroid.parser.AstNode;
 
 /**
  *
@@ -63,7 +65,7 @@ public class WscCompiler {
         printedLines = 0;
         compile(ast);
         while (sc.hasNextLine()) {
-            asm.emit("//", sc.nextLine(), "" + printedLines);
+            asm.emit("comment", sc.nextLine(), "" + printedLines);
         }
     }
 
@@ -71,7 +73,7 @@ public class WscCompiler {
         if (printedLines != ast.token.line_no) {
             while (printedLines < ast.token.line_no) {
                 String line = sc.hasNextLine() ? sc.nextLine() : "no line";
-                asm.emit("//", line, "" + printedLines);
+                asm.emit("comment", line, "" + printedLines);
                 ++printedLines;
             }
         }
@@ -256,7 +258,7 @@ public class WscCompiler {
 
     private void compile_function_decl(AstNode ast) {
         String enter = _compile_function_body(ast);
-        asm.instructions.add(0, new Instruction("static_func", ast.contents.get(0).token.value, enter));
+        asm.instructions.add(0, new Instruction(OpCode.valueOf("static_func".toUpperCase()), ast.contents.get(0).token.value, enter));
     }
 
     String _compile_function_body(AstNode ast) {
