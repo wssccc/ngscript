@@ -1,8 +1,5 @@
 package org.ngscript.compiler;
 
-/*
- *  wssccc all rights reserved
- */
 import org.ngscript.common.Instruction;
 import org.ngscript.common.OpCode;
 import org.ngscript.parseroid.parser.AstNode;
@@ -12,13 +9,30 @@ import java.util.HashMap;
 import java.util.Scanner;
 
 /**
- *
  * @author wssccc <wssccc@qq.com>
  */
 public class WscAssembler {
 
     ArrayList<Instruction> instructions = new ArrayList<Instruction>();
     HashMap<String, Integer> labels = new HashMap<String, Integer>();
+
+    public void doOptimize() {
+        this.instructions = optimze(instructions);
+    }
+
+    public ArrayList<Instruction> optimze(ArrayList<Instruction> ins2) {
+        ArrayList<Instruction> ins = new ArrayList<>();
+        for (int i = 0; i < ins2.size() - 1; i++) {
+            Instruction instruction = ins2.get(i);
+            Instruction next = ins2.get(i + 1);
+            if (next.op.equals("push_eax")) {
+                instruction.op += "_pe";
+                ++i;
+            }
+            ins.add(instruction);
+        }
+        return ins;
+    }
 
     public String label(String name, AstNode ast) {
         String label_name = ast.token.type + "_$" + ast.token.line_no + "_" + name;

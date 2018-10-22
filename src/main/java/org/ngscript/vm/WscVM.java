@@ -6,7 +6,8 @@ package org.ngscript.vm;
 import org.ngscript.common.Instruction;
 import org.ngscript.common.OpCode;
 import org.ngscript.j2se.DrawWindow;
-import org.ngscript.vm.cpu.AutoCreatedCpuDispatcher;
+import org.ngscript.vm.inst.InstBinding;
+import org.ngscript.vm.inst.InstMap;
 import org.ngscript.vm.structure.BuiltinClosure;
 import org.ngscript.vm.structure.VmClosure;
 import org.ngscript.vm.structure.VmMemRef;
@@ -22,14 +23,13 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- *
  * @author wssccc <wssccc@qq.com>
  */
 public class WscVM {
 
     HashMap<String, Method> cpuMethodCache = new HashMap<String, Method>();
     //static data
-    ArrayList<Instruction> instructions = new ArrayList<Instruction>();
+    ArrayList<InstBinding> instructions = new ArrayList<>();
     HashMap<String, Integer> labels = new HashMap<String, Integer>();
 
     HashMap<String, String> imported = new HashMap<String, String>();
@@ -91,14 +91,21 @@ public class WscVM {
         return types;
     }
 
-    public void loadInstructions(ArrayList<Instruction> ins) {
+    public void loadInstructions(ArrayList<Instruction> ins2) {
+        InstMap instMap = new InstMap();
+        //
+        ArrayList<InstBinding> ins = new ArrayList<>();
+        for (Instruction instruction : ins2) {
+            ins.add(new InstBinding(instruction, instMap.map.get(instruction.op)));
+        }
+        //
         loadLabels(ins);
         //reset eip
         eip = instructions.size();
         instructions.addAll(ins);
     }
 
-    final void loadLabels(ArrayList<Instruction> ins) {
+    final void loadLabels(ArrayList<InstBinding> ins) {
         int offset = instructions.size();
         for (int i = 0; i < ins.size(); ++i) {
             if (ins.get(i).op== OpCode.LABEL) {
@@ -180,7 +187,7 @@ public class WscVM {
                 }
             }
 
-            Instruction instruction = instructions.get(eip);
+            InstBinding instruction = instructions.get(eip);
             ++eip;
             if (instruction.op.equals("//")) {
                 helptext = instruction;
@@ -189,7 +196,8 @@ public class WscVM {
             //System.out.println("run " + eip + "\t" + instruction);
             try {
                 //instant accleration
-                AutoCreatedCpuDispatcher.dispatch(instruction, this);
+                //AutoCreatedCpuDispatcher.dispatch(instruction, this);
+                instruction.invoke(this);
 //                if (AutoCreatedCpuDispatcher.dispatch(instruction, this)) {
 //                    continue;
 //                }
@@ -202,7 +210,7 @@ public class WscVM {
 //                }
 //                m.invoke(VmCpu.class, this, instruction.param, instruction.paramExtended);
 
-            } catch (InvocationTargetException ex) {
+            } catch (Exception ex) {
                 try {
                     //System.out.println(ex.getCause().toString());
                     //for detail
@@ -216,9 +224,6 @@ public class WscVM {
                     Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex1.getCause());
                     throw ex1; //do not hold this type
                 }
-            } catch (Exception ex) {
-                Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex);
-                throw ex;
             }
         }
     }

@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
- *
  * @author wssccc <wssccc@qq.com>
  */
 public class ScopeHash extends HashMap<String, VmMemRef> {
@@ -26,18 +25,18 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
         this.parent = parent;
     }
 
-    VmMemRef lookup(String member, WscVM vm) throws WscVMException {
+    VmMemRef lookup(String member, WscVM vm, boolean isMember) throws WscVMException {
         VmMemRef ref = cache.get(member);
         if (ref != null) {
             return ref;
         } else {
-            ref = lookup(member, vm, false);
+            ref = _lookup(member, vm, isMember);
             cache.put(member, ref);
             return ref;
         }
     }
 
-    VmMemRef lookup(String member, WscVM vm, boolean isMember) throws WscVMException {
+    VmMemRef _lookup(String member, WscVM vm, boolean isMember) throws WscVMException {
         //registers
         switch (member) {
             case "this":
