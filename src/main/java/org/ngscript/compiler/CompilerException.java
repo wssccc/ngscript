@@ -7,11 +7,11 @@ package org.ngscript.compiler;
  *
  * @author wssccc <wssccc@qq.com>
  */
-public class WscCompilerException extends Exception {
+public class CompilerException extends Exception {
 
-    WscCompiler compiler;
+    Compiler compiler;
 
-    public WscCompilerException(WscCompiler compiler, String message) {
+    public CompilerException(Compiler compiler, String message) {
         super(message + " at line " + compiler.printedLines);
         this.compiler = compiler;
     }

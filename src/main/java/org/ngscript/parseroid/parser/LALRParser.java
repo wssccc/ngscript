@@ -3,13 +3,15 @@ package org.ngscript.parseroid.parser;
 /*
  *  wssccc all rights reserved
  */
+
 import org.ngscript.parseroid.grammar.Grammar;
-import org.ngscript.parseroid.grammar.Symbol;
 import org.ngscript.parseroid.grammar.Production;
-import java.util.List;
-import org.ngscript.parseroid.table.ParserAction;
+import org.ngscript.parseroid.grammar.Symbol;
 import org.ngscript.parseroid.table.LALRTable;
-import java.util.Stack;
+import org.ngscript.parseroid.table.ParserAction;
+import org.ngscript.utils.FastStack;
+
+import java.util.List;
 
 /**
  *
@@ -18,9 +20,9 @@ import java.util.Stack;
 public class LALRParser {
 
     LALRTable table;
-    Stack<Integer> stateStack = new Stack<Integer>();
-    Stack<String> symbolStack = new Stack<String>();
-    Stack<AstNode> astStack = new Stack<AstNode>();
+    FastStack<Integer> stateStack = new FastStack<Integer>(32);
+    FastStack<String> symbolStack = new FastStack<>(32);
+    FastStack<AstNode> astStack = new FastStack<>(32);
 
     public LALRParser(LALRTable table) {
         this.table = table;
@@ -89,7 +91,7 @@ public class LALRParser {
                         }
                     } else {
                         //reduce as alias defined
-                        List<AstNode> sublist = astStack.subList(astStack.size() - n, astStack.size());
+                        List<AstNode> sublist = astStack.last(n);
 
                         for (Symbol sym : pro_alias) {
                             AstNode nd = getAliasNode(sublist, sym);
@@ -101,9 +103,7 @@ public class LALRParser {
                             }
                         }
                         //pop ast stack
-                        while (!sublist.isEmpty()) {
-                            sublist.remove(0);
-                        }
+                        astStack.pop(n);
                     }
 
                     for (int i = 0; i < n; ++i) {

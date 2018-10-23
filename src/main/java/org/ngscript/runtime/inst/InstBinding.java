@@ -1,9 +1,9 @@
-package org.ngscript.vm.inst;
+package org.ngscript.runtime.inst;
 
-import org.ngscript.common.Instruction;
-import org.ngscript.vm.InvokableInstruction;
-import org.ngscript.vm.WscVM;
-import org.ngscript.vm.WscVMException;
+import org.ngscript.compiler.Instruction;
+import org.ngscript.runtime.InvokableInstruction;
+import org.ngscript.runtime.VirtualMachine;
+import org.ngscript.runtime.VmRuntimeException;
 
 public class InstBinding extends Instruction {
 
@@ -14,7 +14,7 @@ public class InstBinding extends Instruction {
         this.invokableInstruction = invokableInstruction;
     }
 
-    public void invoke(WscVM vm) throws WscVMException {
+    public void invoke(VirtualMachine vm) throws VmRuntimeException {
         invokableInstruction.invoke(vm, param, paramExtended);
     }
 }

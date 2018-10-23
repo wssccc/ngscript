@@ -4,7 +4,6 @@
 package org.ngscript.parseroid.parser;
 
 import java.util.ArrayList;
-import java.util.Stack;
 
 /**
  *
@@ -12,17 +11,12 @@ import java.util.Stack;
  */
 public class AstNode {
 
-    static final Stack<String> stc = new Stack<String>();
-
-    static {
-        stc.push("    ");
-    }
     public Token token;
     public ArrayList<AstNode> contents;
 
     public AstNode(Token token) {
         this.token = token;
-        this.contents = new ArrayList<AstNode>();
+        this.contents = new ArrayList<>();
     }
 
     public AstNode(Token token, ArrayList<AstNode> children) {
@@ -41,28 +35,20 @@ public class AstNode {
 
     @Override
     public String toString() {
-        return toString(0);
+        return toString(0, "", "    ");
     }
 
-    String toString(int nest) {
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < stc.size() - 1; i++) {
-            builder.append(stc.get(i));
-        }
-
+    String toString(int nest, String margin, String subMargin) {
+        StringBuilder builder = new StringBuilder(margin);
         builder.append("|-");
         builder.append(token.toString());
-
         builder.append("\n");
-
         for (int i = 0; i < contents.size(); i++) {
             if (i != contents.size() - 1) {
-                stc.push("|    ");
+                builder.append(contents.get(i).toString(nest + 1, subMargin, subMargin + "|    "));
             } else {
-                stc.push("     ");
+                builder.append(contents.get(i).toString(nest + 1, subMargin, subMargin + "     "));
             }
-            builder.append(contents.get(i).toString(nest + 1));
-            stc.pop();
         }
         return builder.toString();
     }

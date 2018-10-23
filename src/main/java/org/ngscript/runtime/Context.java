@@ -1,10 +1,10 @@
 /*
  *  wssccc all rights reserved
  */
-package org.ngscript.vm;
+package org.ngscript.runtime;
 
-import java.util.Stack;
-import org.ngscript.common.Instruction;
+import org.ngscript.compiler.Instruction;
+import org.ngscript.utils.FastStack;
 
 /**
  *
@@ -18,13 +18,13 @@ public class Context {
     Instruction helptext;
     int stack_size;
     int call_stack_size;
-    Stack<Object> stack;
+    FastStack<Object> stack;
 
-    public Context(WscVM vm) {
+    public Context(VirtualMachine vm) {
         this.save(vm);
     }
 
-    public final void save(WscVM vm) {
+    public final void save(VirtualMachine vm) {
         this.eax = vm.eax.read();
         this.env = vm.env.read();
         this.eip = vm.eip;
@@ -34,7 +34,7 @@ public class Context {
         this.stack = vm.stack;
     }
 
-    public final void restore(WscVM vm) {
+    public final void restore(VirtualMachine vm) {
         vm.eax.write(eax);
         vm.env.write(env);
         vm.eip = eip;

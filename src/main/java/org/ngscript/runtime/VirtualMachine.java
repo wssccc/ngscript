@@ -1,44 +1,43 @@
 /*
  *  wssccc all rights reserved
  */
-package org.ngscript.vm;
+package org.ngscript.runtime;
 
-import org.ngscript.common.Instruction;
+import org.ngscript.compiler.Instruction;
 import org.ngscript.j2se.DrawWindow;
-import org.ngscript.vm.inst.InstBinding;
-import org.ngscript.vm.inst.InstMap;
-import org.ngscript.vm.structure.BuiltinClosure;
-import org.ngscript.vm.structure.VmClosure;
-import org.ngscript.vm.structure.VmMemRef;
+import org.ngscript.runtime.inst.InstBinding;
+import org.ngscript.runtime.inst.InstMap;
+import org.ngscript.runtime.vo.BuiltInFunction;
+import org.ngscript.runtime.vo.FunctionDefinition;
+import org.ngscript.runtime.vo.VmMemRef;
+import org.ngscript.utils.FastStack;
 
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
  * @author wssccc <wssccc@qq.com>
  */
-public class WscVM {
+public class VirtualMachine {
 
     HashMap<String, Method> cpuMethodCache = new HashMap<String, Method>();
     //static data
-    ArrayList<InstBinding> instructions = new ArrayList<>();
+    InstBinding[] instructions;
     HashMap<String, Integer> labels = new HashMap<String, Integer>();
 
     HashMap<String, String> imported = new HashMap<String, String>();
-    Stack<Context> machine_state_stack = new Stack<Context>();
-    Stack<Context> contextStack = new Stack<Context>();
+    FastStack<Context> machine_state_stack = new FastStack<Context>(32);
+    FastStack<Context> contextStack = new FastStack<Context>(32);
 
     //machine states
     Instruction helptext;
-    Stack<Object> stack = new Stack<Object>();
-    Stack<VmClosure> callstack = new Stack<VmClosure>();
+    FastStack<Object> stack = new FastStack<>(32);
+    FastStack<FunctionDefinition> callstack = new FastStack<FunctionDefinition>(32);
     //temp var for clear call_stack_size op
     int call_stack_size;
     //registers
@@ -52,18 +51,14 @@ public class WscVM {
     PrintWriter out;
     PrintWriter err;
 
-    public WscVM(PrintWriter out, PrintWriter err) {
+    public VirtualMachine(PrintWriter out, PrintWriter err) {
         this.out = out;
         this.err = err;
         //init register
         eip = 0;
         env.write(new ScopeHash(null));
-        init_builtins((ScopeHash) env.read());
+        init_builtins(((ScopeHash) env.read()).data);
         //init_builtins(func);
-    }
-
-    public int getSize() {
-        return instructions.size();
     }
 
     public void printEax(boolean highlight) {
@@ -72,18 +67,18 @@ public class WscVM {
         }
     }
 
-    public VmMemRef lookup(String member) throws WscVMException {
+    public VmMemRef lookup(String member) throws VmRuntimeException {
         return env.read().lookup(member, this, false);
     }
 
     Class[] getParamTypes(int offset) {
-        LinkedList<Object> params = (LinkedList<Object>) stack.get(stack.size() - 1 - offset);
-        Class types[] = new Class[params.size()];
+        Object[] params = (Object[]) stack.peek(offset);
+        Class types[] = new Class[params.length];
         for (int i = 0; i < types.length; i++) {
-            if (params.get(i) == null) {
+            if (params[i] == null) {
                 types[i] = null;
             } else {
-                types[i] = params.get(i).getClass();
+                types[i] = params[i].getClass();
             }
         }
 
@@ -100,23 +95,22 @@ public class WscVM {
         //
         loadLabels(ins);
         //reset eip
-        eip = instructions.size();
-        instructions.addAll(ins);
+        eip = 0;
+        instructions = ins.toArray(new InstBinding[0]);
     }
 
     final void loadLabels(ArrayList<InstBinding> ins) {
-        int offset = instructions.size();
         for (int i = 0; i < ins.size(); ++i) {
             if (ins.get(i).op.equals("label")) {
-                labels.put(ins.get(i).param, i + offset);
+                labels.put(ins.get(i).param, i);
             }
         }
     }
 
     final void init_builtins(HashMap<String, VmMemRef> map) {
-        map.put("println", new VmMemRef(new BuiltinClosure() {
+        map.put("println", new VmMemRef<>(new BuiltInFunction() {
             @Override
-            public void invoke(WscVM vm, LinkedList<Object> vars) {
+            public void invoke(VirtualMachine vm, Object[] vars) {
                 for (Object var : vars) {
                     out.print(var);
                 }
@@ -124,40 +118,41 @@ public class WscVM {
                 out.flush();
             }
         }));
-        map.put("showWindow", new VmMemRef(new BuiltinClosure() {
+        map.put("showWindow", new VmMemRef<>(new BuiltInFunction() {
             @Override
-            public void invoke(WscVM vm, LinkedList<Object> vars) {
+            public void invoke(VirtualMachine vm, Object[] vars) {
                 java.awt.EventQueue.invokeLater(new Runnable() {
 
+                    @Override
                     public void run() {
                         new DrawWindow().setVisible(true);
                     }
                 });
             }
         }));
-        map.put("draw", new VmMemRef(new BuiltinClosure() {
+        map.put("draw", new VmMemRef<>(new BuiltInFunction() {
             @Override
-            public void invoke(WscVM vm, LinkedList<Object> vars) {
-                int x = (Integer) vars.get(0);
-                int y = (Integer) vars.get(1);
-                int r = (Integer) vars.get(2);
-                int g = (Integer) vars.get(3);
-                int b = (Integer) vars.get(4);
+            public void invoke(VirtualMachine vm, Object[] vars) {
+                int x = (Integer) vars[0];
+                int y = (Integer) vars[1];
+                int r = (Integer) vars[2];
+                int g = (Integer) vars[3];
+                int b = (Integer) vars[4];
                 DrawWindow.draw(x, y, r, g, b);
             }
         }));
-        map.put("print", new VmMemRef(new BuiltinClosure() {
+        map.put("print", new VmMemRef<>(new BuiltInFunction() {
             @Override
-            public void invoke(WscVM vm, LinkedList<Object> vars) {
+            public void invoke(VirtualMachine vm, Object[] vars) {
                 for (Object var : vars) {
                     out.print(var);
                 }
                 out.flush();
             }
         }));
-        map.put("Object", new VmMemRef(new BuiltinClosure() {
+        map.put("Object", new VmMemRef<>(new BuiltInFunction() {
             @Override
-            public void invoke(WscVM vm, LinkedList<Object> vars) {
+            public void invoke(VirtualMachine vm, Object[] vars) {
                 //prepare env
                 ScopeHash env = new ScopeHash((ScopeHash) vm.env.read());
                 vm.env.write(env);
@@ -171,12 +166,12 @@ public class WscVM {
 //        labels.put("coroutine_return_hook_exit", instructions.size());
     }
 
-    public void run() throws InvocationTargetException, WscVMException, Exception {
+    public void run() throws InvocationTargetException, VmRuntimeException, Exception {
         //initial
         exception.write(null);
         eax.write(null);
         while (true) {
-            if (eip < 0 || eip >= instructions.size()) {
+            if (eip < 0 || eip >= instructions.length) {
                 //halted, try upper context
                 if (!contextStack.isEmpty()) {
                     Context lastContext = contextStack.pop();
@@ -186,7 +181,7 @@ public class WscVM {
                 }
             }
 
-            InstBinding instruction = instructions.get(eip);
+            InstBinding instruction = instructions[eip];
             ++eip;
             if (instruction.op.equals("//")) {
                 helptext = instruction;
@@ -204,23 +199,23 @@ public class WscVM {
 //                if (cpuMethodCache.containsKey(instruction.op)) {
 //                    m = cpuMethodCache.get(instruction.op);
 //                } else {
-//                    m = VmCpu.class.getMethod(instruction.op, WscVM.class, String.class, String.class);
+//                    m = InterpreterUtils.class.getMethod(instruction.op, VirtualMachine.class, String.class, String.class);
 //                    cpuMethodCache.put(instruction.op, m);
 //                }
-//                m.invoke(VmCpu.class, this, instruction.param, instruction.paramExtended);
+//                m.invoke(InterpreterUtils.class, this, instruction.param, instruction.paramExtended);
 
             } catch (Exception ex) {
                 try {
                     //System.out.println(ex.getCause().toString());
                     //for detail
                     System.out.println("eip=" + eip);
-                    Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex);
+                    Logger.getLogger(VirtualMachine.class.getName()).log(Level.SEVERE, null, ex);
                     exception.write(ex.getCause());
-                    VmCpu.restore_machine_state(this, null, null);
-                } catch (WscVMException ex1) {
+                    InterpreterUtils.restore_machine_state(this, null, null);
+                } catch (VmRuntimeException ex1) {
                     err.println("VM Exception");
                     err.println(ex1.toString());
-                    Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex1.getCause());
+                    Logger.getLogger(VirtualMachine.class.getName()).log(Level.SEVERE, null, ex1.getCause());
                     throw ex1; //do not hold this type
                 }
             }

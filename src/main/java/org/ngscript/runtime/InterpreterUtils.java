@@ -1,26 +1,27 @@
 /*
  *  wssccc all rights reserved
  */
-package org.ngscript.vm;
+package org.ngscript.runtime;
 
-import org.ngscript.vm.structure.*;
+import org.ngscript.runtime.utils.TypeCheck;
+import org.ngscript.runtime.utils.TypeOp;
+import org.ngscript.runtime.vo.*;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- *
  * @author wssccc <wssccc@qq.com>
  */
-public class VmCpu {
+public class InterpreterUtils {
 
-    public static void deref(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void deref(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         VmMemRef v1;
         if (param.equals("%eax")) {
             v1 = (VmMemRef) vm.eax.read();
@@ -30,20 +31,20 @@ public class VmCpu {
         vm.eax.write(v1.read());
     }
 
-    public static void mov_eax(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void mov_eax(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         VmMemRef v1 = vm.lookup(param);
         vm.eax.write(v1);
     }
 
-    public static void mov_exception_eax(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void mov_exception_eax(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         vm.exception.write(vm.eax.read());
     }
 
-    public static void mov_eax_exception(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void mov_eax_exception(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         vm.eax.write(vm.exception.read());
     }
 
-    public static void mov(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void mov(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
 
         VmMemRef v1 = vm.lookup(param);
         Object val;
@@ -68,30 +69,30 @@ public class VmCpu {
         v1.write(val);
     }
 
-    public static void array_new(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void array_new(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         int length = Integer.parseInt(param);
         ScopeHash list = new ScopeHash((ScopeHash) vm.env.read());
 
         for (int i = 0; i < length; i++) {
             Object object = vm.stack.pop();
-            list.put("" + i, new VmMemRef(object));
+            list.data.put("" + i, new VmMemRef(object));
         }
         vm.eax.write(list);
     }
 
-    public static void object_new(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void object_new(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         ScopeHash sh = new ScopeHash((ScopeHash) vm.env.read());
         int size = Integer.parseInt(param);
         for (int i = 0; i < size; i++) {
             Object v = vm.stack.pop();
             String k = (String) vm.stack.pop();
             VmMemRef vref = new VmMemRef(v);
-            sh.put(k, vref);
+            sh.data.put(k, vref);
         }
         vm.eax.write(sh);
     }
 
-    public static void neg(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void neg(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object eax = vm.eax.read();
         if (eax instanceof Integer) {
             vm.eax.write(-((Integer) eax));
@@ -101,23 +102,23 @@ public class VmCpu {
         }
     }
 
-    public static void push_eax(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void push_eax(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         vm.stack.push(vm.eax.read());
     }
 
-    public static void push_env(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void push_env(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         vm.stack.push(vm.env.read());
     }
 
-    public static void push_eip(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void push_eip(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         vm.stack.push(vm.eip);
     }
 
-    public static void set_var(WscVM vm, String param, String param_extend) {
-        ((ScopeHash) vm.env.read()).put(param, new VmMemRef(vm.eax.read()));
+    public static void set_var(VirtualMachine vm, String param, String param_extend) {
+        ((ScopeHash) vm.env.read()).data.put(param, new VmMemRef(vm.eax.read()));
     }
 
-    public static void member_ref(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void member_ref(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         String member = (String) objs[1];
         if (objs[0] instanceof ScopeHash) {
@@ -133,7 +134,7 @@ public class VmCpu {
             vm.eax.write(ref);
             return;
         }
-        throw new WscVMException(vm, member + " is not a member of " + _getObjInfo(objs[0]));
+        throw new VmRuntimeException(vm, member + " is not a member of " + _getObjInfo(objs[0]));
     }
 
     private static String _getObjInfo(Object obj) {
@@ -144,7 +145,7 @@ public class VmCpu {
         }
     }
 
-    public static void array_ref(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void array_ref(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         if (objs[0] instanceof ScopeHash) {
             ScopeHash env = (ScopeHash) objs[0];
@@ -160,15 +161,15 @@ public class VmCpu {
             vm.eax.write(ref);
             return;
         }
-        throw new WscVMException(vm, "not an array object");
+        throw new VmRuntimeException(vm, "not an array object");
     }
 
-    public static void static_func(WscVM vm, String param, String param_extend) throws WscVMException {
-        VmCpu.new_closure(vm, param_extend, null);
-        VmCpu.set_var(vm, param, null);
+    public static void static_func(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
+        InterpreterUtils.new_closure(vm, param_extend, null);
+        InterpreterUtils.set_var(vm, param, null);
     }
 
-    public static void typeof(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void typeof(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object obj = vm.eax.read();
         //common types
         if (obj == undefined.value) {
@@ -194,7 +195,7 @@ public class VmCpu {
         if (obj.getClass().isAnonymousClass()) {
             vm.eax.write(obj.getClass().getSuperclass().getName());
         } else {
-            if ("ngscript.vm.structure".equals(obj.getClass().getPackage().getName())) {
+            if ("ngscript.runtime.vo".equals(obj.getClass().getPackage().getName())) {
                 vm.eax.write(obj.getClass().getSimpleName());
             } else {
                 vm.eax.write(obj.getClass().getName());
@@ -202,19 +203,19 @@ public class VmCpu {
         }
     }
 
-    public static void import_(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void import_(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         String[] splitted = param.split("\\.");
         String shortName = splitted[splitted.length - 1];
         vm.imported.put(shortName, param);
     }
 
-    public static void assign(WscVM vm, String param, String param_extend) {
+    public static void assign(VirtualMachine vm, String param, String param_extend) {
         Object[] objs = get_op_params_2(vm);
         ((VmMemRef) objs[0]).write(objs[1]);
         vm.eax.write(objs[1]);
     }
 
-    public static void lt(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void lt(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         double d1 = getNumber(vm, objs[0]);
         double d2 = getNumber(vm, objs[1]);
@@ -225,7 +226,7 @@ public class VmCpu {
         }
     }
 
-    public static void gt(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void gt(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         double d1 = getNumber(vm, objs[0]);
         double d2 = getNumber(vm, objs[1]);
@@ -236,7 +237,7 @@ public class VmCpu {
         }
     }
 
-    public static void ge(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void ge(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         double d1 = getNumber(vm, objs[0]);
         double d2 = getNumber(vm, objs[1]);
@@ -247,7 +248,7 @@ public class VmCpu {
         }
     }
 
-    public static void le(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void le(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         double d1 = getNumber(vm, objs[0]);
         double d2 = getNumber(vm, objs[1]);
@@ -258,7 +259,7 @@ public class VmCpu {
         }
     }
 
-    private static void _addEaxObj(WscVM vm, int num, boolean retOrig) {
+    private static void _addEaxObj(VirtualMachine vm, int num, boolean retOrig) {
         VmMemRef addr = (VmMemRef) vm.eax.read();
         Object val = addr.read();
         if (val instanceof Integer) {
@@ -274,35 +275,35 @@ public class VmCpu {
         }
     }
 
-    public static void inc(WscVM vm, String param, String param_extend) {
+    public static void inc(VirtualMachine vm, String param, String param_extend) {
         _addEaxObj(vm, 1, false);
     }
 
-    public static void dec(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void dec(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         _addEaxObj(vm, -1, false);
     }
 
-    public static void post_inc(WscVM vm, String param, String param_extend) {
+    public static void post_inc(VirtualMachine vm, String param, String param_extend) {
         _addEaxObj(vm, 1, true);
     }
 
-    public static void post_dec(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void post_dec(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         _addEaxObj(vm, -1, true);
     }
 
-    public static void pop_eax(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void pop_eax(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         vm.eax.write(vm.stack.pop());
     }
 
-    public static void pop_env(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void pop_env(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         vm.env.write((ScopeHash) vm.stack.pop());
     }
 
-    public static void pop(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void pop(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         vm.stack.pop();
     }
 
-    public static void jmp(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void jmp(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         if ("offset".equals(param)) {
             int nip = (Integer) vm.eax.read();
             vm.eip = nip + Integer.parseInt(param_extend);
@@ -311,31 +312,31 @@ public class VmCpu {
                 int nip = vm.labels.get(param);
                 vm.eip = nip;
             } else {
-                throw new WscVMException(vm, "jump to no where " + param);
+                throw new VmRuntimeException(vm, "jump to no where " + param);
             }
         }
     }
 
-    public static void jz(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void jz(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object testObj = vm.eax.read();
         if (!testValue(testObj)) {
             if (vm.labels.containsKey(param)) {
                 int nip = vm.labels.get(param);
                 vm.eip = nip;
             } else {
-                throw new WscVMException(vm, "jump to no where");
+                throw new VmRuntimeException(vm, "jump to no where");
             }
         }
     }
 
-    public static void jnz(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void jnz(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object testObj = vm.eax.read();
         if (testValue(testObj)) {
             if (vm.labels.containsKey(param)) {
                 int nip = vm.labels.get(param);
                 vm.eip = nip;
             } else {
-                throw new WscVMException(vm, "jump to no where");
+                throw new VmRuntimeException(vm, "jump to no where");
             }
         }
     }
@@ -358,28 +359,28 @@ public class VmCpu {
         return val;
     }
 
-    public static void label(WscVM vm, String param, String param_extend) {
+    public static void label(VirtualMachine vm, String param, String param_extend) {
         //
     }
 
-    public static void new_closure(WscVM vm, String param, String param_extend) {
-        VmClosure closure = new VmClosure(param, (ScopeHash) vm.env.read(), vm);
+    public static void new_closure(VirtualMachine vm, String param, String param_extend) {
+        FunctionDefinition closure = new FunctionDefinition(param, (ScopeHash) vm.env.read(), vm);
         vm.eax.write(closure);
     }
 
-    public static void integer(WscVM vm, String param, String param_extend) {
+    public static void integer(VirtualMachine vm, String param, String param_extend) {
         vm.eax.write(Integer.parseInt(param));
     }
 
-    public static void double_(WscVM vm, String param, String param_extend) {
+    public static void double_(VirtualMachine vm, String param, String param_extend) {
         vm.eax.write(Double.parseDouble(param));
     }
 
-    public static void undefined(WscVM vm, String param, String param_extend) {
+    public static void undefined(VirtualMachine vm, String param, String param_extend) {
         vm.eax.write(undefined.value);
     }
 
-    public static void string(WscVM vm, String param, String param_extend) {
+    public static void string(VirtualMachine vm, String param, String param_extend) {
         String str = param;
         if (str.startsWith("\"") && str.endsWith("\"")) {
             //quote string
@@ -389,72 +390,71 @@ public class VmCpu {
         vm.eax.write(str);
     }
 
-    public static void dequeue(WscVM vm, String param, String param_extend) {
-        int offset = Integer.parseInt(param_extend);
-        LinkedList<Object> queue = (LinkedList<Object>) vm.stack.get(vm.stack.size() - 1 - offset);
-        if (!queue.isEmpty()) {
-            Object obj = queue.remove(0);
-            vm.eax.write(obj);
+    public static void pickarg(VirtualMachine vm, String param, String param_extend) {
+        int offset = Integer.parseInt(param);
+        Object[] args = (Object[]) vm.stack.peek(3);
+        if (offset < args.length) {
+            vm.eax.write(args[offset]);
         } else {
             vm.eax.write(undefined.value);
         }
     }
 
-    public static void peek(WscVM vm, String param, String param_extend) {
+    public static void peek(VirtualMachine vm, String param, String param_extend) {
         int offset = Integer.parseInt(param);
-        Object obj = vm.stack.get(vm.stack.size() - 1 - offset);
+        Object obj = vm.stack.peek(offset);
         vm.eax.write(obj);
 
     }
 
-    public static void clear_call_stack(WscVM vm, String param, String param_extend) {
+    public static void clear_call_stack(VirtualMachine vm, String param, String param_extend) {
         while (vm.callstack.size() > vm.call_stack_size) {
             vm.callstack.pop();
         }
     }
 
-    public static void ret(WscVM vm, String param, String param_extend) {
+    public static void ret(VirtualMachine vm, String param, String param_extend) {
         int nip = (Integer) vm.stack.pop();
         vm.callstack.pop();
         vm.eip = nip;
     }
 
-    public static void add(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void add(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         vm.eax.write(TypeOp.eval(TypeOp.OP_ADD, objs[0], objs[1]));
     }
 
-    public static void bit_and(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void bit_and(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         vm.eax.write(getInteger(vm, objs[0]) & getInteger(vm, objs[1]));
     }
 
-    public static void bit_or(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void bit_or(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         vm.eax.write(getInteger(vm, objs[0]) | getInteger(vm, objs[1]));
     }
 
-    public static void bit_xor(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void bit_xor(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         vm.eax.write(getInteger(vm, objs[0]) ^ getInteger(vm, objs[1]));
     }
 
-    public static void sub(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void sub(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         vm.eax.write(TypeOp.eval(TypeOp.OP_SUB, objs[0], objs[1]));
     }
 
-    public static void mul(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void mul(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         vm.eax.write(TypeOp.eval(TypeOp.OP_MUL, objs[0], objs[1]));
     }
 
-    public static void mod(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void mod(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         vm.eax.write(TypeOp.eval(TypeOp.OP_MOD, objs[0], objs[1]));
     }
 
-    public static void div(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void div(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         vm.eax.write(TypeOp.eval(TypeOp.OP_DIV, objs[0], objs[1]));
     }
@@ -469,63 +469,63 @@ public class VmCpu {
         return obj1.toString().equals(obj2.toString());
     }
 
-    public static void eq(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void eq(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
-        //vm.eax.value=(new TypeOp(vm).eval("eq", objs[0], objs[1]));
+        //runtime.eax.value=(new TypeOp(runtime).eval("eq", objs[0], objs[1]));
         vm.eax.write(testEq(objs[0], objs[1]));
     }
 
-    public static void veq(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void veq(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         vm.eax.write(testEq(objs[0], objs[1]));
     }
 
-    public static void neq(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void neq(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         vm.eax.write(!testEq(objs[0], objs[1]));
     }
 
-    public static void vneq(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void vneq(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         vm.eax.write(!testEq(objs[0], objs[1]));
     }
-//    public static void coroutine_return(WscVM vm, String param, String paramExtended) {
-//        Coroutine nativeClosure = (Coroutine) vm.stack.get(vm.stack.size() - 1 - 1);
+//    public static void coroutine_return(VirtualMachine runtime, String param, String paramExtended) {
+//        Coroutine nativeClosure = (Coroutine) runtime.stack.get(runtime.stack.size() - 1 - 1);
 //        nativeClosure.returned();
 //        nativeClosure.switchBack();
 //    }
 
-    public static void new_queue(WscVM vm, String param, String param_extend) {
+    public static void packargs(VirtualMachine vm, String param, String param_extend) {
         int n = Integer.parseInt(param);
-        LinkedList<Object> vq = new LinkedList<Object>();
+        Object[] args = new Object[n];
         for (int i = 0; i < n; i++) {
-            vq.add(vm.stack.remove(vm.stack.size() - n + i));
+            args[i] = vm.stack.pop();
         }
-        vm.eax.write(vq);
+        vm.eax.write(args);
     }
 
-    public static void call(WscVM vm, String param, String param_extend) throws Exception {
-        Object callee = vm.stack.get(vm.stack.size() - 1 - 1);
-        LinkedList<Object> vars = (LinkedList<Object>) vm.stack.get(vm.stack.size() - 1 - 2);
+    public static void call(VirtualMachine vm, String param, String param_extend) throws Exception {
+        Object callee = vm.stack.peek(1);
+        Object[] vars = (Object[]) vm.stack.peek(2);
 
-        if (callee instanceof VmClosure) {
-            VmClosure c = (VmClosure) callee;
+        if (callee instanceof FunctionDefinition) {
+            FunctionDefinition c = (FunctionDefinition) callee;
             vm.callstack.push(c);
             //prepare env
             ScopeHash env = new ScopeHash((ScopeHash) c.closure_env);
             vm.env.write(env);
-            int nip = vm.labels.get(c.func_label);
+            int nip = vm.labels.get(c.functionLable);
             vm.stack.push(vm.eip);
             vm.eip = nip;
             return;
         }
 
         //call native things
-        if (callee instanceof BuiltinClosure) {
+        if (callee instanceof BuiltInFunction) {
             try {
-                ((BuiltinClosure) callee).invoke(vm, vars);
+                ((BuiltInFunction) callee).invoke(vm, vars);
             } catch (Exception ex) {
-                Logger.getLogger(WscVM.class.getName()).log(Level.SEVERE, null, ex);
+                Logger.getLogger(VirtualMachine.class.getName()).log(Level.SEVERE, null, ex);
                 Object e = ex.getCause();
                 if (e == null) {
                     e = ex;
@@ -535,8 +535,8 @@ public class VmCpu {
             }
             return;
         }
-        if (callee instanceof NativeClosure) {
-            NativeClosure closure = (NativeClosure) callee;
+        if (callee instanceof JavaMethod) {
+            JavaMethod closure = (JavaMethod) callee;
             Class[] types = vm.getParamTypes(2);
             ArrayList<Method> methods = closure.methods;
             Method properMethod = null;
@@ -551,16 +551,16 @@ public class VmCpu {
                 }
             }
             if (properMethod == null) {
-                throw new WscVMException(vm, "no proper method found for " + closure.methods + "[" + Arrays.toString(types) + "]");
+                throw new VmRuntimeException(vm, "no proper method found for " + closure.methods + "[" + Arrays.toString(types) + "]");
             }
             try {
-                Object val = properMethod.invoke(closure.caller, vars.toArray());
+                Object val = properMethod.invoke(closure.caller, vars);
                 if (val instanceof Long) {
                     val = ((Long) val).intValue();
                 }
                 vm.eax.write(val);
             } catch (Exception ex) {
-                vm.exception.write(new WscVMException(vm, ex.getCause() == null ? ex.toString() : ex.getCause().toString()));
+                vm.exception.write(new VmRuntimeException(vm, ex.getCause() == null ? ex.toString() : ex.getCause().toString()));
                 restore_machine_state(vm, null, null);
             }
             return;
@@ -583,46 +583,50 @@ public class VmCpu {
                 }
             }
             if (properCons == null) {
-                throw new WscVMException(vm, "no proper constructor found for " + Arrays.toString(types));
+                throw new VmRuntimeException(vm, "no proper constructor found for " + Arrays.toString(types));
             }
             //adjust vars
             if (properCons.isVarArgs()) {
                 Class[] argTypes = properCons.getParameterTypes();
                 int fixed = argTypes.length - 1;
                 Class varElemType = argTypes[argTypes.length - 1].getComponentType();
-                LinkedList pack = new LinkedList();
-                while (vars.size() > fixed) {
-                    pack.addFirst(vars.removeLast());
+                List<Object> pack = new ArrayList<>();
+                int adjustedLength = vars.length - 1;
+                for (; adjustedLength >= fixed; adjustedLength--) {
+                    pack.add(0, vars[adjustedLength]);
                 }
                 Object vararg = Array.newInstance(varElemType, pack.size());
                 pack.toArray((Object[]) vararg);
-                vars.add(vararg);
+                Object[] newargs = new Object[adjustedLength + 1];
+                System.arraycopy(vars, 0, newargs, 0, newargs.length - 1);
+                newargs[newargs.length - 1] = vararg;
+                vars = newargs;
             }
             //
             //prepare env with an instance
-            vm.stack.push(properCons.newInstance(vars.toArray()));
+            vm.stack.push(properCons.newInstance(vars));
             vm.env.write(null);
             return;
         }
-        throw new WscVMException(vm, "unexpected callee");
+        throw new VmRuntimeException(vm, "unexpected callee");
     }
 
-    public static void save_machine_state(WscVM vm, String param, String param_extend) {
+    public static void save_machine_state(VirtualMachine vm, String param, String param_extend) {
         Context ms = new Context(vm);
         vm.machine_state_stack.push(ms);
     }
 
-    public static void drop_machine_state(WscVM vm, String param, String param_extend) {
+    public static void drop_machine_state(VirtualMachine vm, String param, String param_extend) {
         vm.machine_state_stack.pop();
     }
 
-    public static void restore_machine_state(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void restore_machine_state(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         if (vm.machine_state_stack.isEmpty()) {
             Object ex = vm.exception.read();
-            if (ex instanceof WscVMException) {
-                throw (WscVMException) ex;
+            if (ex instanceof VmRuntimeException) {
+                throw (VmRuntimeException) ex;
             } else {
-                throw new WscVMException(vm, ex.toString());
+                throw new VmRuntimeException(vm, ex.toString());
             }
         } else {
             Context ms = vm.machine_state_stack.pop();
@@ -630,7 +634,7 @@ public class VmCpu {
         }
     }
 
-    public static void test(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void test(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         VmMemRef m = vm.lookup(param);
         if (m.read() == null) {
             vm.eax.write(0);
@@ -639,17 +643,17 @@ public class VmCpu {
         }
     }
 
-    public static void clear(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void clear(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         VmMemRef m = vm.lookup(param);
         m.write(undefined.value);
     }
 
-    public static void clear_null(WscVM vm, String param, String param_extend) throws WscVMException {
+    public static void clear_null(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         VmMemRef m = vm.lookup(param);
         m.write(null);
     }
 
-    public static void new_op(WscVM vm, String param, String param_extend) {
+    public static void new_op(VirtualMachine vm, String param, String param_extend) {
         //identify native object and script object
         Object newObject = vm.env.read();
         if (newObject == null) {
@@ -665,14 +669,14 @@ public class VmCpu {
     }
 
     //helper functions
-    static Object[] get_op_params_2(WscVM vm) {
+    static Object[] get_op_params_2(VirtualMachine vm) {
         Object[] objs = new Object[2];
         objs[0] = vm.stack.pop();
         objs[1] = vm.eax.read();
         return objs;
     }
 
-    static double getNumber(WscVM vm, Object obj) throws WscVMException {
+    static double getNumber(VirtualMachine vm, Object obj) throws VmRuntimeException {
         if (obj instanceof Integer) {
             return (Integer) obj;
         }
@@ -683,10 +687,10 @@ public class VmCpu {
             Long l = (Long) obj;
             return l.intValue();
         }
-        throw new WscVMException(vm, "invalid type");
+        throw new VmRuntimeException(vm, "invalid type");
     }
 
-    static int getInteger(WscVM vm, Object obj) throws WscVMException {
+    static int getInteger(VirtualMachine vm, Object obj) throws VmRuntimeException {
         if (obj instanceof Integer) {
             return (Integer) obj;
         }
@@ -697,6 +701,6 @@ public class VmCpu {
             Long l = (Long) obj;
             return l.intValue();
         }
-        throw new WscVMException(vm, "invalid type");
+        throw new VmRuntimeException(vm, "invalid type");
     }
 }

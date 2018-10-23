@@ -1,22 +1,22 @@
 /*
  *  wssccc all rights reserved
  */
-package org.ngscript.vm;
+package org.ngscript.runtime;
 
 /**
  *
  * @author wssccc <wssccc@qq.com>
  */
-public class WscVMException extends Exception {
+public class VmRuntimeException extends Exception {
 
-    WscVM vm;
+    VirtualMachine vm;
 
-    public WscVMException(WscVM vm, String message) {
+    public VmRuntimeException(VirtualMachine vm, String message) {
         super(genInfoString(vm, message));
         this.vm = vm;
     }
 
-    final static String genInfoString(WscVM vm, String message) {
+    final static String genInfoString(VirtualMachine vm, String message) {
         StringBuilder sb = new StringBuilder();
         sb
                 .append("\r\n========== VM ERROR ==========\r\n")
@@ -25,7 +25,7 @@ public class WscVMException extends Exception {
                 .append(vm.helptext.toString())
                 .append("\r\n========== VM STATUS ==========\r\n")
                 .append("%eip = ").append(vm.eip).append("\r\n")
-                .append("ins = ").append(vm.instructions.get(vm.eip - 1)).append("\r\n")
+                .append("ins = ").append(vm.instructions[vm.eip - 1]).append("\r\n")
                 .append("%env = ").append((vm.env.read()).toString()).append("\r\n")
                 .append("%eax = ").append(vm.eax.read() == null ? "null" : vm.eax.read().toString()).append("\r\n")
                 .append("==============================\r\n");

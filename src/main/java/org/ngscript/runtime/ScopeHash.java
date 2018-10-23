@@ -1,12 +1,12 @@
 /*
  *  wssccc all rights reserved
  */
-package org.ngscript.vm;
+package org.ngscript.runtime;
 
-import org.ngscript.vm.structure.NativeClosure;
-import org.ngscript.vm.structure.NativeMemref;
-import org.ngscript.vm.structure.VmMemRef;
-import org.ngscript.vm.structure.undefined;
+import org.ngscript.runtime.vo.JavaMethod;
+import org.ngscript.runtime.vo.NativeMemref;
+import org.ngscript.runtime.vo.undefined;
+import org.ngscript.runtime.vo.VmMemRef;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -16,8 +16,9 @@ import java.util.HashMap;
 /**
  * @author wssccc <wssccc@qq.com>
  */
-public class ScopeHash extends HashMap<String, VmMemRef> {
+public class ScopeHash {
 
+    HashMap<String, VmMemRef> data = new HashMap<String, VmMemRef>();
     HashMap<String, VmMemRef> cache = new HashMap<String, VmMemRef>();
     ScopeHash parent;
 
@@ -25,7 +26,7 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
         this.parent = parent;
     }
 
-    VmMemRef lookup(String member, WscVM vm, boolean isMember) throws WscVMException {
+    VmMemRef lookup(String member, VirtualMachine vm, boolean isMember) throws VmRuntimeException {
         VmMemRef ref = cache.get(member);
         if (ref != null) {
             return ref;
@@ -36,7 +37,7 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
         }
     }
 
-    VmMemRef _lookup(String member, WscVM vm, boolean isMember) throws WscVMException {
+    VmMemRef _lookup(String member, VirtualMachine vm, boolean isMember) throws VmRuntimeException {
         //registers
         switch (member) {
             case "this":
@@ -52,8 +53,8 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
         return lookupHash(member, vm, isMember);
     }
 
-    private VmMemRef lookupHash(String member, WscVM vm, boolean isMember) throws WscVMException {
-        VmMemRef ref = this.get(member);
+    private VmMemRef lookupHash(String member, VirtualMachine vm, boolean isMember) throws VmRuntimeException {
+        VmMemRef ref = data.get(member);
         if (ref != null) {
             return ref;
         }
@@ -61,15 +62,15 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
         if (isMember) {
             //throw new Runtime-Exception("no member " + varName + " found.");
             VmMemRef mem = new VmMemRef(undefined.value);
-            this.put(member, mem);
+            data.put(member, mem);
             return mem;
         } else {
             //find in env link
             ScopeHash env = parent;
             //
             while (env != null) {
-                if (env.containsKey(member)) {
-                    return env.get(member);
+                if (env.data.containsKey(member)) {
+                    return env.data.get(member);
                 } else {
                     env = env.parent;
                 }
@@ -113,11 +114,11 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
             } catch (ClassNotFoundException ex) {
 
             }
-            throw new WscVMException(vm, member + " is not declared");
+            throw new VmRuntimeException(vm, member + " is not declared");
         }
     }
 
-    public static Object lookupNative(Object nativeObj, String member, WscVM vm) {
+    public static Object lookupNative(Object nativeObj, String member, VirtualMachine vm) {
         if (nativeObj instanceof Class) {
             //try obj as a class ref
             Object obj = _lookupNative(nativeObj, (Class) nativeObj, member, vm);
@@ -130,7 +131,7 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
 
     }
 
-    public static Object _lookupNative(Object nativeObj, Class cls, String member, WscVM vm) {
+    public static Object _lookupNative(Object nativeObj, Class cls, String member, VirtualMachine vm) {
         //try field
         try {
             Field field = cls.getField(member);
@@ -148,9 +149,9 @@ public class ScopeHash extends HashMap<String, VmMemRef> {
             }
         }
         if (!ms.isEmpty()) {
-            return new VmMemRef(new NativeClosure(nativeObj, ms));
+            return new VmMemRef(new JavaMethod(nativeObj, ms));
         }
-        //throw new WscVMException(vm, "" + nativeObj + " does not have a member " + member);
+        //throw new VmRuntimeException(runtime, "" + nativeObj + " does not have a member " + member);
         return null;
     }
 }

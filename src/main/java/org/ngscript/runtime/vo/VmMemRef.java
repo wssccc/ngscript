@@ -1,7 +1,7 @@
 /*
  *  wssccc all rights reserved
  */
-package org.ngscript.vm.structure;
+package org.ngscript.runtime.vo;
 
 /**
  *

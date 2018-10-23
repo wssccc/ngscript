@@ -1,7 +1,7 @@
 /*
  *  wssccc all rights reserved
  */
-package org.ngscript.vm;
+package org.ngscript.runtime.utils;
 
 import java.util.HashMap;
 import java.util.HashSet;

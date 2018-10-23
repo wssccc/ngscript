@@ -4,14 +4,14 @@
 package org.ngscript;
 
 import org.apache.commons.io.IOUtils;
-import org.ngscript.common.Instruction;
-import org.ngscript.compiler.WscCompiler;
+import org.ngscript.compiler.Instruction;
+import org.ngscript.compiler.Compiler;
 import org.ngscript.fastlexer.Lexer;
+import org.ngscript.runtime.VirtualMachine;
 import org.ngscript.parser.WscStreamParser;
 import org.ngscript.parseroid.grammar.Symbol;
 import org.ngscript.parseroid.parser.AstNode;
 import org.ngscript.parseroid.parser.Token;
-import org.ngscript.vm.WscVM;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -50,13 +50,13 @@ public class WscLang {
     public static void test(InputStream inputStream) throws FileNotFoundException, Exception {
         //String code = readFile("testwl.txt");
         ArrayList<Instruction> ins = staticCompile(IOUtils.toString(inputStream, StandardCharsets.UTF_8));
-        WscVM vm = new WscVM(new PrintWriter(System.out), new PrintWriter(System.err));
+        VirtualMachine vm = new VirtualMachine(new PrintWriter(System.out), new PrintWriter(System.err));
         vm.loadInstructions(ins);
         vm.run();
     }
 
     public static ArrayList<Instruction> staticCompile(String code) throws Exception {
-        WscCompiler defaultCompiler = new WscCompiler();
+        Compiler defaultCompiler = new Compiler();
         final ArrayList<Token> tokens = Lexer.scan(code);
         //System.out.println(tokens);
         WscStreamParser streamParser = new WscStreamParser();
@@ -73,7 +73,7 @@ public class WscLang {
         ArrayList<Instruction> ins = new ArrayList<Instruction>();
         streamParser.reduce(ast);
         WscStreamParser.removeNULL(ast);
-        //System.out.println(ast);
+        System.out.println(ast);
         defaultCompiler.compileCode(ast, code);
         defaultCompiler.getAssembler().doOptimize();
         ins.addAll(defaultCompiler.getCompiledInstructions());

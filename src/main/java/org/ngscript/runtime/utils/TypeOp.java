@@ -1,7 +1,9 @@
 /*
  *  wssccc all rights reserved
  */
-package org.ngscript.vm;
+package org.ngscript.runtime.utils;
+
+import org.ngscript.runtime.VmRuntimeException;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -21,11 +23,11 @@ public class TypeOp {
     public static final int OP_EQ = '=';
     public static final int OP_MOD = '%';
 
-    public static Object eval(int op, Object o1, Object o2) throws WscVMException {
+    public static Object eval(int op, Object o1, Object o2) throws VmRuntimeException {
         return typeOp(op, o1, o2);
     }
 
-    public static Object eval2(String op, Object o1, Object o2) throws WscVMException {
+    public static Object eval2(String op, Object o1, Object o2) throws VmRuntimeException {
         try {
             Object val = _eval(op, o1, o2, false);
             return val;
@@ -128,7 +130,7 @@ public class TypeOp {
     }
 
     //deprecated just for profiling
-    private static Object _eval(String op, Object o1, Object o2, boolean reverse) throws NoSuchMethodException, WscVMException {
+    private static Object _eval(String op, Object o1, Object o2, boolean reverse) throws NoSuchMethodException, VmRuntimeException {
         Method m = reflectMethod(op, o1, o2);
         try {
             return m.invoke(null, o1.getClass().cast(o1), o2.getClass().cast(o2), reverse);
@@ -142,7 +144,7 @@ public class TypeOp {
         return null;
     }
 
-    private static Method reflectMethod(String op, Object o1, Object o2) throws NoSuchMethodException, WscVMException {
+    private static Method reflectMethod(String op, Object o1, Object o2) throws NoSuchMethodException, VmRuntimeException {
         String className1 = o1.getClass().getSimpleName();
         String className2 = o2.getClass().getSimpleName();
 

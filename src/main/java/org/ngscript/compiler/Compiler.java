@@ -3,33 +3,29 @@
  */
 package org.ngscript.compiler;
 
-import org.ngscript.common.Instruction;
 import org.ngscript.parseroid.parser.AstNode;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Scanner;
-import java.util.Stack;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
  * @author wssccc <wssccc@qq.com>
  */
-public class WscCompiler {
+public class Compiler {
 
-    WscAssembler asm;
+    Assembler asm;
     Scanner sc;
     int printedLines = 0;
 
-    Stack<String> continueStack = new Stack<String>();
-    Stack<String> breakStack = new Stack<String>();
-    Stack<String> finallyStack = new Stack<String>();
+    Deque<String> continues = new ArrayDeque<>();
+    Deque<String> breaks = new ArrayDeque<String>();
+    Deque<String> finallys = new ArrayDeque<String>();
     final HashSet<String> binaryOp;
 
-    public WscCompiler() {
-        asm = new WscAssembler();
+    public Compiler() {
+        asm = new Assembler();
         binaryOp = new HashSet<String>();
         binaryOp.add("bit_xor");
         binaryOp.add("bit_or");
@@ -49,17 +45,17 @@ public class WscCompiler {
         binaryOp.add("sub");
     }
 
-    public ArrayList<Instruction> getCompiledInstructions() {
+    public List<Instruction> getCompiledInstructions() {
         return asm.instructions;
     }
 
-    public WscAssembler getAssembler() {
+    public Assembler getAssembler() {
         return asm;
     }
 
-    public void compileCode(AstNode ast, String referCode) {
+    public void compileCode(AstNode ast, String sourceCode) {
         asm.instructions.clear();
-        sc = new Scanner(referCode);
+        sc = new Scanner(sourceCode);
         printedLines = 0;
         compile(ast);
         while (sc.hasNextLine()) {
@@ -86,7 +82,7 @@ public class WscCompiler {
             Method m = this.getClass().getDeclaredMethod("compile_" + ast.token.type, AstNode.class);
             m.invoke(this, ast);
         } catch (Exception ex) {
-            Logger.getLogger(WscCompiler.class.getName()).log(Level.SEVERE, null, ex.getCause());
+            Logger.getLogger(Compiler.class.getName()).log(Level.SEVERE, null, ex.getCause());
         }
     }
 
@@ -104,22 +100,22 @@ public class WscCompiler {
         asm.emit("import_", sb.toString());
     }
 
-    private void compile_expr(AstNode ast) throws WscCompilerException {
+    private void compile_expr(AstNode ast) throws CompilerException {
         compile_expr(ast, false);
     }
 
-    private void compile_expr(AstNode ast, boolean byref) throws WscCompilerException {
+    private void compile_expr(AstNode ast, boolean byref) throws CompilerException {
         printDebug(ast);
         String type = ast.token.type;
         if (ast.token.type.equals("expr")) {
             _compile_expr_opr(ast, byref);
         } else if (ast.token.type.equals("NULL")) {
         } else {
-            throw new WscCompilerException(this, "manual dispatch error " + ast);
+            throw new CompilerException(this, "manual dispatch error " + ast);
         }
     }
 
-    public void _compile_expr_opr(AstNode ast, boolean byref) throws WscCompilerException {
+    public void _compile_expr_opr(AstNode ast, boolean byref) throws CompilerException {
         ArrayList<AstNode> child = ast.contents;
         String header = child.get(0).token.type;
         if (header.equals("assign")) {
@@ -172,7 +168,7 @@ public class WscCompiler {
             }
         } else if (header.equals("var")) {
             if (!child.get(1).token.type.equals("ident")) {
-                throw new WscCompilerException(this, "var statement expect an ident");
+                throw new CompilerException(this, "var statement expect an ident");
             }
             asm.emit("clear", "%eax");
             asm.emit("set_var", child.get(1).token.value);
@@ -244,11 +240,11 @@ public class WscCompiler {
             }
             asm.emit("object_new", child.get(1).contents.size() + "");
         } else {
-            throw new WscCompilerException(this, "unknown expr \r\n" + child);
+            throw new CompilerException(this, "unknown expr \r\n" + child);
         }
     }
 
-    void makeParam2(ArrayList<AstNode> child) throws WscCompilerException {
+    void makeParam2(ArrayList<AstNode> child) throws CompilerException {
         compile_expr(child.get(1)); //param1
         asm.emit("push_eax");
         compile_expr(child.get(2)); //param2
@@ -267,8 +263,10 @@ public class WscCompiler {
 
         AstNode params = ast.getNode("param_list");
 
-        for (AstNode content : params.contents) {
-            asm.emit("dequeue", "stack", "3");
+        ArrayList<AstNode> contents = params.contents;
+        for (int i = 0; i < contents.size(); i++) {
+            AstNode content = contents.get(i);
+            asm.emit("pickarg", i + "");
             asm.emit("set_var", content.token.value, "%eax");
         }
 
@@ -294,7 +292,7 @@ public class WscCompiler {
         compile_program(ast);
     }
 
-    void _compile_nullable_expr(AstNode ast) throws WscCompilerException {
+    void _compile_nullable_expr(AstNode ast) throws CompilerException {
         if (ast.contents.size() == 1) {
             if (ast.contents.get(0).token.type.equals("NULL")) {
                 asm.emit("integer", "1");
@@ -304,12 +302,12 @@ public class WscCompiler {
         compile_expr(ast);
     }
 
-    private void compile_for_block(AstNode ast) throws WscCompilerException {
+    private void compile_for_block(AstNode ast) throws CompilerException {
         String testLable = asm.label("test", ast);
         String continueLabel = asm.label("continue", ast);
         String breakLabel = asm.label("break", ast);
-        breakStack.push(breakLabel);
-        continueStack.push(continueLabel);
+        breaks.push(breakLabel);
+        continues.push(continueLabel);
         _compile_nullable_expr(ast.contents.get(0));
         asm.emit("label", testLable);
         _compile_nullable_expr(ast.contents.get(1));
@@ -319,16 +317,16 @@ public class WscCompiler {
         _compile_nullable_expr(ast.contents.get(2));
         asm.emit("jmp", testLable);
         asm.emit("label", breakLabel);
-        breakStack.pop();
-        continueStack.pop();
+        breaks.pop();
+        continues.pop();
     }
 
-    private void compile_while_block(AstNode ast) throws WscCompilerException {
+    private void compile_while_block(AstNode ast) throws CompilerException {
         String testLable = asm.label("test", ast);
         String continueLabel = asm.label("continue", ast);
         String breakLabel = asm.label("break", ast);
-        breakStack.push(breakLabel);
-        continueStack.push(continueLabel);
+        breaks.push(breakLabel);
+        continues.push(continueLabel);
 
         asm.emit("label", testLable);
         compile_expr(ast.contents.get(0));
@@ -337,13 +335,13 @@ public class WscCompiler {
         asm.emit("label", continueLabel);
         asm.emit("jmp", testLable);
         asm.emit("label", breakLabel);
-        breakStack.pop();
-        continueStack.pop();
+        breaks.pop();
+        continues.pop();
     }
 
-    private void compile_switch_block(AstNode ast) throws WscCompilerException {
+    private void compile_switch_block(AstNode ast) throws CompilerException {
         String breakLabel = asm.label("break", ast);
-        breakStack.push(breakLabel);
+        breaks.push(breakLabel);
         compile_expr(ast.contents.get(0));
         asm.emit("push_eax");
 
@@ -369,7 +367,7 @@ public class WscCompiler {
             }
             compile_statements(ast.contents.get(2).contents.get(0));
         }
-        breakStack.pop();
+        breaks.pop();
         asm.emit("label", breakLabel);
     }
 
@@ -377,7 +375,7 @@ public class WscCompiler {
         String catchLabel = asm.label("catch", ast);
         String finallyLabel = asm.label("finally", ast);
         String exitLabel = asm.label("exit", ast);
-        finallyStack.push(finallyLabel);
+        finallys.push(finallyLabel);
         asm.emit("save_machine_state");
         asm.emit("test", "%exception");
         asm.emit("jnz", catchLabel);
@@ -402,16 +400,16 @@ public class WscCompiler {
         asm.emit("pop_eax");
         asm.emit("jmp", "offset", "1");
         asm.emit("label", exitLabel);
-        finallyStack.pop();
+        finallys.pop();
     }
 
-    private void compile_throw_exception(AstNode ast) throws WscCompilerException {
+    private void compile_throw_exception(AstNode ast) throws CompilerException {
         compile_expr(ast.contents.get(0));
         asm.emit("mov_exception_eax");
         asm.emit("restore_machine_state");
     }
 
-    private void compile_if_block(AstNode ast) throws WscCompilerException {
+    private void compile_if_block(AstNode ast) throws CompilerException {
         String exitLable = asm.label("exit", ast);
 
         compile_expr(ast.contents.get(0));
@@ -421,7 +419,7 @@ public class WscCompiler {
         asm.emit("label", exitLable);
     }
 
-    private void compile_if_else_block(AstNode ast) throws WscCompilerException {
+    private void compile_if_else_block(AstNode ast) throws CompilerException {
         String exitLabel = asm.label("exit", ast);
         String elseLabel = asm.label("else", ast);
         compile_expr(ast.contents.get(0));
@@ -433,26 +431,26 @@ public class WscCompiler {
         asm.emit("label", exitLabel);
     }
 
-    private void compile_break(AstNode ast) throws WscCompilerException {
-        if (breakStack.isEmpty()) {
-            throw new WscCompilerException(this, "break without loop");
+    private void compile_break(AstNode ast) throws CompilerException {
+        if (breaks.isEmpty()) {
+            throw new CompilerException(this, "break without loop");
         }
-        asm.emit("jmp", breakStack.peek());
+        asm.emit("jmp", breaks.peek());
     }
 
-    private void compile_continue(AstNode ast) throws WscCompilerException {
-        if (breakStack.isEmpty()) {
-            throw new WscCompilerException(this, "continue without loop");
+    private void compile_continue(AstNode ast) throws CompilerException {
+        if (breaks.isEmpty()) {
+            throw new CompilerException(this, "continue without loop");
         }
-        asm.emit("jmp", continueStack.peek());
+        asm.emit("jmp", continues.peek());
     }
 
-    private void compile_hooked_break(AstNode ast) throws WscCompilerException {
+    private void compile_hooked_break(AstNode ast) throws CompilerException {
         _compile_call_finally();
         compile_break(ast);
     }
 
-    private void compile_hooked_continue(AstNode ast) throws WscCompilerException {
+    private void compile_hooked_continue(AstNode ast) throws CompilerException {
         _compile_call_finally();
         compile_continue(ast);
     }
@@ -461,7 +459,7 @@ public class WscCompiler {
 
     }
 
-    private void compile_return_val(AstNode ast) throws WscCompilerException {
+    private void compile_return_val(AstNode ast) throws CompilerException {
         compile_expr(ast.contents.get(0));
         asm.emit("ret");
     }
@@ -473,10 +471,10 @@ public class WscCompiler {
 
     void _compile_call_finally() {
         asm.emit("push_eip");
-        asm.emit("jmp", finallyStack.peek());
+        asm.emit("jmp", finallys.peek());
     }
 
-    private void compile_hooked_return_val(AstNode ast) throws WscCompilerException {
+    private void compile_hooked_return_val(AstNode ast) throws CompilerException {
         _compile_call_finally();
         compile_return_val(ast);
     }
@@ -486,17 +484,19 @@ public class WscCompiler {
         compile_return_void(ast);
     }
 
-    void _compile_funcall(AstNode ast) throws WscCompilerException {
+    void _compile_funcall(AstNode ast) throws CompilerException {
         //params
         int param_n = 0;
-        for (AstNode content : ast.contents.get(2).contents) {
+        ArrayList<AstNode> contents = ast.contents.get(2).contents;
+        for (int i = contents.size() - 1; i >= 0; i--) {
+            AstNode content = contents.get(i);
             if (!content.token.type.equals("NULL")) {
                 ++param_n;
                 compile_expr(content);
                 asm.emit("push_eax");
             }
         }
-        asm.emit("new_queue", param_n + "");
+        asm.emit("packargs", param_n + "");
         asm.emit("push_eax");
         //function body
         compile_expr(ast.contents.get(1));

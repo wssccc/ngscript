@@ -1,18 +1,18 @@
 /*
  *  wssccc all rights reserved
  */
-package org.ngscript.vm;
+package org.ngscript.runtime;
 
-import org.ngscript.vm.structure.NativeClosure;
-import org.ngscript.vm.structure.VmClosure;
-import org.ngscript.vm.structure.VmMemRef;
-import org.ngscript.vm.structure.undefined;
+import org.ngscript.runtime.vo.FunctionDefinition;
+import org.ngscript.runtime.vo.JavaMethod;
+import org.ngscript.runtime.vo.VmMemRef;
+import org.ngscript.runtime.vo.undefined;
+import org.ngscript.utils.FastStack;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
-import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -20,7 +20,7 @@ import java.util.logging.Logger;
  *
  * @author wssccc <wssccc@qq.com>
  */
-public final class Coroutine extends VmClosure {
+public final class Coroutine extends FunctionDefinition {
 
     public static final String STATUS_RUNNING = "running";
     public static final String STATUS_SUSPENDED = "suspended";
@@ -30,13 +30,13 @@ public final class Coroutine extends VmClosure {
     Context context;
     private boolean running = false;//only a flag
 
-    public Coroutine(VmClosure closure) {
-        super(closure.func_label, new ScopeHash(closure.closure_env), closure.vm);
+    public Coroutine(FunctionDefinition closure) {
+        super(closure.functionLable, new ScopeHash(closure.closure_env), closure.vm);
         setupCoroutine(closure);
     }
 
-    public Coroutine(VmClosure closure, Object... args) {
-        super(closure.func_label, new ScopeHash(closure.closure_env), closure.vm);
+    public Coroutine(FunctionDefinition closure, Object... args) {
+        super(closure.functionLable, new ScopeHash(closure.closure_env), closure.vm);
         //setup params
         this.args.addAll(Arrays.asList(args));
         setupCoroutine(closure);
@@ -46,9 +46,9 @@ public final class Coroutine extends VmClosure {
         args.add(obj);
     }
 
-    final void setupCoroutine(VmClosure ref) {
+    final void setupCoroutine(FunctionDefinition ref) {
         context = new Context(vm);
-        context.stack = new Stack<Object>();
+        context.stack = new FastStack<>(32);
 
         //frame for call coroutine body
         context.stack.push(args);  //args
@@ -59,20 +59,20 @@ public final class Coroutine extends VmClosure {
         context.stack_size = context.stack.size();
 
         //setup eip
-        context.eip = ref.vm.labels.get(ref.func_label);
+        context.eip = ref.vm.labels.get(ref.functionLable);
         context.env = this.closure_env;
         //args.addAll(Arrays.asList(objs));
 
         //gen stubs for coroutine
         try {
-            closure_env.put("resume", new VmMemRef(new NativeClosure(this, this.getClass().getMethod("resume"))));
+            closure_env.data.put("resume", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("resume"))));
             ArrayList<Method> yields = new ArrayList<Method>();
             yields.add(this.getClass().getMethod("yield", Object.class));
             yields.add(this.getClass().getMethod("yield"));
 
-            closure_env.put("yield", new VmMemRef(new NativeClosure(this, yields)));
-            closure_env.put("status", new VmMemRef(new NativeClosure(this, this.getClass().getMethod("status"))));
-            closure_env.put("push", new VmMemRef(new NativeClosure(this, this.getClass().getMethod("push", Object.class))));
+            closure_env.data.put("yield", new VmMemRef(new JavaMethod(this, yields)));
+            closure_env.data.put("status", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("status"))));
+            closure_env.data.put("push", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("push", Object.class))));
         } catch (NoSuchMethodException ex) {
             Logger.getLogger(Coroutine.class.getName()).log(Level.SEVERE, null, ex);
         } catch (SecurityException ex) {
@@ -81,9 +81,9 @@ public final class Coroutine extends VmClosure {
 
     }
 
-    public void resume() throws WscVMException {
+    public void resume() throws VmRuntimeException {
         if (!STATUS_SUSPENDED.equals(this.status())) {
-            throw new WscVMException(this.vm, "coroutine is not suspended");
+            throw new VmRuntimeException(this.vm, "coroutine is not suspended");
         }
         running = true;
         ScopeHash outenv = (ScopeHash) vm.stack.peek();
@@ -91,8 +91,8 @@ public final class Coroutine extends VmClosure {
         Context saved = new Context(vm);
         vm.contextStack.push(saved);
         context.restore(vm);
-//        vm.stack.pop();
-//        vm.stack.pop();//clear frame for resume
+//        runtime.stack.pop();
+//        runtime.stack.pop();//clear frame for resume
         //callstack
         vm.callstack.push(this);
     }

@@ -1,4 +1,4 @@
-package org.ngscript.common;
+package org.ngscript.compiler;
 
 /*
  *  wssccc all rights reserved
@@ -30,7 +30,7 @@ public class Instruction {
 
     @Override
     public String toString() {
-        if (op.equals("//")) {
+        if ("//".equals(op)) {
             return op + ' ' + (param == null ? "" : param);
         } else {
             return String.format("%-15s%-30s", op, (param == null ? "" : param) + (paramExtended == null ? "" : "," + paramExtended));

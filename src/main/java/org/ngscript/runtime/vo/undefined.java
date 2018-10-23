@@ -1,10 +1,9 @@
 /*
  *  wssccc all rights reserved
  */
-package org.ngscript.vm.structure;
+package org.ngscript.runtime.vo;
 
 /**
- *
  * @author wssccc <wssccc@qq.com>
  */
 public class undefined {
