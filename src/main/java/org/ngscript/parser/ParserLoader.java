@@ -3,6 +3,7 @@
  */
 package org.ngscript.parser;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.IOUtils;
 import org.ngscript.parseroid.grammar.Grammar;
@@ -16,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * @author wssccc <wssccc@qq.com>
  */
+@Slf4j
 public class ParserLoader {
 
     private LALRTable table;
@@ -40,15 +42,17 @@ public class ParserLoader {
         String cacheFilePath = System.getProperty("java.io.tmpdir") + File.separator + "ng_bnf_cache_" + hash + ".classdump";
         File cacheFile = new File(cacheFilePath);
         if (cacheFile.exists()) {
-            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(cacheFile));) {
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(cacheFile))) {
                 table = (LALRTable) ois.readObject();
+                return;
+            } catch (Exception ex) {
+                log.warn("load parser table cache failed", ex);
             }
-        } else {
-            Grammar g = GrammarLoader.loadBnfString(bnfString);
-            table = new TableGenerator(g).generate(false);
-            try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(cacheFile))) {
-                oos.writeObject(table);
-            }
+        }
+        Grammar g = GrammarLoader.loadBnfString(bnfString);
+        table = new TableGenerator(g).generate(false);
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(cacheFile))) {
+            oos.writeObject(table);
         }
     }
 }

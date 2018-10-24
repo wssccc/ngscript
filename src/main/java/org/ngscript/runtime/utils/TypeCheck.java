@@ -3,6 +3,7 @@
  */
 package org.ngscript.runtime.utils;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 
@@ -12,32 +13,23 @@ import java.util.HashSet;
  */
 public class TypeCheck {
 
-    //cached type hierarchy
-    static final HashMap<Class, HashSet<Class>> supers = new HashMap<Class, HashSet<Class>>();
+    static final HashMap<Class, HashSet<Class>> typeHierarchy = new HashMap<Class, HashSet<Class>>();
 
     static {
-        HashSet<Class> int_set = new HashSet<Class>();
-        int_set.add(Integer.class);
-        int_set.add(Object.class);
-        int_set.add(int.class);
-        int_set.add(float.class);
-        int_set.add(double.class);
-        supers.put(Integer.class, int_set);
-        supers.put(int.class, int_set);
+        HashSet<Class> intSet
+                = new HashSet<Class>(Arrays.asList(Integer.class, Object.class, int.class, float.class, double.class));
+        typeHierarchy.put(Integer.class, intSet);
+        typeHierarchy.put(int.class, intSet);
 
-        HashSet<Class> db_set = new HashSet<Class>();
-        db_set.add(Double.class);
-        db_set.add(Object.class);
-        db_set.add(double.class);
-        //db_set.add(float.class);
+        HashSet<Class> doubleSet = new HashSet<Class>(Arrays.asList(Double.class, Object.class, double.class));
 
-        supers.put(Double.class, db_set);
-        supers.put(double.class, db_set);
+        typeHierarchy.put(Double.class, doubleSet);
+        typeHierarchy.put(double.class, doubleSet);
     }
 
-    public static HashSet<Class> getCastableClasses(Class cls) {
-        if (supers.containsKey(cls)) {
-            return supers.get(cls);
+    public static HashSet<Class> getSuperClasses(Class cls) {
+        if (typeHierarchy.containsKey(cls)) {
+            return typeHierarchy.get(cls);
         } else {
             //collect super classes
             HashSet<Class> classes = new HashSet<Class>();
@@ -51,7 +43,7 @@ public class TypeCheck {
                     break;
                 }
             }
-            supers.put(cls, classes);
+            typeHierarchy.put(cls, classes);
             return classes;
         }
     }
@@ -90,6 +82,6 @@ public class TypeCheck {
 
     static boolean _typeCheck(Class in, Class def) {
         //null is acceptable for any Object type
-        return (in == null || getCastableClasses(in).contains(def));
+        return (in == null || getSuperClasses(in).contains(def));
     }
 }

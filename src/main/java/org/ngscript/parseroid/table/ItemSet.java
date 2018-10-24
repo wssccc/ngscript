@@ -3,6 +3,7 @@
  */
 package org.ngscript.parseroid.table;
 
+import lombok.EqualsAndHashCode;
 import org.ngscript.parseroid.grammar.Symbol;
 import org.ngscript.parseroid.grammar.Production;
 import org.ngscript.parseroid.grammar.Grammar;
@@ -15,6 +16,7 @@ import java.util.Set;
  *
  * @author wssccc <wssccc@qq.com>
  */
+@EqualsAndHashCode
 public class ItemSet {
 
     int id;
@@ -67,7 +69,7 @@ public class ItemSet {
                     changed = true;
                     if (item.production.produces.length != item.pos) {
                         Symbol nextExpand = item.production.produces[item.pos];
-                        if (nextExpand.isTerminal == false) {
+                        if (!nextExpand.isTerminal) {
                             String keys[] = new String[item.lookahead.keySet().size()];
                             item.lookahead.keySet().toArray(keys);
                             for (int k = 0; k < keys.length;) {

@@ -3,8 +3,9 @@
  */
 package org.ngscript.parseroid.table;
 
-import org.ngscript.parseroid.grammar.Symbol;
 import org.ngscript.parseroid.grammar.Grammar;
+import org.ngscript.parseroid.grammar.Symbol;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
@@ -16,10 +17,10 @@ import java.util.Set;
 public class CanonicalCollection {
 
     public ArrayList<ItemSet> cc = new ArrayList<ItemSet>();
-    Grammar referGrammar;
+    private Grammar grammar;
 
-    public CanonicalCollection(Grammar g) {
-        this.referGrammar = g;
+    public CanonicalCollection(Grammar grammar) {
+        this.grammar = grammar;
     }
 
     /**
@@ -43,7 +44,7 @@ public class CanonicalCollection {
                     for (Symbol sym : inputs) {
                         ItemSet newItemSet = itemSet.getGoto(sym);
                         //create closure(expand inner)
-                        newItemSet.closure(referGrammar);
+                        newItemSet.closure(grammar);
                         //this is used to reduce the number of itemsets
                         ItemSet sameh = getSameHeart(newItemSet);
                         if (sameh.merge(newItemSet)) {
@@ -63,18 +64,18 @@ public class CanonicalCollection {
      * @return
      */
     public LALRTable buildTable() {
-        LALRTable table = new LALRTable(referGrammar);
+        LALRTable table = new LALRTable(grammar);
         for (ItemSet itemSet : cc) {
             for (Item item : itemSet.items) {
                 if (item.pos < item.production.produces.length) {
-                    if (item.production.produces[item.pos].isTerminal == true) {
+                    if (item.production.produces[item.pos].isTerminal) {
                         int j = itemSet.go.get(item.production.produces[item.pos]).id;
                         table.add(item.production.produces[item.pos].identifier, itemSet.id, ParserAction.shift(j));
                     }
                 } else {
                     for (Symbol lhsym : item.lookahead.values()) {
                         if (lhsym.isTerminal) {
-                            if (lhsym == Symbol.EOF && item.production.eq(referGrammar.getRootProduction())) {
+                            if (lhsym == Symbol.EOF && item.production.eq(grammar.getRootProduction())) {
                                 table.add(lhsym.identifier, itemSet.id, ParserAction.accept());
                             } else {
                                 table.add(lhsym.identifier, itemSet.id, ParserAction.reduce(item.production.id));
@@ -84,7 +85,7 @@ public class CanonicalCollection {
                 }
             }
             for (Symbol sym : itemSet.go.keySet()) {
-                if (sym.isTerminal == false) {
+                if (!sym.isTerminal) {
                     ItemSet goset = itemSet.go.get(sym);
                     table.add(sym.identifier, itemSet.id, ParserAction.go(goset.id));
                 }

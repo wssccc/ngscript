@@ -200,10 +200,10 @@ public class VirtualMachine {
 //                if (cpuMethodCache.containsKey(instruction.op)) {
 //                    m = cpuMethodCache.get(instruction.op);
 //                } else {
-//                    m = InterpreterUtils.class.getMethod(instruction.op, VirtualMachine.class, String.class, String.class);
+//                    m = Op.class.getMethod(instruction.op, VirtualMachine.class, String.class, String.class);
 //                    cpuMethodCache.put(instruction.op, m);
 //                }
-//                m.invoke(InterpreterUtils.class, this, instruction.param, instruction.paramExtended);
+//                m.invoke(Op.class, this, instruction.param, instruction.paramExtended);
 
             } catch (Exception ex) {
                 try {
@@ -212,7 +212,7 @@ public class VirtualMachine {
                     System.out.println("eip=" + eip);
                     Logger.getLogger(VirtualMachine.class.getName()).log(Level.SEVERE, null, ex);
                     exception.write(ex);
-                    InterpreterUtils.restore_machine_state(this, null, null);
+                    Op.restore_machine_state(this, null, null);
                 } catch (VmRuntimeException ex1) {
                     err.println("VM Exception");
                     err.println(ex1.toString());

@@ -3,15 +3,17 @@
  */
 package org.ngscript.parseroid.table;
 
-import org.ngscript.parseroid.grammar.Symbol;
+import lombok.EqualsAndHashCode;
 import org.ngscript.parseroid.grammar.Production;
-import java.util.ArrayList;
+import org.ngscript.parseroid.grammar.Symbol;
+
 import java.util.HashMap;
 
 /**
  *
  * @author wssccc <wssccc@qq.com>
  */
+@EqualsAndHashCode
 public class Item {
 
     Production production;

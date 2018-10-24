@@ -60,7 +60,7 @@ public class GrammarLoader {
                 } else if (line.startsWith("#")) {
                     //nothing
                 } else {
-                    int produce_length = -1;
+                    int produceLength = -1;
                     int pos = 0;
                     linesc = new Scanner(line);
                     while (linesc.hasNext()) {
@@ -70,19 +70,20 @@ public class GrammarLoader {
                             ++pos;
                         }
                         if (token.equals("=>")) {
-                            produce_length = pos - 2; //delete 2 items
+                            //delete 2 items
+                            produceLength = pos - 2;
                         }
                     }
                     String sym = q.poll();
                     sym = getVnName(sym, "production begins with non-terminal symbol, at line" + lineno);
-                    if (produce_length == -1) {
+                    if (produceLength == -1) {
                         //uninitialized
-                        produce_length = q.size();
+                        produceLength = q.size();
                     } else {
                     }
-                    Symbol[] produces = new Symbol[produce_length];
+                    Symbol[] produces = new Symbol[produceLength];
 
-                    for (int i = 0; i < produce_length; i++) {
+                    for (int i = 0; i < produceLength; i++) {
                         String tk = q.poll();
                         if (tk.startsWith("<") && tk.endsWith(">")) {
                             tk = tk.substring(1, tk.length() - 1);

@@ -12,31 +12,31 @@ public class Token {
 
     public String type;
     public String value;
-    public int line_no;
+    public int line;
 
     public boolean isValidPos() {
-        return line_no != -1;
+        return line != -1;
     }
 
     public Token(String type) {
         this.type = type;
-        this.line_no = -1;
+        this.line = -1;
     }
 
     public Token(String type, int line) {
         this.type = type;
-        this.line_no = line;
+        this.line = line;
     }
 
     public Token(String type, int line, String value) {
         this.type = type;
-        this.line_no = line;
+        this.line = line;
         this.value = value;
     }
 
     @Override
     public String toString() {
-        return "[" + type + (value == null ? "" : "," + value) + "]" + (line_no >= 0 ? (" line:" + line_no) : (""));
+        return "[" + type + (value == null ? "" : "," + value) + "]" + (line >= 0 ? (" line:" + line) : (""));
     }
 
 }

@@ -32,7 +32,7 @@ public class Assembler {
     }
 
     public String label(String name, AstNode ast) {
-        String labelName = ast.token.type + "_$" + ast.token.line_no + "_" + name;
+        String labelName = ast.token.type + "_$" + ast.token.line + "_" + name;
         int i;
         if (labels.containsKey(labelName)) {
             //search for distinct label

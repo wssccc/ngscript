@@ -3,7 +3,7 @@
  */
 package org.ngscript.runtime.vo;
 
-import org.ngscript.runtime.InterpreterUtils;
+import org.ngscript.runtime.Op;
 import org.ngscript.runtime.VirtualMachine;
 import org.ngscript.runtime.VmRuntimeException;
 import org.ngscript.runtime.utils.VarArgHelper;
@@ -57,7 +57,7 @@ public class JavaMethod implements VmMethod {
             vm.eax.write(val);
         } catch (Exception ex) {
             vm.exception.write(new VmRuntimeException(vm, ex.getCause() == null ? ex.toString() : ex.getCause().toString()));
-            InterpreterUtils.restore_machine_state(vm, null, null);
+            Op.restore_machine_state(vm, null, null);
         }
     }
 }

@@ -21,12 +21,14 @@ public final class Grammar implements Serializable {
     public final HashSet<String> filterNotations;
     public final HashMap<String, String> classNotations;
     private final HashMap<Integer, Production> productions;
-    private final HashMap<Integer, Symbol[]> production_alias;
+    private final HashMap<Integer, Symbol[]> productionAlias;
 
     private final HashMap<String, Symbol> symbols;
-    //cached
-    private final HashMap<Symbol, ArrayList<Production>> symProductions;
-    //generate later
+    /**
+     * cached
+     */
+    private final HashMap<Symbol, ArrayList<Production>> symbolProductions;
+
     private HashMap<Symbol, HashMap<String, Symbol>> firstSet;
 
     public Grammar() {
@@ -34,8 +36,8 @@ public final class Grammar implements Serializable {
         arrayNotations = new HashSet<String>();
         classNotations = new HashMap<String, String>();
         productions = new HashMap<Integer, Production>();
-        production_alias = new HashMap<Integer, Symbol[]>();
-        symProductions = new HashMap<Symbol, ArrayList<Production>>();
+        productionAlias = new HashMap<Integer, Symbol[]>();
+        symbolProductions = new HashMap<Symbol, ArrayList<Production>>();
         //symbols
         symbols = new HashMap<String, Symbol>();
         //system defined symbols
@@ -47,9 +49,9 @@ public final class Grammar implements Serializable {
 
     public void checkProduction() {
         for (Symbol sym : symbols.values()) {
-            if (sym.isTerminal == false) {
+            if (!sym.isTerminal) {
                 if (getSymProductions(sym).isEmpty()) {
-                    throw new RuntimeException(sym + " has no produtions");
+                    throw new RuntimeException(sym + " has no productions");
                 }
             }
         }
@@ -64,19 +66,19 @@ public final class Grammar implements Serializable {
     }
 
     public void createProductionAlias(int id, Symbol[] syms) {
-        assert production_alias.containsKey(id) == false;
-        production_alias.put(id, syms);
+        assert !productionAlias.containsKey(id);
+        productionAlias.put(id, syms);
     }
 
-    public Symbol createSymbol(String name, boolean ternimal) {
+    public Symbol createSymbol(String name, boolean terminal) {
         if (symbols.containsKey(name)) {
-            if (symbols.get(name).isTerminal == ternimal) {
+            if (symbols.get(name).isTerminal == terminal) {
                 return symbols.get(name);
             } else {
                 throw new RuntimeException("symbol " + name + " defined as terminal=" + symbols.get(name).isTerminal);
             }
         } else {
-            Symbol s = Symbol.create(name, ternimal);
+            Symbol s = Symbol.create(name, terminal);
             symbols.put(name, s);
             return s;
         }
@@ -103,13 +105,13 @@ public final class Grammar implements Serializable {
     }
 
     public Symbol[] getProductionAlias(int id) {
-        return production_alias.get(id);
+        return productionAlias.get(id);
     }
 
     public ArrayList<Production> getSymProductions(Symbol sym) {
-        assert sym.isTerminal == false;
-        if (symProductions.containsKey(sym)) {
-            return symProductions.get(sym);
+        assert !sym.isTerminal;
+        if (symbolProductions.containsKey(sym)) {
+            return symbolProductions.get(sym);
         } else {
             ArrayList<Production> result = new ArrayList<Production>();
             for (Production pro : productions.values()) {
@@ -117,7 +119,7 @@ public final class Grammar implements Serializable {
                     result.add(pro);
                 }
             }
-            symProductions.put(sym, result);
+            symbolProductions.put(sym, result);
             return result;
         }
     }
@@ -133,7 +135,7 @@ public final class Grammar implements Serializable {
                 if (p == null) {
                     p = pro;
                 } else {
-                    throw new RuntimeException("dunplicated root production");
+                    throw new RuntimeException("duplicated root production");
                 }
             }
         }
@@ -158,13 +160,13 @@ public final class Grammar implements Serializable {
         throw new RuntimeException("NULL producer at the end of the production");
     }
 
-    //inner
-    void genFirstSet() {
+
+    private void genFirstSet() {
         firstSet = new HashMap<Symbol, HashMap<String, Symbol>>();
         //add terminal symbols
         for (Production pro : productions.values()) {
             for (Symbol produce : pro.produces) {
-                if (produce.isTerminal == true) {
+                if (produce.isTerminal) {
                     addToFirstSet(produce, produce);
                 }
             }
@@ -195,19 +197,19 @@ public final class Grammar implements Serializable {
 
     boolean addToFirstSet(Symbol vn, Symbol vt) {
         boolean changed = false;
-        HashMap<String, Symbol> onefirstset;
+        HashMap<String, Symbol> oneFirstSet;
 
         if (!firstSet.containsKey(vn)) {
             changed = true;
-            onefirstset = new HashMap<String, Symbol>();
-            firstSet.put(vn, onefirstset);
+            oneFirstSet = new HashMap<String, Symbol>();
+            firstSet.put(vn, oneFirstSet);
         } else {
-            onefirstset = firstSet.get(vn);
+            oneFirstSet = firstSet.get(vn);
         }
 
-        if (!onefirstset.containsKey(vt.identifier)) {
+        if (!oneFirstSet.containsKey(vt.identifier)) {
             changed = true;
-            onefirstset.put(vt.identifier, vt);
+            oneFirstSet.put(vt.identifier, vt);
         }
         return changed;
     }

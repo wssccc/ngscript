@@ -64,8 +64,8 @@ public class Compiler {
     }
 
     void printDebug(AstNode ast) {
-        if (printedLines != ast.token.line_no) {
-            while (printedLines < ast.token.line_no) {
+        if (printedLines != ast.token.line) {
+            while (printedLines < ast.token.line) {
                 String line = sc.hasNextLine() ? sc.nextLine() : "no line";
                 asm.emit("//", line, "" + printedLines);
                 ++printedLines;
@@ -171,7 +171,7 @@ public class Compiler {
                 throw new CompilerException(this, "var statement expect an ident");
             }
             asm.emit("clear", "%eax");
-            asm.emit("set_var", child.get(1).token.value);
+            asm.emit("set", child.get(1).token.value);
             if (!byref) {
                 asm.emit("deref", child.get(1).token.value);
             } else {
@@ -267,7 +267,7 @@ public class Compiler {
         for (int i = 0; i < contents.size(); i++) {
             AstNode content = contents.get(i);
             asm.emit("pickarg", i + "");
-            asm.emit("set_var", content.token.value, "%eax");
+            asm.emit("set", content.token.value, "%eax");
         }
 
         compile(ast.getNode("statements"));
@@ -386,7 +386,7 @@ public class Compiler {
         asm.emit("jmp", exitLabel);
         asm.emit("label", catchLabel);
         asm.emit("mov_eax_exception");
-        asm.emit("set_var", ast.contents.get(1).token.value);
+        asm.emit("set", ast.contents.get(1).token.value);
         asm.emit("clear", "%exception");
         compile_statements(ast.contents.get(2));
         asm.emit("push_eip");

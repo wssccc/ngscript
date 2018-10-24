@@ -16,7 +16,7 @@ import java.util.logging.Logger;
 /**
  * @author wssccc <wssccc@qq.com>
  */
-public class InterpreterUtils {
+public class Op {
 
     public static void deref(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         VmMemRef v1;
@@ -111,12 +111,12 @@ public class InterpreterUtils {
         vm.stack.push(vm.eip);
     }
 
-    public static void set_var(VirtualMachine vm, String param, String param_extend) {
+    public static void set(VirtualMachine vm, String param, String param_extend) {
         ((Environment) vm.env.read()).data.put(param, new VmMemRef(vm.eax.read()));
     }
 
     public static void member_ref(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
+        Object[] objs = OpUtils.get2OpParam(vm);
         String member = (String) objs[1];
         if (objs[0] instanceof Environment) {
             Environment env = (Environment) objs[0];
@@ -131,19 +131,11 @@ public class InterpreterUtils {
             vm.eax.write(ref);
             return;
         }
-        throw new VmRuntimeException(vm, member + " is not a member of " + _getObjInfo(objs[0]));
-    }
-
-    private static String _getObjInfo(Object obj) {
-        if (obj != null) {
-            return obj.getClass().getName() + "[" + obj.toString() + "]";
-        } else {
-            return "null";
-        }
+        throw new VmRuntimeException(vm, member + " is not a member of " + OpUtils._getObjInfo(objs[0]));
     }
 
     public static void array_ref(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
+        Object[] objs = OpUtils.get2OpParam(vm);
         if (objs[0] instanceof Environment) {
             Environment env = (Environment) objs[0];
             String member = "" + objs[1];
@@ -162,8 +154,8 @@ public class InterpreterUtils {
     }
 
     public static void static_func(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        InterpreterUtils.new_closure(vm, param_extend, null);
-        InterpreterUtils.set_var(vm, param, null);
+        Op.new_closure(vm, param_extend, null);
+        Op.set(vm, param, null);
     }
 
     public static void typeof(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
@@ -192,7 +184,7 @@ public class InterpreterUtils {
         if (obj.getClass().isAnonymousClass()) {
             vm.eax.write(obj.getClass().getSuperclass().getName());
         } else {
-            if ("ngscript.runtime.vo".equals(obj.getClass().getPackage().getName())) {
+            if (undefined.class.getPackage().getName().equals(obj.getClass().getPackage().getName())) {
                 vm.eax.write(obj.getClass().getSimpleName());
             } else {
                 vm.eax.write(obj.getClass().getName());
@@ -207,15 +199,15 @@ public class InterpreterUtils {
     }
 
     public static void assign(VirtualMachine vm, String param, String param_extend) {
-        Object[] objs = get_op_params_2(vm);
+        Object[] objs = OpUtils.get2OpParam(vm);
         ((VmMemRef) objs[0]).write(objs[1]);
         vm.eax.write(objs[1]);
     }
 
     public static void lt(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
-        double d1 = getNumber(vm, objs[0]);
-        double d2 = getNumber(vm, objs[1]);
+        Object[] objs = OpUtils.get2OpParam(vm);
+        double d1 = OpUtils.getNumber(vm, objs[0]);
+        double d2 = OpUtils.getNumber(vm, objs[1]);
         if (d1 < d2) {
             vm.eax.write(1);
         } else {
@@ -224,9 +216,9 @@ public class InterpreterUtils {
     }
 
     public static void gt(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
-        double d1 = getNumber(vm, objs[0]);
-        double d2 = getNumber(vm, objs[1]);
+        Object[] objs = OpUtils.get2OpParam(vm);
+        double d1 = OpUtils.getNumber(vm, objs[0]);
+        double d2 = OpUtils.getNumber(vm, objs[1]);
         if (d1 > d2) {
             vm.eax.write(1);
         } else {
@@ -235,9 +227,9 @@ public class InterpreterUtils {
     }
 
     public static void ge(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
-        double d1 = getNumber(vm, objs[0]);
-        double d2 = getNumber(vm, objs[1]);
+        Object[] objs = OpUtils.get2OpParam(vm);
+        double d1 = OpUtils.getNumber(vm, objs[0]);
+        double d2 = OpUtils.getNumber(vm, objs[1]);
         if (d1 >= d2) {
             vm.eax.write(1);
         } else {
@@ -246,9 +238,9 @@ public class InterpreterUtils {
     }
 
     public static void le(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
-        double d1 = getNumber(vm, objs[0]);
-        double d2 = getNumber(vm, objs[1]);
+        Object[] objs = OpUtils.get2OpParam(vm);
+        double d1 = OpUtils.getNumber(vm, objs[0]);
+        double d2 = OpUtils.getNumber(vm, objs[1]);
         if (d1 <= d2) {
             vm.eax.write(1);
         } else {
@@ -256,36 +248,20 @@ public class InterpreterUtils {
         }
     }
 
-    private static void _addEaxObj(VirtualMachine vm, int num, boolean retOrig) {
-        VmMemRef addr = (VmMemRef) vm.eax.read();
-        Object val = addr.read();
-        if (val instanceof Integer) {
-            addr.write(((Integer) val) + num);
-        }
-        if (val instanceof Double) {
-            addr.write(((Double) val) + num);
-        }
-        if (retOrig) {
-            vm.eax.write(val);
-        } else {
-            vm.eax.write(addr.read());
-        }
-    }
-
     public static void inc(VirtualMachine vm, String param, String param_extend) {
-        _addEaxObj(vm, 1, false);
+        OpUtils._addEaxObj(vm, 1, false);
     }
 
     public static void dec(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        _addEaxObj(vm, -1, false);
+        OpUtils._addEaxObj(vm, -1, false);
     }
 
     public static void post_inc(VirtualMachine vm, String param, String param_extend) {
-        _addEaxObj(vm, 1, true);
+        OpUtils._addEaxObj(vm, 1, true);
     }
 
     public static void post_dec(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        _addEaxObj(vm, -1, true);
+        OpUtils._addEaxObj(vm, -1, true);
     }
 
     public static void pop_eax(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
@@ -316,7 +292,7 @@ public class InterpreterUtils {
 
     public static void jz(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object testObj = vm.eax.read();
-        if (!testValue(testObj)) {
+        if (!OpUtils.testValue(testObj)) {
             if (vm.labels.containsKey(param)) {
                 int nip = vm.labels.get(param);
                 vm.eip = nip;
@@ -328,7 +304,7 @@ public class InterpreterUtils {
 
     public static void jnz(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object testObj = vm.eax.read();
-        if (testValue(testObj)) {
+        if (OpUtils.testValue(testObj)) {
             if (vm.labels.containsKey(param)) {
                 int nip = vm.labels.get(param);
                 vm.eip = nip;
@@ -336,24 +312,6 @@ public class InterpreterUtils {
                 throw new VmRuntimeException(vm, "jump to no where");
             }
         }
-    }
-
-    static boolean testValue(Object testObj) {
-        boolean val = false;
-        if (testObj == null) {
-            val = false;
-        } else if (testObj instanceof Boolean) {
-            val = ((Boolean) testObj);
-        } else if (testObj instanceof Integer) {
-            val = ((Integer) testObj) != 0;
-        } else if (testObj instanceof Double) {
-            val = Math.abs((Double) testObj) > Double.MIN_NORMAL;
-        } else if (testObj instanceof undefined) {
-            val = false;
-        } else if (testObj instanceof Object) {
-            val = true;
-        }
-        return val;
     }
 
     public static void label(VirtualMachine vm, String param, String param_extend) {
@@ -417,74 +375,64 @@ public class InterpreterUtils {
     }
 
     public static void add(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
+        Object[] objs = OpUtils.get2OpParam(vm);
         vm.eax.write(TypeOp.eval(TypeOp.OP_ADD, objs[0], objs[1]));
     }
 
     public static void bit_and(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
-        vm.eax.write(getInteger(vm, objs[0]) & getInteger(vm, objs[1]));
+        Object[] objs = OpUtils.get2OpParam(vm);
+        vm.eax.write(OpUtils.getInteger(vm, objs[0]) & OpUtils.getInteger(vm, objs[1]));
     }
 
     public static void bit_or(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
-        vm.eax.write(getInteger(vm, objs[0]) | getInteger(vm, objs[1]));
+        Object[] objs = OpUtils.get2OpParam(vm);
+        vm.eax.write(OpUtils.getInteger(vm, objs[0]) | OpUtils.getInteger(vm, objs[1]));
     }
 
     public static void bit_xor(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
-        vm.eax.write(getInteger(vm, objs[0]) ^ getInteger(vm, objs[1]));
+        Object[] objs = OpUtils.get2OpParam(vm);
+        vm.eax.write(OpUtils.getInteger(vm, objs[0]) ^ OpUtils.getInteger(vm, objs[1]));
     }
 
     public static void sub(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
+        Object[] objs = OpUtils.get2OpParam(vm);
         vm.eax.write(TypeOp.eval(TypeOp.OP_SUB, objs[0], objs[1]));
     }
 
     public static void mul(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
+        Object[] objs = OpUtils.get2OpParam(vm);
         vm.eax.write(TypeOp.eval(TypeOp.OP_MUL, objs[0], objs[1]));
     }
 
     public static void mod(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
+        Object[] objs = OpUtils.get2OpParam(vm);
         vm.eax.write(TypeOp.eval(TypeOp.OP_MOD, objs[0], objs[1]));
     }
 
     public static void div(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
+        Object[] objs = OpUtils.get2OpParam(vm);
         vm.eax.write(TypeOp.eval(TypeOp.OP_DIV, objs[0], objs[1]));
     }
 
-    static boolean testEq(Object obj1, Object obj2) {
-        if (obj1 == obj2) {
-            return true;
-        }
-        if (obj1 == null || obj2 == null) {
-            return false;
-        }
-        return obj1.toString().equals(obj2.toString());
-    }
-
     public static void eq(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
+        Object[] objs = OpUtils.get2OpParam(vm);
         //runtime.eax.value=(new TypeOp(runtime).eval("eq", objs[0], objs[1]));
-        vm.eax.write(testEq(objs[0], objs[1]));
+        vm.eax.write(OpUtils.testEq(objs[0], objs[1]));
     }
 
     public static void veq(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
-        vm.eax.write(testEq(objs[0], objs[1]));
+        Object[] objs = OpUtils.get2OpParam(vm);
+        vm.eax.write(OpUtils.testEq(objs[0], objs[1]));
     }
 
     public static void neq(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
-        vm.eax.write(!testEq(objs[0], objs[1]));
+        Object[] objs = OpUtils.get2OpParam(vm);
+        vm.eax.write(!OpUtils.testEq(objs[0], objs[1]));
     }
 
     public static void vneq(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Object[] objs = get_op_params_2(vm);
-        vm.eax.write(!testEq(objs[0], objs[1]));
+        Object[] objs = OpUtils.get2OpParam(vm);
+        vm.eax.write(!OpUtils.testEq(objs[0], objs[1]));
     }
 //    public static void coroutine_return(VirtualMachine runtime, String param, String paramExtended) {
 //        Coroutine nativeClosure = (Coroutine) runtime.stack.get(runtime.stack.size() - 1 - 1);
@@ -627,47 +575,12 @@ public class InterpreterUtils {
             //native object
             newObject = vm.stack.pop();
         }
-        Environment old_env = (Environment) vm.stack.pop();
+        Environment oldEnv = (Environment) vm.stack.pop();
         Object cons = vm.stack.pop();
 
         vm.eax.write(newObject);
-        vm.env.write(old_env);
+        vm.env.write(oldEnv);
         vm.stack.pop(); //params
     }
 
-    //helper functions
-    static Object[] get_op_params_2(VirtualMachine vm) {
-        Object[] objs = new Object[2];
-        objs[0] = vm.stack.pop();
-        objs[1] = vm.eax.read();
-        return objs;
-    }
-
-    static double getNumber(VirtualMachine vm, Object obj) throws VmRuntimeException {
-        if (obj instanceof Integer) {
-            return (Integer) obj;
-        }
-        if (obj instanceof Double) {
-            return (Double) obj;
-        }
-        if (obj instanceof Long) {
-            Long l = (Long) obj;
-            return l.intValue();
-        }
-        throw new VmRuntimeException(vm, "invalid type");
-    }
-
-    static int getInteger(VirtualMachine vm, Object obj) throws VmRuntimeException {
-        if (obj instanceof Integer) {
-            return (Integer) obj;
-        }
-        if (obj instanceof Double) {
-            return ((Double) obj).intValue();
-        }
-        if (obj instanceof Long) {
-            Long l = (Long) obj;
-            return l.intValue();
-        }
-        throw new VmRuntimeException(vm, "invalid type");
-    }
 }

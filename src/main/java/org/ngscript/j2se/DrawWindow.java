@@ -3,14 +3,12 @@
  */
 package org.ngscript.j2se;
 
-import java.awt.Color;
-import java.awt.Graphics;
+import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.imageio.ImageIO;
 
 /**
  *
@@ -97,7 +95,7 @@ public class DrawWindow extends javax.swing.JFrame {
                 time = new_time;
                 System.out.println("save");
                 count = 0;
-                save();
+                //save();
                 Graphics g2d = jPanel1.getGraphics();
                 g2d.drawImage(bi, 0, 0, null);
                 g2d.dispose();

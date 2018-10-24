@@ -3,12 +3,17 @@
  */
 package org.ngscript.parseroid.grammar;
 
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
+
 import java.io.Serializable;
 
 /**
  *
  * @author wssccc <wssccc@qq.com>
  */
+@ToString
+@EqualsAndHashCode
 public class Symbol implements Serializable{
 
     public static final Symbol NULL = new Symbol("NULL", true);
@@ -25,10 +30,5 @@ public class Symbol implements Serializable{
 
     public static Symbol create(String identifier, boolean isTerminal) {
         return new Symbol(identifier, isTerminal);
-    }
-
-    @Override
-    public String toString() {
-        return "" + identifier;
     }
 }

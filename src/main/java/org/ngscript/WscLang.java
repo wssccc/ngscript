@@ -63,7 +63,7 @@ public class WscLang {
         //hold some
         ArrayList<Token> tokensa = new ArrayList<Token>();
         for (Token lt : tokens) {
-            tokensa.add(new Token(lt.type, lt.line_no, lt.value));
+            tokensa.add(new Token(lt.type, lt.line, lt.value));
         }
         tokensa.add(new Token(Symbol.EOF.identifier));
         //

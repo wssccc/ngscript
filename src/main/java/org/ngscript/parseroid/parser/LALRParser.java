@@ -17,14 +17,14 @@ import java.util.List;
  *
  * @author wssccc <wssccc@qq.com>
  */
-public class LALRParser {
+public class LalrParser {
 
     LALRTable table;
     FastStack<Integer> stateStack = new FastStack<Integer>(32);
     FastStack<String> symbolStack = new FastStack<>(32);
     FastStack<AstNode> astStack = new FastStack<>(32);
 
-    public LALRParser(LALRTable table) {
+    public LalrParser(LALRTable table) {
         this.table = table;
     }
 
@@ -53,7 +53,7 @@ public class LALRParser {
                     throw new ParserException("Parser exception while reading " + token.toString() + " \r\n" + table.getExpectation(state));
                 } else {
                     //reject 1 symbol
-                    token = new Token(Symbol.NULL.identifier, token.line_no);
+                    token = new Token(Symbol.NULL.identifier, token.line);
                     --tokenIndex;
                 }
             }
@@ -124,6 +124,7 @@ public class LALRParser {
                     } else {
                         throw new ParserException("Parser exception, stack not clear at ACCEPT state.");
                     }
+                default:
             }
         }
     }
@@ -158,8 +159,8 @@ public class LALRParser {
                 if (node.contents.get(i).token.isValidPos()) {
                     // node.token.col = node.contents.get(i).token.col;
 
-                    if (node.token.line_no > node.contents.get(i).token.line_no || !node.token.isValidPos()) {
-                        node.token.line_no = node.contents.get(i).token.line_no;
+                    if (node.token.line > node.contents.get(i).token.line || !node.token.isValidPos()) {
+                        node.token.line = node.contents.get(i).token.line;
                         changed = true;
                     }
 
@@ -190,7 +191,7 @@ public class LALRParser {
             //only one child
             if (node.contents.size() == 1) {
                 if (node.token.type.equals(node.contents.get(0).token.type)) {
-                    //reduce dunplicate nest , exp-> exp 
+                    //reduce duplicate nest , exp-> exp
                     node.token = node.contents.get(0).token;
                     node.contents = node.contents.get(0).contents;
                     changed = true;
@@ -208,8 +209,8 @@ public class LALRParser {
                 ++i;
             }
         }
-        for (AstNode astc : ast.contents) {
-            removeNULL(astc);
+        for (AstNode astNode : ast.contents) {
+            removeNULL(astNode);
         }
     }
 }
