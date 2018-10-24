@@ -469,7 +469,7 @@ public class Compiler {
         asm.emit("ret");
     }
 
-    void _compile_call_finally() {
+    private void _compile_call_finally() {
         asm.emit("push_eip");
         asm.emit("jmp", finallys.peek());
     }

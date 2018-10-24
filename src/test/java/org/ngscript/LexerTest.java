@@ -1,13 +1,15 @@
-/*
+package org.ngscript;/*
  *  wssccc all rights reserved
  */
-package org.ngscript.fastlexer;
+
+import org.ngscript.fastlexer.Lexer;
+import org.ngscript.fastlexer.LexerException;
+import org.ngscript.parseroid.parser.Token;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
-import org.ngscript.parseroid.parser.Token;
 
 /**
  *

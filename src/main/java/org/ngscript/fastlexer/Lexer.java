@@ -6,12 +6,20 @@ package org.ngscript.fastlexer;
 import org.ngscript.parseroid.parser.Token;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  *
  * @author wssccc <wssccc@qq.com>
  */
 public class Lexer {
+    private static Set<String> keywords = new HashSet<>(Arrays.asList("var", "true", "false", "null", "undefined",
+            "import", "function", "new", "if", "return",
+            "break", "continue", "while", "switch", "case",
+            "default", "typeof", "try", "catch", "finally",
+            "throw", "for", "else"));
 
     SourceStream ss;
 
@@ -142,6 +150,8 @@ public class Lexer {
                             return ss.token("string", substr(marker, ss.pos - 1));
                         case SourceStream.EOF:
                             throw new LexerException("invalid string token. \r\n" + substr(marker, ss.pos - 1));
+                        default:
+                            //
                     }
                 }
             case SourceStream.EOF:
@@ -183,18 +193,11 @@ public class Lexer {
     }
 
     Token translateIdent(String str) {
-        //TODO: optimize with hashmap
-        String[] keywords = new String[]{"var", "true", "false", "null", "undefined",
-            "import", "function", "new", "if", "return",
-            "break", "continue", "while", "switch", "case",
-            "default", "typeof", "try", "catch", "finally",
-            "throw", "for", "else"};
-        for (String keyword : keywords) {
-            if (keyword.equals(str)) {
-                return ss.token(str);
-            }
+        if (keywords.contains(str)) {
+            return ss.token(str);
+        } else {
+            return ss.token("ident", str);
         }
-        return ss.token("ident", str);
     }
 
     boolean isAlphabet(char c) {

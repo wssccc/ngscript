@@ -8,7 +8,7 @@ import org.ngscript.compiler.Instruction;
 import org.ngscript.compiler.Compiler;
 import org.ngscript.fastlexer.Lexer;
 import org.ngscript.runtime.VirtualMachine;
-import org.ngscript.parser.WscStreamParser;
+import org.ngscript.parser.NgLalrParser;
 import org.ngscript.parseroid.grammar.Symbol;
 import org.ngscript.parseroid.parser.AstNode;
 import org.ngscript.parseroid.parser.Token;
@@ -59,7 +59,7 @@ public class WscLang {
         Compiler defaultCompiler = new Compiler();
         final ArrayList<Token> tokens = Lexer.scan(code);
         //System.out.println(tokens);
-        WscStreamParser streamParser = new WscStreamParser();
+        NgLalrParser streamParser = new NgLalrParser();
         //hold some
         ArrayList<Token> tokensa = new ArrayList<Token>();
         for (Token lt : tokens) {
@@ -72,7 +72,7 @@ public class WscLang {
         AstNode ast = streamParser.parse(ts);
         ArrayList<Instruction> ins = new ArrayList<Instruction>();
         streamParser.reduce(ast);
-        WscStreamParser.removeNULL(ast);
+        NgLalrParser.removeNULL(ast);
         System.out.println(ast);
         defaultCompiler.compileCode(ast, code);
         defaultCompiler.getAssembler().doOptimize();

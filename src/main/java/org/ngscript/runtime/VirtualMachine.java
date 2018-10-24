@@ -18,7 +18,6 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -39,7 +38,7 @@ public class VirtualMachine {
     //machine states
     Instruction helptext;
     FastStack<Object> stack = new FastStack<>(32);
-    FastStack<FunctionDefinition> callstack = new FastStack<FunctionDefinition>();
+    FastStack<FunctionDefinition> callstack = new FastStack<FunctionDefinition>(32);
     //temp var for clear callStackSize op
     int call_stack_size;
     //registers

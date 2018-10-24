@@ -4,7 +4,6 @@
 package org.ngscript.parseroid.grammar;
 
 import java.io.FileNotFoundException;
-import java.io.InputStream;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Scanner;
@@ -15,10 +14,10 @@ import java.util.Scanner;
  */
 public class GrammarLoader {
 
-    public static Grammar loadBNF(InputStream inputStream) throws FileNotFoundException {
+    public static Grammar loadBnfString(String bnfString) throws FileNotFoundException {
 
         Queue<String> q = new LinkedList<String>();
-        Scanner sc = new Scanner(inputStream);
+        Scanner sc = new Scanner(bnfString);
 
         sc.useDelimiter(";|//.*");
         Grammar g = new Grammar();
