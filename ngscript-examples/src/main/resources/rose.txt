@@ -1,0 +1,127 @@
+import org.ngscript.examples.j2se.DrawWindow;
+var zBuffer = [];
+
+var SIZE = 500;
+var h = -250;
+
+var round = Math.round;
+var cos = Math.cos;
+var sin = Math.sin;
+var pow = Math.pow;
+var rand = Math.random;
+var draw = DrawWindow.draw;
+function surface(a, b, c) {
+	if(c > 60) {
+		// The rose STICK.
+		// There is only one value greater than 60, which is 60.8108108108.
+		return {
+			x: sin(a * 7) * (13 + 5 / (.2 + pow(b * 4, 4))) - sin(b) * 50,
+			y: b * SIZE + 50,
+			z: 625 + cos(a * 7) * (13 + 5 / (.2 + pow(b * 4, 4))) + b * 400,
+			r: a * 1 - b / 2,
+			g: a
+		};
+	}
+
+	// a and b have values in the interval [0, 1)
+	// A and B have values in the interval [-1, +1)
+	var A = a * 2 - 1;
+	var B = b * 2 - 1;
+
+	if(A * A + B * B < 1) {
+		// Consider only points inside a [to-be-deformed] circle.
+
+		if(c > 37) {
+			// The 2 LEAVES.
+			// There are 17 values for which 37 < c <= 60, but only 2 leaves are drawn.
+			// The value of c is not used to draw the leaves - only its parity is used.
+			var j = c & 1;   // Is c odd or even?
+			var n = j ? 6 : 4;
+			var o = .5 / (a + .01) + cos(b * 125) * 3 - a * 300;
+			var w = b * h;
+			return {
+				x: o * cos(n) + w * sin(n) + j *  610 - 390,
+				y: o * sin(n) - w * cos(n) + 550 - j * 350,
+				z: 1180 + cos(B + A) * 99 - j * 300,
+				r: .4 - a * .1 + pow(1 - B * B, -h * 6) * .15 - a * b * .4 + cos(a + b) / 5 + pow(cos((o * (a + 1) + (B > 0 ? w : -w)) / 25), 30) * .1 * (1 - B * B),
+				g: o / 1e3 + .7 - o * w * 3e-6
+			};
+		}
+
+		if(c > 32) {
+			// The 4 SEPALS.
+			// There are 4 values for which 32 < c <= 37, one for each sepal.
+			c = c * 1.16 - .15;
+			var o = a * 45 - 20;
+			var w = b * b * h;
+			var z = o * sin(c) + w * cos(c) + 620;
+			return {
+				x: o * cos(c) - w * sin(c),
+				y: 28 + cos(B * .5) * 99 - b * b * b * 60 - z / 2 - h,
+				z: z,
+				r: (b * b * .3 + pow((1 - (A * A)), 7) * .15 + .3) * b,
+				g: b * .7
+			};
+		}
+
+		// The 24 PETALS.
+		// There are 24 values for which c <= 32, one for each petal.
+		var o = A * (2 - b) * (80 - c * 2);
+		var w = 99 - cos(A) * 120 - cos(b) * (-h - c * 4.9) + cos(pow(1 - b, 7)) * 50 + c * 2;
+		var z = o * sin(c) + w * cos(c) + 700;
+		return {
+			x: o * cos(c) - w * sin(c),
+			y: B * 99 - cos(pow(b, 7)) * 50 - c / 3 - z / 1.35 + 450,
+			z: z,
+			r: (1 - b / 1.2) * .9 + a * .1,
+			g: pow((1 - b), 20) / 4 + .05
+		};
+	}
+}
+
+var window = new DrawWindow();
+window.setVisible(true);
+var canvasbuf = [];
+
+function render() {
+	for(var i = 0; i < 10000; i++) {
+		// Splits i in intervals [0, 45) ...
+		var part = i % 46;
+		// .. and stretches each interval to [0, 62.1621621622).
+		var c = part / .74;
+		// See the table in the end of this file.
+
+		var point = surface(rand(), rand(), c);
+		if(point) {
+			var z = point.z;
+			var x = round(point.x * SIZE / z - h);
+			var y = round(point.y * SIZE / z - h);
+			var zBufferIndex = y * SIZE + x;
+			if((typeof zBuffer[zBufferIndex] === "undefined")  ||  (zBuffer[zBufferIndex] > z)) {
+				zBuffer[zBufferIndex] = z;
+				var r = -round(point.r * h);
+				var g = -round(point.g * h);
+				var b = -round(point.r * point.r * -80);
+
+                r = (r > 0)? r: 0;
+                g = (g > 0)? g: 0;
+                b = (b > 0)? b: 0;
+				draw(x,y,r,g,b);
+                //canvasbuf[x + y * SIZE] = r + " " + g + " " + b;
+			}
+		}
+	}
+}
+
+
+for (var i = 0; i < 100; i++) {
+	println("rendering " + i);
+    render();
+}
+
+print("P3\n");
+print(SIZE, " ", SIZE, "\n");
+print("255\n");
+
+//println(canvasbuf);
+//println(canvasbuf.size());
