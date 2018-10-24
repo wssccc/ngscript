@@ -7,7 +7,7 @@ import org.ngscript.compiler.Instruction;
 import org.ngscript.j2se.DrawWindow;
 import org.ngscript.runtime.opcache.OpBinding;
 import org.ngscript.runtime.opcache.OpMap;
-import org.ngscript.runtime.vo.FunctionDefinition;
+import org.ngscript.runtime.vo.FunctionDef;
 import org.ngscript.runtime.vo.VmMemRef;
 import org.ngscript.runtime.vo.VmMethod;
 import org.ngscript.utils.FastStack;
@@ -38,7 +38,7 @@ public class VirtualMachine {
     //machine states
     Instruction helptext;
     FastStack<Object> stack = new FastStack<>(32);
-    FastStack<FunctionDefinition> callstack = new FastStack<FunctionDefinition>(32);
+    FastStack<FunctionDef> callstack = new FastStack<FunctionDef>(32);
     //temp var for clear callStackSize op
     int call_stack_size;
     //registers

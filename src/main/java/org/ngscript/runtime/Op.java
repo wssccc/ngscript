@@ -319,7 +319,7 @@ public class Op {
     }
 
     public static void new_closure(VirtualMachine vm, String param, String param_extend) {
-        FunctionDefinition closure = new FunctionDefinition(param, (Environment) vm.env.read(), vm);
+        FunctionDef closure = new FunctionDef(param, (Environment) vm.env.read(), vm);
         vm.eax.write(closure);
     }
 
@@ -453,13 +453,13 @@ public class Op {
         Object callee = vm.stack.peek(1);
         Object[] args = (Object[]) vm.stack.peek(2);
 
-        if (callee instanceof FunctionDefinition) {
-            FunctionDefinition c = (FunctionDefinition) callee;
+        if (callee instanceof FunctionDef) {
+            FunctionDef c = (FunctionDef) callee;
             vm.callstack.push(c);
             //prepare env
-            Environment env = new Environment((Environment) c.closure_env);
+            Environment env = new Environment((Environment) c.environment);
             vm.env.write(env);
-            int nip = vm.labels.get(c.functionLable);
+            int nip = vm.labels.get(c.functionLabel);
             vm.stack.push(vm.eip);
             vm.eip = nip;
             return;

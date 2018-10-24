@@ -11,6 +11,10 @@ public class VmRuntimeException extends Exception {
 
     VirtualMachine vm;
 
+    public VmRuntimeException(Throwable cause) {
+        super(cause);
+    }
+
     public VmRuntimeException(VirtualMachine vm, String message) {
         super(genInfoString(vm, message));
         this.vm = vm;

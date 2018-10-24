@@ -3,7 +3,7 @@
  */
 package org.ngscript.runtime;
 
-import org.ngscript.runtime.vo.FunctionDefinition;
+import org.ngscript.runtime.vo.FunctionDef;
 import org.ngscript.runtime.vo.JavaMethod;
 import org.ngscript.runtime.vo.VmMemRef;
 import org.ngscript.runtime.vo.undefined;
@@ -18,7 +18,7 @@ import java.util.logging.Logger;
  *
  * @author wssccc <wssccc@qq.com>
  */
-public final class Coroutine extends FunctionDefinition {
+public final class Coroutine extends FunctionDef {
 
     public static final String STATUS_RUNNING = "running";
     public static final String STATUS_SUSPENDED = "suspended";
@@ -28,13 +28,13 @@ public final class Coroutine extends FunctionDefinition {
     Context context;
     private boolean running = false;
 
-    public Coroutine(FunctionDefinition closure) {
-        super(closure.functionLable, new Environment(closure.closure_env), closure.vm);
+    public Coroutine(FunctionDef closure) {
+        super(closure.functionLabel, new Environment(closure.environment), closure.vm);
         setupCoroutine(closure);
     }
 
-    public Coroutine(FunctionDefinition closure, Object... args) {
-        super(closure.functionLable, new Environment(closure.closure_env), closure.vm);
+    public Coroutine(FunctionDef closure, Object... args) {
+        super(closure.functionLabel, new Environment(closure.environment), closure.vm);
         //setup params
         this.args = args;
         setupCoroutine(closure);
@@ -44,7 +44,7 @@ public final class Coroutine extends FunctionDefinition {
         args = obj;
     }
 
-    final void setupCoroutine(FunctionDefinition ref) {
+    final void setupCoroutine(FunctionDef ref) {
         context = new Context(vm);
         context.stack = new FastStack<>(32);
 
@@ -57,20 +57,20 @@ public final class Coroutine extends FunctionDefinition {
         context.stackSize = context.stack.size();
 
         //setup eip
-        context.eip = ref.vm.labels.get(ref.functionLable);
-        context.env = this.closure_env;
+        context.eip = ref.vm.labels.get(ref.functionLabel);
+        context.env = this.environment;
         //args.addAll(Arrays.asList(objs));
 
         //gen stubs for coroutine
         try {
-            closure_env.data.put("resume", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("resume"))));
+            environment.data.put("resume", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("resume"))));
             ArrayList<Method> yields = new ArrayList<Method>();
             yields.add(this.getClass().getMethod("yield", Object.class));
             yields.add(this.getClass().getMethod("yield"));
 
-            closure_env.data.put("yield", new VmMemRef(new JavaMethod(this, yields)));
-            closure_env.data.put("status", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("status"))));
-            closure_env.data.put("invoke", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("invoke", Object[].class))));
+            environment.data.put("yield", new VmMemRef(new JavaMethod(this, yields)));
+            environment.data.put("status", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("status"))));
+            environment.data.put("invoke", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("invoke", Object[].class))));
         } catch (NoSuchMethodException ex) {
             Logger.getLogger(Coroutine.class.getName()).log(Level.SEVERE, null, ex);
         } catch (SecurityException ex) {
