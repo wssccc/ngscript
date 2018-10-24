@@ -5,11 +5,11 @@ package org.ngscript.runtime;
 
 import org.ngscript.compiler.Instruction;
 import org.ngscript.j2se.DrawWindow;
-import org.ngscript.runtime.inst.InstBinding;
-import org.ngscript.runtime.inst.InstMap;
-import org.ngscript.runtime.vo.BuiltInFunction;
+import org.ngscript.runtime.opcache.OpBinding;
+import org.ngscript.runtime.opcache.OpMap;
 import org.ngscript.runtime.vo.FunctionDefinition;
 import org.ngscript.runtime.vo.VmMemRef;
+import org.ngscript.runtime.vo.VmMethod;
 import org.ngscript.utils.FastStack;
 
 import java.io.PrintWriter;
@@ -17,6 +17,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -27,7 +29,7 @@ public class VirtualMachine {
 
     HashMap<String, Method> cpuMethodCache = new HashMap<String, Method>();
     //static data
-    InstBinding[] instructions;
+    OpBinding[] instructions;
     HashMap<String, Integer> labels = new HashMap<String, Integer>();
 
     HashMap<String, String> imported = new HashMap<String, String>();
@@ -37,14 +39,14 @@ public class VirtualMachine {
     //machine states
     Instruction helptext;
     FastStack<Object> stack = new FastStack<>(32);
-    FastStack<FunctionDefinition> callstack = new FastStack<FunctionDefinition>(32);
-    //temp var for clear call_stack_size op
+    FastStack<FunctionDefinition> callstack = new FastStack<FunctionDefinition>();
+    //temp var for clear callStackSize op
     int call_stack_size;
     //registers
     public final VmMemRef eax = new VmMemRef();
-    final VmMemRef exception = new VmMemRef();
+    public final VmMemRef exception = new VmMemRef();
 
-    public final VmMemRef<ScopeHash> env = new VmMemRef();
+    public final VmMemRef env = new VmMemRef();
     int eip = 0;
     //
 
@@ -56,8 +58,8 @@ public class VirtualMachine {
         this.err = err;
         //init register
         eip = 0;
-        env.write(new ScopeHash(null));
-        init_builtins(((ScopeHash) env.read()).data);
+        env.write(new Environment(null));
+        init_builtins(((Environment) env.read()).data);
         //init_builtins(func);
     }
 
@@ -68,10 +70,10 @@ public class VirtualMachine {
     }
 
     public VmMemRef lookup(String member) throws VmRuntimeException {
-        return env.read().lookup(member, this, false);
+        return ((Environment) env.read()).lookup(member, this, false);
     }
 
-    Class[] getParamTypes(int offset) {
+    public Class[] getParamTypes(int offset) {
         Object[] params = (Object[]) stack.peek(offset);
         Class types[] = new Class[params.length];
         for (int i = 0; i < types.length; i++) {
@@ -86,20 +88,20 @@ public class VirtualMachine {
     }
 
     public void loadInstructions(ArrayList<Instruction> ins2) {
-        InstMap instMap = new InstMap();
+        Map<String, InvokableInstruction> map = OpMap.INSTANCE.getMap();
         //
-        ArrayList<InstBinding> ins = new ArrayList<>();
+        ArrayList<OpBinding> ins = new ArrayList<>();
         for (Instruction instruction : ins2) {
-            ins.add(new InstBinding(instruction, instMap.map.get(instruction.op)));
+            ins.add(new OpBinding(instruction, map.get(instruction.op)));
         }
         //
         loadLabels(ins);
         //reset eip
         eip = 0;
-        instructions = ins.toArray(new InstBinding[0]);
+        instructions = ins.toArray(new OpBinding[0]);
     }
 
-    final void loadLabels(ArrayList<InstBinding> ins) {
+    final void loadLabels(ArrayList<OpBinding> ins) {
         for (int i = 0; i < ins.size(); ++i) {
             if (ins.get(i).op.equals("label")) {
                 labels.put(ins.get(i).param, i);
@@ -108,7 +110,7 @@ public class VirtualMachine {
     }
 
     final void init_builtins(HashMap<String, VmMemRef> map) {
-        map.put("println", new VmMemRef<>(new BuiltInFunction() {
+        map.put("println", new VmMemRef(new VmMethod() {
             @Override
             public void invoke(VirtualMachine vm, Object[] vars) {
                 for (Object var : vars) {
@@ -118,7 +120,7 @@ public class VirtualMachine {
                 out.flush();
             }
         }));
-        map.put("showWindow", new VmMemRef<>(new BuiltInFunction() {
+        map.put("showWindow", new VmMemRef(new VmMethod() {
             @Override
             public void invoke(VirtualMachine vm, Object[] vars) {
                 java.awt.EventQueue.invokeLater(new Runnable() {
@@ -130,7 +132,7 @@ public class VirtualMachine {
                 });
             }
         }));
-        map.put("draw", new VmMemRef<>(new BuiltInFunction() {
+        map.put("draw", new VmMemRef(new VmMethod() {
             @Override
             public void invoke(VirtualMachine vm, Object[] vars) {
                 int x = (Integer) vars[0];
@@ -141,7 +143,7 @@ public class VirtualMachine {
                 DrawWindow.draw(x, y, r, g, b);
             }
         }));
-        map.put("print", new VmMemRef<>(new BuiltInFunction() {
+        map.put("print", new VmMemRef(new VmMethod() {
             @Override
             public void invoke(VirtualMachine vm, Object[] vars) {
                 for (Object var : vars) {
@@ -150,11 +152,11 @@ public class VirtualMachine {
                 out.flush();
             }
         }));
-        map.put("Object", new VmMemRef<>(new BuiltInFunction() {
+        map.put("Object", new VmMemRef(new VmMethod() {
             @Override
             public void invoke(VirtualMachine vm, Object[] vars) {
                 //prepare env
-                ScopeHash env = new ScopeHash((ScopeHash) vm.env.read());
+                Environment env = new Environment((Environment) vm.env.read());
                 vm.env.write(env);
             }
         }));
@@ -181,7 +183,7 @@ public class VirtualMachine {
                 }
             }
 
-            InstBinding instruction = instructions[eip];
+            OpBinding instruction = instructions[eip];
             ++eip;
             if (instruction.op.equals("//")) {
                 helptext = instruction;
@@ -210,7 +212,7 @@ public class VirtualMachine {
                     //for detail
                     System.out.println("eip=" + eip);
                     Logger.getLogger(VirtualMachine.class.getName()).log(Level.SEVERE, null, ex);
-                    exception.write(ex.getCause());
+                    exception.write(ex);
                     InterpreterUtils.restore_machine_state(this, null, null);
                 } catch (VmRuntimeException ex1) {
                     err.println("VM Exception");

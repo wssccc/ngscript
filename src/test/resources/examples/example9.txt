@@ -18,8 +18,8 @@ function coroutine2(other){
 var co1 = new Coroutine(coroutine1);
 var co2 = new Coroutine(coroutine2);
 
-co1.push(co2);
-co2.push(co1);
+co1.invoke(co2);
+co2.invoke(co1);
 
 //co1.resume();
 println("done");

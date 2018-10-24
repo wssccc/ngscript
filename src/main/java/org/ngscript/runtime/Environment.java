@@ -5,8 +5,8 @@ package org.ngscript.runtime;
 
 import org.ngscript.runtime.vo.JavaMethod;
 import org.ngscript.runtime.vo.NativeMemref;
-import org.ngscript.runtime.vo.undefined;
 import org.ngscript.runtime.vo.VmMemRef;
+import org.ngscript.runtime.vo.undefined;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -16,28 +16,16 @@ import java.util.HashMap;
 /**
  * @author wssccc <wssccc@qq.com>
  */
-public class ScopeHash {
+public class Environment {
 
-    HashMap<String, VmMemRef> data = new HashMap<String, VmMemRef>();
-    HashMap<String, VmMemRef> cache = new HashMap<String, VmMemRef>();
-    ScopeHash parent;
+    HashMap<String, VmMemRef> data = new HashMap<>();
+    Environment parent;
 
-    public ScopeHash(ScopeHash parent) {
+    public Environment(Environment parent) {
         this.parent = parent;
     }
 
-    VmMemRef lookup(String member, VirtualMachine vm, boolean isMember) throws VmRuntimeException {
-        VmMemRef ref = cache.get(member);
-        if (ref != null) {
-            return ref;
-        } else {
-            ref = _lookup(member, vm, isMember);
-            cache.put(member, ref);
-            return ref;
-        }
-    }
-
-    VmMemRef _lookup(String member, VirtualMachine vm, boolean isMember) throws VmRuntimeException {
+    public VmMemRef lookup(String member, VirtualMachine vm, boolean isMember) throws VmRuntimeException {
         //registers
         switch (member) {
             case "this":
@@ -48,17 +36,19 @@ public class ScopeHash {
                 return vm.env;
             case "%exception":
                 return vm.exception;
+            default:
+                VmMemRef ref = data.get(member);
+                if (ref != null) {
+                    return ref;
+                } else {
+                    ref = lookupHash(member, vm, isMember);
+                    data.put(member, ref);
+                    return ref;
+                }
         }
-        //lookup hash
-        return lookupHash(member, vm, isMember);
     }
 
     private VmMemRef lookupHash(String member, VirtualMachine vm, boolean isMember) throws VmRuntimeException {
-        VmMemRef ref = data.get(member);
-        if (ref != null) {
-            return ref;
-        }
-
         if (isMember) {
             //throw new Runtime-Exception("no member " + varName + " found.");
             VmMemRef mem = new VmMemRef(undefined.value);
@@ -66,7 +56,7 @@ public class ScopeHash {
             return mem;
         } else {
             //find in env link
-            ScopeHash env = parent;
+            Environment env = parent;
             //
             while (env != null) {
                 if (env.data.containsKey(member)) {

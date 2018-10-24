@@ -11,8 +11,6 @@ import org.ngscript.utils.FastStack;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -26,24 +24,24 @@ public final class Coroutine extends FunctionDefinition {
     public static final String STATUS_SUSPENDED = "suspended";
     public static final String STATUS_RETURNED = "returned";
 
-    LinkedList<Object> args = new LinkedList<Object>();
+    Object[] args;
     Context context;
-    private boolean running = false;//only a flag
+    private boolean running = false;
 
     public Coroutine(FunctionDefinition closure) {
-        super(closure.functionLable, new ScopeHash(closure.closure_env), closure.vm);
+        super(closure.functionLable, new Environment(closure.closure_env), closure.vm);
         setupCoroutine(closure);
     }
 
     public Coroutine(FunctionDefinition closure, Object... args) {
-        super(closure.functionLable, new ScopeHash(closure.closure_env), closure.vm);
+        super(closure.functionLable, new Environment(closure.closure_env), closure.vm);
         //setup params
-        this.args.addAll(Arrays.asList(args));
+        this.args = args;
         setupCoroutine(closure);
     }
 
-    public void push(Object obj) {
-        args.add(obj);
+    public void invoke(Object... obj) {
+        args = obj;
     }
 
     final void setupCoroutine(FunctionDefinition ref) {
@@ -56,7 +54,7 @@ public final class Coroutine extends FunctionDefinition {
         context.stack.push(null);//no need to know outter env
         context.stack.push(-1); //return address is a halt instruction
 
-        context.stack_size = context.stack.size();
+        context.stackSize = context.stack.size();
 
         //setup eip
         context.eip = ref.vm.labels.get(ref.functionLable);
@@ -72,7 +70,7 @@ public final class Coroutine extends FunctionDefinition {
 
             closure_env.data.put("yield", new VmMemRef(new JavaMethod(this, yields)));
             closure_env.data.put("status", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("status"))));
-            closure_env.data.put("push", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("push", Object.class))));
+            closure_env.data.put("invoke", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("invoke", Object[].class))));
         } catch (NoSuchMethodException ex) {
             Logger.getLogger(Coroutine.class.getName()).log(Level.SEVERE, null, ex);
         } catch (SecurityException ex) {
@@ -86,7 +84,7 @@ public final class Coroutine extends FunctionDefinition {
             throw new VmRuntimeException(this.vm, "coroutine is not suspended");
         }
         running = true;
-        ScopeHash outenv = (ScopeHash) vm.stack.peek();
+        Environment outenv = (Environment) vm.stack.peek();
         //switch context
         Context saved = new Context(vm);
         vm.contextStack.push(saved);
@@ -114,13 +112,14 @@ public final class Coroutine extends FunctionDefinition {
          */
         context.eip = vm.eip + 3;
         /*
-         when jumping back, we'll meet the pops for resume call,
+         when jumping back, will meet the pops for resume call,
          the pops for resume will be used to clear the frame of calling coroutine body
          */
 
         Context saved = vm.contextStack.pop();
         saved.restore(vm);
-        vm.eax.write(retVal); //write return val, dumb
+        //write return val, dumb
+        vm.eax.write(retVal);
         running = false;
         return retVal;
     }
@@ -130,7 +129,6 @@ public final class Coroutine extends FunctionDefinition {
     }
 
     public String status() {
-        //see if context halts
         if (context.eip == -1) {
             return STATUS_RETURNED;
         } else if (running) {

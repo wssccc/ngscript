@@ -7,12 +7,9 @@ import org.ngscript.runtime.utils.TypeCheck;
 import org.ngscript.runtime.utils.TypeOp;
 import org.ngscript.runtime.vo.*;
 
-import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -71,7 +68,7 @@ public class InterpreterUtils {
 
     public static void array_new(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         int length = Integer.parseInt(param);
-        ScopeHash list = new ScopeHash((ScopeHash) vm.env.read());
+        Environment list = new Environment((Environment) vm.env.read());
 
         for (int i = 0; i < length; i++) {
             Object object = vm.stack.pop();
@@ -81,7 +78,7 @@ public class InterpreterUtils {
     }
 
     public static void object_new(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        ScopeHash sh = new ScopeHash((ScopeHash) vm.env.read());
+        Environment sh = new Environment((Environment) vm.env.read());
         int size = Integer.parseInt(param);
         for (int i = 0; i < size; i++) {
             Object v = vm.stack.pop();
@@ -115,20 +112,20 @@ public class InterpreterUtils {
     }
 
     public static void set_var(VirtualMachine vm, String param, String param_extend) {
-        ((ScopeHash) vm.env.read()).data.put(param, new VmMemRef(vm.eax.read()));
+        ((Environment) vm.env.read()).data.put(param, new VmMemRef(vm.eax.read()));
     }
 
     public static void member_ref(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
         String member = (String) objs[1];
-        if (objs[0] instanceof ScopeHash) {
-            ScopeHash env = (ScopeHash) objs[0];
+        if (objs[0] instanceof Environment) {
+            Environment env = (Environment) objs[0];
             VmMemRef ref = env.lookup(member, vm, true);
             vm.eax.write(ref);
             return;
         }
         //member of native
-        Object ref = ScopeHash.lookupNative(objs[0], member, vm);
+        Object ref = Environment.lookupNative(objs[0], member, vm);
 
         if (ref != null) {
             vm.eax.write(ref);
@@ -147,8 +144,8 @@ public class InterpreterUtils {
 
     public static void array_ref(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = get_op_params_2(vm);
-        if (objs[0] instanceof ScopeHash) {
-            ScopeHash env = (ScopeHash) objs[0];
+        if (objs[0] instanceof Environment) {
+            Environment env = (Environment) objs[0];
             String member = "" + objs[1];
             VmMemRef ref = env.lookup(member, vm, true);
             vm.eax.write(ref);
@@ -296,7 +293,7 @@ public class InterpreterUtils {
     }
 
     public static void pop_env(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        vm.env.write((ScopeHash) vm.stack.pop());
+        vm.env.write((Environment) vm.stack.pop());
     }
 
     public static void pop(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
@@ -364,7 +361,7 @@ public class InterpreterUtils {
     }
 
     public static void new_closure(VirtualMachine vm, String param, String param_extend) {
-        FunctionDefinition closure = new FunctionDefinition(param, (ScopeHash) vm.env.read(), vm);
+        FunctionDefinition closure = new FunctionDefinition(param, (Environment) vm.env.read(), vm);
         vm.eax.write(closure);
     }
 
@@ -506,13 +503,13 @@ public class InterpreterUtils {
 
     public static void call(VirtualMachine vm, String param, String param_extend) throws Exception {
         Object callee = vm.stack.peek(1);
-        Object[] vars = (Object[]) vm.stack.peek(2);
+        Object[] args = (Object[]) vm.stack.peek(2);
 
         if (callee instanceof FunctionDefinition) {
             FunctionDefinition c = (FunctionDefinition) callee;
             vm.callstack.push(c);
             //prepare env
-            ScopeHash env = new ScopeHash((ScopeHash) c.closure_env);
+            Environment env = new Environment((Environment) c.closure_env);
             vm.env.write(env);
             int nip = vm.labels.get(c.functionLable);
             vm.stack.push(vm.eip);
@@ -521,9 +518,9 @@ public class InterpreterUtils {
         }
 
         //call native things
-        if (callee instanceof BuiltInFunction) {
+        if (callee instanceof VmMethod) {
             try {
-                ((BuiltInFunction) callee).invoke(vm, vars);
+                ((VmMethod) callee).invoke(vm, args);
             } catch (Exception ex) {
                 Logger.getLogger(VirtualMachine.class.getName()).log(Level.SEVERE, null, ex);
                 Object e = ex.getCause();
@@ -537,32 +534,7 @@ public class InterpreterUtils {
         }
         if (callee instanceof JavaMethod) {
             JavaMethod closure = (JavaMethod) callee;
-            Class[] types = vm.getParamTypes(2);
-            ArrayList<Method> methods = closure.methods;
-            Method properMethod = null;
-            if (methods.size() == 1) {
-                properMethod = methods.get(0);
-            } else {
-                for (Method m : methods) {
-                    if (TypeCheck.typeAcceptable(types, m.getParameterTypes())) {
-                        properMethod = m;
-                        break;
-                    }
-                }
-            }
-            if (properMethod == null) {
-                throw new VmRuntimeException(vm, "no proper method found for " + closure.methods + "[" + Arrays.toString(types) + "]");
-            }
-            try {
-                Object val = properMethod.invoke(closure.caller, vars);
-                if (val instanceof Long) {
-                    val = ((Long) val).intValue();
-                }
-                vm.eax.write(val);
-            } catch (Exception ex) {
-                vm.exception.write(new VmRuntimeException(vm, ex.getCause() == null ? ex.toString() : ex.getCause().toString()));
-                restore_machine_state(vm, null, null);
-            }
+            closure.invoke(vm, args);
             return;
         }
 
@@ -585,26 +557,21 @@ public class InterpreterUtils {
             if (properCons == null) {
                 throw new VmRuntimeException(vm, "no proper constructor found for " + Arrays.toString(types));
             }
-            //adjust vars
+            //adjust args
             if (properCons.isVarArgs()) {
                 Class[] argTypes = properCons.getParameterTypes();
-                int fixed = argTypes.length - 1;
+                int nonVarsCount = argTypes.length - 1;
                 Class varElemType = argTypes[argTypes.length - 1].getComponentType();
-                List<Object> pack = new ArrayList<>();
-                int adjustedLength = vars.length - 1;
-                for (; adjustedLength >= fixed; adjustedLength--) {
-                    pack.add(0, vars[adjustedLength]);
-                }
-                Object vararg = Array.newInstance(varElemType, pack.size());
-                pack.toArray((Object[]) vararg);
-                Object[] newargs = new Object[adjustedLength + 1];
-                System.arraycopy(vars, 0, newargs, 0, newargs.length - 1);
-                newargs[newargs.length - 1] = vararg;
-                vars = newargs;
+                Object[] newargs = new Object[nonVarsCount + 1];
+                Object[] varargs = new Object[args.length - nonVarsCount];
+                System.arraycopy(args, nonVarsCount, varargs, 0, varargs.length);
+                System.arraycopy(args, 0, newargs, 0, newargs.length);
+                newargs[newargs.length - 1] = varargs;
+                args = newargs;
             }
             //
             //prepare env with an instance
-            vm.stack.push(properCons.newInstance(vars));
+            vm.stack.push(properCons.newInstance(args));
             vm.env.write(null);
             return;
         }
@@ -660,7 +627,7 @@ public class InterpreterUtils {
             //native object
             newObject = vm.stack.pop();
         }
-        ScopeHash old_env = (ScopeHash) vm.stack.pop();
+        Environment old_env = (Environment) vm.stack.pop();
         Object cons = vm.stack.pop();
 
         vm.eax.write(newObject);

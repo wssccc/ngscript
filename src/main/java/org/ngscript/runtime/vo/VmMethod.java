@@ -8,7 +8,7 @@ import org.ngscript.runtime.VirtualMachine;
 /**
  * @author wssccc <wssccc@qq.com>
  */
-public interface BuiltInFunction {
+public interface VmMethod {
 
     void invoke(VirtualMachine vm, Object[] vars) throws Exception;
 }

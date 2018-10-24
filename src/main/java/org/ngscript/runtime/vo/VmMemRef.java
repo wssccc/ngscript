@@ -6,25 +6,24 @@ package org.ngscript.runtime.vo;
 /**
  *
  * @author wssccc <wssccc@qq.com>
- * @param <T>
  */
-public class VmMemRef<T> {
+public class VmMemRef {
 
-    private T value;
+    private Object value;
 
     public VmMemRef() {
         this.value = null;
     }
 
-    public VmMemRef(T obj_v) {
+    public VmMemRef(Object obj_v) {
         this.value = obj_v;
     }
 
-    public void write(T v) {
+    public void write(Object v) {
         this.value = v;
     }
 
-    public T read() {
+    public Object read() {
         return this.value;
     }
 

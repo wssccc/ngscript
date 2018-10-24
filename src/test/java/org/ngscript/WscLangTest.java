@@ -20,7 +20,7 @@ public class WscLangTest {
     public void testExamples() throws Exception {
         try {
             //
-            File folder = new File("examples");
+            File folder = new File("src/test/resources/examples");
             File[] files = folder.listFiles();
             for (File file : files) {
                 if (file.isFile()) {

@@ -17,6 +17,7 @@ public class Assembler {
     }
 
     public List<Instruction> optimize(List<Instruction> ins2) {
+        ins2.add(new Instruction("", "", ""));
         List<Instruction> ins = new ArrayList<>();
         for (int i = 0; i < ins2.size() - 1; i++) {
             Instruction instruction = ins2.get(i);
