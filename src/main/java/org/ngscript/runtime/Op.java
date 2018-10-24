@@ -131,7 +131,7 @@ public class Op {
             vm.eax.write(ref);
             return;
         }
-        throw new VmRuntimeException(vm, member + " is not a member of " + OpUtils._getObjInfo(objs[0]));
+        throw new VmRuntimeException(vm, member + " is not a member of " + OpUtils.getObjInfo(objs[0]));
     }
 
     public static void array_ref(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
@@ -249,19 +249,19 @@ public class Op {
     }
 
     public static void inc(VirtualMachine vm, String param, String param_extend) {
-        OpUtils._addEaxObj(vm, 1, false);
+        OpUtils.addEax(vm, 1, false);
     }
 
     public static void dec(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        OpUtils._addEaxObj(vm, -1, false);
+        OpUtils.addEax(vm, -1, false);
     }
 
     public static void post_inc(VirtualMachine vm, String param, String param_extend) {
-        OpUtils._addEaxObj(vm, 1, true);
+        OpUtils.addEax(vm, 1, true);
     }
 
     public static void post_dec(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        OpUtils._addEaxObj(vm, -1, true);
+        OpUtils.addEax(vm, -1, true);
     }
 
     public static void pop_eax(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {

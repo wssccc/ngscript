@@ -65,13 +65,14 @@ class OpUtils {
             val = Math.abs((Double) testObj) > Double.MIN_NORMAL;
         } else if (testObj instanceof undefined) {
             val = false;
-        } else if (testObj instanceof Object) {
+        } else {
+            //is an object
             val = true;
         }
         return val;
     }
 
-    static void _addEaxObj(VirtualMachine vm, int num, boolean retOrig) {
+    static void addEax(VirtualMachine vm, int num, boolean rewrite) {
         VmMemRef addr = (VmMemRef) vm.eax.read();
         Object val = addr.read();
         if (val instanceof Integer) {
@@ -80,14 +81,14 @@ class OpUtils {
         if (val instanceof Double) {
             addr.write(((Double) val) + num);
         }
-        if (retOrig) {
+        if (rewrite) {
             vm.eax.write(val);
         } else {
             vm.eax.write(addr.read());
         }
     }
 
-    static String _getObjInfo(Object obj) {
+    static String getObjInfo(Object obj) {
         if (obj != null) {
             return obj.getClass().getName() + "[" + obj.toString() + "]";
         } else {
