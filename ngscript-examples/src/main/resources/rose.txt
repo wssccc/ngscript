@@ -79,8 +79,7 @@ function surface(a, b, c) {
 	}
 }
 
-var window = new DrawWindow();
-window.setVisible(true);
+new DrawWindow().setVisible(true);
 var canvasbuf = [];
 
 function render() {

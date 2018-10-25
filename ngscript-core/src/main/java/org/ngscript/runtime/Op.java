@@ -269,7 +269,7 @@ public class Op {
     }
 
     public static void pop_env(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        vm.env.write((Environment) vm.stack.pop());
+        vm.env.write(vm.stack.pop());
     }
 
     public static void pop(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {

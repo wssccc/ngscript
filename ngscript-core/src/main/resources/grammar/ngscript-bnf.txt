@@ -4,7 +4,7 @@
 %equiv  <expr> <expr1> <expr2> <expr3> <expr4> <expr5>
         <expr6> <expr7> <expr8> <nullable_expr>
         <expr_bit_or> <expr_bit_xor> <expr_bit_and> <expr_cond>
-        <expr9>;
+        <expr9> <expr_class>;
 %filter semicolon comma;
 
 <program> ::= <statements>;
@@ -119,7 +119,7 @@
 <expr7> ::= sub <expr8>     => neg <expr8>;
 <expr7> ::= not <expr8>;
 <expr7> ::= typeof <expr8>;
-<expr7> ::= new <expr8> lparen <params> rparen  => new <expr8> <params>;
+
 <expr7> ::= inc <expr8>;
 <expr7> ::= dec <expr8>;
 <expr7> ::= <expr8> inc => post_inc <expr8>;
@@ -128,9 +128,11 @@
 
 <expr8> ::= lparen <expr> rparen                => <expr>;
 
+<expr8> ::= new <expr_class> lparen <params> rparen  => new <expr_class> <params>;
+    <expr_class> ::= <expr_class> dot ident => dot <expr_class> ident;
+    <expr_class> ::= <expr9> ;
+
 <expr8> ::= <expr8> dot ident                   => dot <expr8> ident;
-<expr8> ::= var ident;
-<expr8> ::= ident;
 
 <expr8> ::= <expr8> lparen <params> rparen      => funcall <expr8> <params>;
 <params> ::= <expr> comma <params>;
@@ -142,6 +144,8 @@
 <expr8> ::= <expr9> ;
 
 //literals
+<expr9> ::= var ident;
+<expr9> ::= ident;
 <expr9> ::= undefined;
 <expr9> ::= double;
 <expr9> ::= null;
