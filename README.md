@@ -1,18 +1,18 @@
-#ngscript: An overview
+# ngscript
 
 [![Build Status](https://travis-ci.org/wssccc/ngscript.svg?branch=master)](https://travis-ci.org/wssccc/ngscript)
 
-##Introduction
+## Introduction
 ngscript is an embedded script language for Java. It has almost the same features as Javascript, in addition, ngscript provides an elegant way to interact with native Java classes and objects. 
 Examples in this text are ready to run on http://shell.ngscript.org/.
 
-##Language elements
+## Language elements
 
-###Variable
+### Variable
 To define a variable, use `var` statement. 
 **Please notice that if you don't initialize the variable once it is declared, ngscript doesn't guarantee the content in it.**
 
->**Here are some examples**
+>**Examples**
 >
 >Define a variable named as var_name
 >
@@ -25,8 +25,8 @@ To define a variable, use `var` statement.
 Variables in ngscript seems typeless, in fact, they are all stored as Object in the VM. 
 Primitive types are auto-boxed, but if you call a native method that requires primitive types, the VM unbox primitives automatically.
 
-###Function
-####Named function
+### Function
+#### Named function
 Named function is declared like
 
         function func1 (param1, param2) {
@@ -35,7 +35,7 @@ Named function is declared like
         
 You might as well notice that **named functions are registered in global scope**.
 
-####Lambda
+#### Lambda
 ngscript supports anonymous function, the underlying implements of named function is a variable that stores an anonymous function along with global environment.
 
 >Invoking lambda
@@ -51,7 +51,7 @@ ngscript supports anonymous function, the underlying implements of named functio
 >       };
 >
 
-####Native closure
+#### Native closure
 It's known to all that object is a combination of `DATA` and `PROCESS`. The central concept of OOP is the `DATA` stored in members and the `PROCESS` defined as methods.
 
 The other way around, if `DATA` stores in environment(or enclosure variable), `PROCESS` is just a single function, obviously, the combination of `DATA` and `PROCESS` is called function closure.
@@ -71,10 +71,10 @@ So ngscript provides a different way to reference native objects, that is what I
 
 *ngscript's native closure also supports function overriding*
 
-###Object
+### Object
 ngscript's object system is based on environment and closure, and without annoying things like prototype and dynamic scoping.
 
-####ngscript object
+#### ngscript object
 >Define a constructor is like define a named function
 >
 >       function One(name) {
@@ -94,7 +94,7 @@ ngscript's object system is based on environment and closure, and without annoyi
 >       otherone.hiho = newone.hiho;
 >       otherone.hiho();
 
-####Native Java support
+#### Native Java support
 Native Java Classes are also available.
 >Create an instance of ArrayList
 >
@@ -106,11 +106,11 @@ Native Java Classes are also available.
 >       println(arraylist.toString());
 >
 
-####Import Java class
+#### Import Java class
 java.lang.\* and java.util.\* are imported by default.
 ngscript supports `import` statement, but it's not fully tested yet.
 
-###typeof
+### typeof
 `typeof` is an operator to retrieve the type information of data. The return value is a string.
 >
 >       println(typeof println);
@@ -118,17 +118,17 @@ ngscript supports `import` statement, but it's not fully tested yet.
 >       println(typeof a);
 >       println(typeof println);
 
-###println
+### println
 println is to print a line.
 
-###eval
+### eval
 eval takes one string parameter, the string can be a valid expression or statements. 
 eval executes the code, and return the %eax once the VM returned.
 >
 >       println(eval("15+20"));
 >
 
-###Error handling
+### Error handling
 ngscript supports traditional try...catch statements to handle exceptions. These exceptions can be both ngscript's exception object(inner class name VMException) and Java native excetpion(inherited from Exception class).
 
 >The try...catch statement is like this
@@ -145,7 +145,7 @@ Catchable Java exceptions can be caught as well, but exceptions such as RuntimeE
 
 The current implementation of the VM catches all unhandled exceptions by default. But it may be useful to throw some of the exceptions to the outer host environment. You can modify the VM by yourself to accomplish this.
 
-###Coroutine
+### Coroutine
 Coroutine is an useful feature in certain situation. ngscript supports coroutine by providing a class Coroutine.
 >
 >       //declare a function first
@@ -180,7 +180,7 @@ Coroutine is an useful feature in certain situation. ngscript supports coroutine
 >       }
 >
 
-##other
+## Other
 ### ~~ngscript online~~ (currently not available)
 [http://shell.ngscript.org/](http://shell.ngscript.org/) is an online version of ngscript.
 It is a **REPL** shell, just write your code line, and tap enter to submit.
