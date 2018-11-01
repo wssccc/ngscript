@@ -14,10 +14,9 @@ import org.ngscript.utils.FastStack;
 import java.util.List;
 
 /**
- *
  * @author wssccc <wssccc@qq.com>
  */
-public class LalrParser {
+public abstract class LalrParser {
 
     LALRTable table;
     FastStack<Integer> stateStack = new FastStack<Integer>(32);
@@ -26,9 +25,10 @@ public class LalrParser {
 
     public LalrParser(LALRTable table) {
         this.table = table;
+        initParser();
     }
 
-    void initParser() {
+    protected void initParser() {
         stateStack.clear();
         symbolStack.clear();
         astStack.clear();
@@ -36,11 +36,10 @@ public class LalrParser {
         symbolStack.add(Symbol.EOF.identifier);
     }
 
-    public AstNode parse(Token[] tokens) throws ParserException {
-        initParser();
-        int tokenIndex = 0;
+    public abstract void onResult(AstNode astNode);
 
-        while (true) {
+    public void feed(Token[] tokens) throws ParserException {
+        for (int tokenIndex = 0; tokenIndex < tokens.length; ) {
             Token token = tokens[tokenIndex];
             Integer state = stateStack.peek();
             ParserAction action = table.get(token.type, state);
@@ -61,6 +60,7 @@ public class LalrParser {
                     stateStack.add(new Integer(action.param));
                     symbolStack.add(token.type);
                     astStack.add(new AstNode(token));
+                    //consume
                     ++tokenIndex;
                     break;
                 case ParserAction.REDUCE:
@@ -118,14 +118,45 @@ public class LalrParser {
                     break;
                 case ParserAction.ACCEPT:
                     if (astStack.size() == 1) {
-                        return astStack.pop();
-
+                        onResult(astStack.pop());
+                        initParser();
+                        return;
                     } else {
                         throw new ParserException("Parser exception, stack not clear at ACCEPT state.");
                     }
                 default:
             }
         }
+        if (this.isCompilable()) {
+            feed(new Token[]{new Token("EOF")});
+        }
+    }
+
+    private boolean isCompilable() {
+        Integer state = stateStack.peek();
+        int len = 0;
+
+        while (true) {
+            ParserAction action = table.get(Symbol.EOF.identifier, state);
+            if (action == null || action.action != ParserAction.REDUCE) {
+                break;
+            }
+
+            Production prod = table.g.getProduction(action.param);
+            len += prod.produces.length;
+            int newState = stateStack.get(stateStack.size() - len - 1);
+            ParserAction gotoAction = table.get(prod.sym.identifier, newState);
+            if (gotoAction == null) {
+                break;
+            }
+            state = gotoAction.param;
+            if (len == astStack.size() && prod.sym.identifier.equals("statement")) {
+                return true;
+            }
+            --len;
+        }
+
+        return false;
     }
 
     public static AstNode getAliasNode(List<AstNode> list, Symbol sym) {
@@ -149,39 +180,12 @@ public class LalrParser {
         }
     }
 
-    private boolean isCompilable() {
-        Integer state = stateStack.peek();
-        int len = 0;
-
-        while (true) {
-            ParserAction action = table.get(Symbol.EOF.identifier, state);
-            if (action == null || action.action != ParserAction.REDUCE) {
-                break;
-            }
-
-            Production prod = table.g.getProduction(action.param);
-            len += prod.produces.length;
-            int newState = stateStack.get(stateStack.size() - len - 1);
-            ParserAction gotoAction = table.get(prod.sym.identifier, newState);
-            if (gotoAction == null) {
-                break;
-            }
-            state = gotoAction.param;
-            if (len ==  astStack.size() && prod.sym.identifier.equals("statement")) {
-                return true;
-            }
-            --len;
-        }
-
-        return false;
-    }
-
     boolean _reduce(AstNode node, Grammar g) {
         boolean changed = true;
         while (changed) {
             changed = false;
 
-            for (int i = 0; i < node.contents.size();) {
+            for (int i = 0; i < node.contents.size(); ) {
                 if (node.contents.get(i).token.isValidPos()) {
                     // node.token.col = node.contents.get(i).token.col;
 
@@ -228,7 +232,7 @@ public class LalrParser {
     }
 
     public static void removeNULL(AstNode ast) {
-        for (int i = 0; i < ast.contents.size();) {
+        for (int i = 0; i < ast.contents.size(); ) {
             if (ast.contents.get(i).token.type.equals("NULL")) {
                 ast.contents.remove(i);
             } else {

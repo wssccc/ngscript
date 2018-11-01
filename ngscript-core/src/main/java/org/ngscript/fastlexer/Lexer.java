@@ -32,7 +32,7 @@ public class Lexer {
                 tokens.add(token);
             }
         }
-        tokens.add(lexer.ss.token("EOF"));
+        //tokens.add(lexer.ss.token("EOF"));
         return tokens;
     }
 

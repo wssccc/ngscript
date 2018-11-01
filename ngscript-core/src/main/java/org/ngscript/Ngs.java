@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Scanner;
 
 /**
  * @author wssccc
@@ -29,19 +30,26 @@ public class Ngs {
 
     public ArrayList<Instruction> staticCompile(String code) throws Exception {
         Compiler defaultCompiler = new Compiler();
-        final ArrayList<Token> tokens = Lexer.scan(code);
+
         //System.out.println(tokens);
         NgLalrParser streamParser = new NgLalrParser();
         //hold some
-        ArrayList<Token> tokensa = new ArrayList<Token>();
-        for (Token lt : tokens) {
-            tokensa.add(new Token(lt.type, lt.line, lt.value));
-        }
-        tokensa.add(new Token(Symbol.EOF.identifier));
+
         //
-        Token[] ts = new Token[tokensa.size()];
-        tokensa.toArray(ts);
-        AstNode ast = streamParser.parse(ts);
+
+        Scanner sc = new Scanner(code);
+        while (sc.hasNextLine()) {
+            final ArrayList<Token> tokens = Lexer.scan(sc.nextLine());
+            ArrayList<Token> tokensa = new ArrayList<Token>();
+            for (Token lt : tokens) {
+                tokensa.add(new Token(lt.type, lt.line, lt.value));
+            }
+            //tokensa.add(new Token(Symbol.EOF.identifier));
+            Token[] ts = new Token[tokensa.size()];
+            tokensa.toArray(ts);
+            streamParser.feed(ts);
+        }
+        AstNode ast = streamParser.root;
         ArrayList<Instruction> ins = new ArrayList<Instruction>();
         streamParser.reduce(ast);
         NgLalrParser.removeNULL(ast);
