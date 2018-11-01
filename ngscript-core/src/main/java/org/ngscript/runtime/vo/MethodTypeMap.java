@@ -3,6 +3,7 @@ package org.ngscript.runtime.vo;
 import org.ngscript.runtime.utils.TypeCheck;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,9 +27,11 @@ public class MethodTypeMap {
                 return map.get(key);
             } else {
                 for (Method m : methods) {
-                    if (TypeCheck.typeAcceptable(types, m.getParameterTypes())) {
-                        map.put(key, m);
-                        return m;
+                    if (Modifier.isPublic(m.getDeclaringClass().getModifiers()) && Modifier.isPublic(m.getModifiers())) {
+                        if (TypeCheck.typeAcceptable(types, m.getParameterTypes())) {
+                            map.put(key, m);
+                            return m;
+                        }
                     }
                 }
             }
