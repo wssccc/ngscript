@@ -5,3 +5,5 @@ jdk:
 branches:
   only:
   - master
+script:
+  - mvn test -DfailIfNoTests=false -Dtest=org.ngscript.ConformanceTest

@@ -2,6 +2,9 @@
 
 [![Build Status](https://travis-ci.org/wssccc/ngscript.svg?branch=master)](https://travis-ci.org/wssccc/ngscript)
 
+## Quick guide
+Use `mvn test -DfailIfNoTests=false -Dtest=org.ngscript.TestRoseRenderer` to run the rose renderer test.
+
 ## Introduction
 ngscript is an embedded script language for Java. It has almost the same features as Javascript, in addition, ngscript provides an elegant way to interact with native Java classes and objects. 
 Examples in this text are ready to run on http://shell.ngscript.org/.
