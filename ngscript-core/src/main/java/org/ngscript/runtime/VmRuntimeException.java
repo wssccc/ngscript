@@ -7,9 +7,13 @@ package org.ngscript.runtime;
  *
  * @author wssccc <wssccc@qq.com>
  */
-public class VmRuntimeException extends Exception {
+public class VmRuntimeException extends RuntimeException {
 
     VirtualMachine vm;
+
+    public VmRuntimeException(String message) {
+        super(message);
+    }
 
     public VmRuntimeException(Throwable cause) {
         super(cause);

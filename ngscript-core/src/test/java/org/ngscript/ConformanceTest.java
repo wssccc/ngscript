@@ -3,31 +3,30 @@
  */
 package org.ngscript;
 
-import org.junit.*;
-import org.ngscript.examples.Main;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  *
  * @author wssccc <wssccc@qq.com>
  */
-public class WscLangTest {
+@Slf4j
+public class ConformanceTest {
 
     @Test
     public void testExamples() throws Exception {
         try {
             //
-            File folder = new File("src/test/resources/examples");
+            File folder = new File("src/test/ngscript/tc");
             File[] files = folder.listFiles();
             for (File file : files) {
                 if (file.isFile()) {
                     System.out.println("Testing " + file);
                     try {
-                        Main.test(new FileInputStream(file));
+                        new Ngs().run(new FileInputStream(file));
                     } catch (Exception ex) {
                         System.out.println("Failed while testing " + file);
                         throw ex;
@@ -35,7 +34,7 @@ public class WscLangTest {
                 }
             }
         } catch (Exception ex) {
-            Logger.getLogger(WscLangTest.class.getName()).log(Level.SEVERE, null, ex);
+            log.error("error", ex);
             throw ex;
         }
     }

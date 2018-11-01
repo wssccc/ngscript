@@ -127,6 +127,16 @@ public class VirtualMachine {
                 out.flush();
             }
         }));
+        map.put("assert", new VmMemRef(new VmMethod() {
+            @Override
+            public void invoke(VirtualMachine vm, Object[] vars) {
+                for (Object var : vars) {
+                    if (!OpUtils.testValue(var)) {
+                        throw new VmRuntimeException("Assertion failed");
+                    }
+                }
+            }
+        }));
         map.put("Object", new VmMemRef(new VmMethod() {
             @Override
             public void invoke(VirtualMachine vm, Object[] vars) {

@@ -1,61 +1,33 @@
-/*
- *  wssccc all rights reserved
- */
-package org.ngscript.examples;
+package org.ngscript;
 
 import org.apache.commons.io.IOUtils;
-import org.ngscript.compiler.Instruction;
 import org.ngscript.compiler.Compiler;
+import org.ngscript.compiler.Instruction;
 import org.ngscript.fastlexer.Lexer;
-import org.ngscript.runtime.VirtualMachine;
 import org.ngscript.parser.NgLalrParser;
 import org.ngscript.parseroid.grammar.Symbol;
 import org.ngscript.parseroid.parser.AstNode;
 import org.ngscript.parseroid.parser.Token;
+import org.ngscript.runtime.VirtualMachine;
 
-import java.io.*;
+import java.io.InputStream;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 /**
- * @author wssccc <wssccc@qq.com>
+ * @author wssccc
  */
-public class Main {
+public class Ngs {
 
-    public static void main(String[] args) throws Exception {
-        //init
-        //interactive(System.in);
-        long time = System.currentTimeMillis();
-        test(Thread.currentThread().getContextClassLoader().getResourceAsStream("rose.txt"));
-        //test("examples/example11-fibrec.txt");
-        System.out.println("execute time " + (System.currentTimeMillis() - time) + " ms");
-        //test("examples/example9.txt");
-        //testExamples();
-        //test();
-        //testbean();
-    }
-
-    static String readFile(String filepath) throws FileNotFoundException, IOException {
-        FileReader fileReader = new FileReader(filepath);
-        char[] buffer = new char[1024];
-        int n;
-        StringBuilder stringBuilder = new StringBuilder();
-        while ((n = fileReader.read(buffer)) != -1) {
-            stringBuilder.append(buffer, 0, n);
-        }
-        fileReader.close();
-        return stringBuilder.toString();
-    }
-
-    public static void test(InputStream inputStream) throws FileNotFoundException, Exception {
-        //String code = readFile("testwl.txt");
+    public void run(InputStream inputStream) throws Exception {
         ArrayList<Instruction> ins = staticCompile(IOUtils.toString(inputStream, StandardCharsets.UTF_8));
         VirtualMachine vm = new VirtualMachine(new PrintWriter(System.out), new PrintWriter(System.err));
         vm.loadInstructions(ins);
         vm.run();
     }
 
-    public static ArrayList<Instruction> staticCompile(String code) throws Exception {
+    public ArrayList<Instruction> staticCompile(String code) throws Exception {
         Compiler defaultCompiler = new Compiler();
         final ArrayList<Token> tokens = Lexer.scan(code);
         //System.out.println(tokens);
