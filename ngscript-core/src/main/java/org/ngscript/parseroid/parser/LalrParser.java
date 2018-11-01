@@ -44,7 +44,6 @@ public class LalrParser {
             Token token = tokens[tokenIndex];
             Integer state = stateStack.peek();
             ParserAction action = table.get(token.type, state);
-
             if (action == null) {
                 //try NULL symbol
                 action = table.get(Symbol.NULL.identifier, state);
@@ -148,6 +147,33 @@ public class LalrParser {
         while (_reduce(node, table.g)) {
             //do nothing
         }
+    }
+
+    private boolean isCompilable() {
+        Integer state = stateStack.peek();
+        int len = 0;
+
+        while (true) {
+            ParserAction action = table.get(Symbol.EOF.identifier, state);
+            if (action == null || action.action != ParserAction.REDUCE) {
+                break;
+            }
+
+            Production prod = table.g.getProduction(action.param);
+            len += prod.produces.length;
+            int newState = stateStack.get(stateStack.size() - len - 1);
+            ParserAction gotoAction = table.get(prod.sym.identifier, newState);
+            if (gotoAction == null) {
+                break;
+            }
+            state = gotoAction.param;
+            if (len ==  astStack.size() && prod.sym.identifier.equals("statement")) {
+                return true;
+            }
+            --len;
+        }
+
+        return false;
     }
 
     boolean _reduce(AstNode node, Grammar g) {
