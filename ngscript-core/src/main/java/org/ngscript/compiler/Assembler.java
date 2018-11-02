@@ -93,7 +93,6 @@ public class Assembler {
                 builder.append(String.format("%08d", i + offset));
                 builder.append('\t');
                 builder.append(instruction.toString());
-                builder.append("\n");
             } else {
                 if (type == 0) {
                     builder.append("//------------------------------------------------");
@@ -101,7 +100,6 @@ public class Assembler {
                 }
                 type = 1;
                 builder.append(instruction.toString());
-                builder.append("\n");
             }
 
             ++i;

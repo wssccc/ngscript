@@ -4,8 +4,10 @@
 package org.ngscript;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.IOUtils;
 
 import java.io.FileInputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * @author wssccc <wssccc@qq.com>
@@ -19,6 +21,6 @@ public class Main {
             return;
         }
         String scriptFile = args[0];
-        new Ngs().run(new FileInputStream(scriptFile));
+        new Ngscript().eval(IOUtils.toString(new FileInputStream(scriptFile), StandardCharsets.UTF_8));
     }
 }

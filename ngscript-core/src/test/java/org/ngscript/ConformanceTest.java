@@ -4,10 +4,12 @@
 package org.ngscript;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  *
@@ -26,7 +28,7 @@ public class ConformanceTest {
                 if (file.isFile()) {
                     System.out.println("Testing " + file);
                     try {
-                        new Ngs().run(new FileInputStream(file));
+                        new Ngscript().eval(IOUtils.toString(new FileInputStream(file), StandardCharsets.UTF_8));
                     } catch (Exception ex) {
                         System.out.println("Failed while testing " + file);
                         throw ex;
