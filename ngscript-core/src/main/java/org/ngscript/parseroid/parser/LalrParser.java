@@ -38,7 +38,7 @@ public abstract class LalrParser {
 
     public abstract void onResult(AstNode astNode);
 
-    public void feed(Token[] tokens) throws ParserException {
+    public boolean feed(Token[] tokens, boolean checkCompilePoint) throws ParserException {
         for (int tokenIndex = 0; tokenIndex < tokens.length; ) {
             Token token = tokens[tokenIndex];
             Integer state = stateStack.peek();
@@ -48,6 +48,7 @@ public abstract class LalrParser {
                 action = table.get(Symbol.NULL.identifier, state);
                 if (action == null) {
                     //error occured
+                    initParser();
                     throw new ParserException("Parser exception while reading " + token.toString() + " \r\n" + table.getExpectation(state));
                 } else {
                     //reject 1 symbol
@@ -120,16 +121,17 @@ public abstract class LalrParser {
                     if (astStack.size() == 1) {
                         onResult(astStack.pop());
                         initParser();
-                        return;
+                        return true;
                     } else {
                         throw new ParserException("Parser exception, stack not clear at ACCEPT state.");
                     }
                 default:
             }
         }
-        if (this.isCompilable()) {
-            feed(new Token[]{new Token("EOF")});
+        if (checkCompilePoint && isCompilable()) {
+            return feed(new Token[]{new Token("EOF")}, true);
         }
+        return false;
     }
 
     private boolean isCompilable() {

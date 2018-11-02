@@ -3,6 +3,7 @@
  */
 package org.ngscript.compiler;
 
+import org.ngscript.Configuration;
 import org.ngscript.parseroid.parser.AstNode;
 
 import java.lang.reflect.Method;
@@ -15,7 +16,10 @@ import java.util.logging.Logger;
  */
 public class Compiler {
 
-    Assembler asm;
+
+    Configuration configuration;
+
+    Assembler asm = new Assembler();
     Scanner sc;
     int printedLines = 0;
 
@@ -24,8 +28,8 @@ public class Compiler {
     Deque<String> finallys = new ArrayDeque<String>();
     final HashSet<String> binaryOp;
 
-    public Compiler() {
-        asm = new Assembler();
+    public Compiler(Configuration configuration) {
+        this.configuration = configuration;
         binaryOp = new HashSet<String>();
         binaryOp.add("bit_xor");
         binaryOp.add("bit_or");
@@ -49,26 +53,26 @@ public class Compiler {
         return asm.instructions;
     }
 
-    public Assembler getAssembler() {
-        return asm;
-    }
-
     public void compileCode(AstNode ast, String sourceCode) {
         asm.instructions.clear();
         sc = new Scanner(sourceCode);
         printedLines = 0;
         compile(ast);
-        while (sc.hasNextLine()) {
-            asm.emit("//", sc.nextLine(), "" + printedLines);
+        if (configuration.isGenerateDebugInfo()) {
+            while (sc.hasNextLine()) {
+                asm.emit("//", sc.nextLine(), "" + printedLines);
+            }
         }
     }
 
-    void printDebug(AstNode ast) {
-        if (printedLines != ast.token.line) {
-            while (printedLines < ast.token.line) {
-                String line = sc.hasNextLine() ? sc.nextLine() : "no line";
-                asm.emit("//", line, "" + printedLines);
-                ++printedLines;
+    void generateDebugInfo(AstNode ast) {
+        if (configuration.isGenerateDebugInfo()) {
+            if (printedLines != ast.token.line) {
+                while (printedLines < ast.token.line) {
+                    String line = sc.hasNextLine() ? sc.nextLine() : "no line";
+                    asm.emit("//", line, "" + printedLines);
+                    ++printedLines;
+                }
             }
         }
     }
@@ -77,7 +81,7 @@ public class Compiler {
         if (ast == null) {
             return;
         }
-        printDebug(ast);
+        generateDebugInfo(ast);
         try {
             Method m = this.getClass().getDeclaredMethod("compile_" + ast.token.type, AstNode.class);
             m.invoke(this, ast);
@@ -105,7 +109,7 @@ public class Compiler {
     }
 
     private void compile_expr(AstNode ast, boolean byref) throws CompilerException {
-        printDebug(ast);
+        generateDebugInfo(ast);
         String type = ast.token.type;
         if (ast.token.type.equals("expr")) {
             _compile_expr_opr(ast, byref);
@@ -115,7 +119,7 @@ public class Compiler {
         }
     }
 
-    public void _compile_expr_opr(AstNode ast, boolean byref) throws CompilerException {
+    private void _compile_expr_opr(AstNode ast, boolean byref) throws CompilerException {
         ArrayList<AstNode> child = ast.contents;
         String header = child.get(0).token.type;
         if (header.equals("assign")) {

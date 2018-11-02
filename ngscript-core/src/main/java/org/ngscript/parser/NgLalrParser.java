@@ -3,34 +3,38 @@
  */
 package org.ngscript.parser;
 
+import org.ngscript.Configuration;
 import org.ngscript.parseroid.parser.AstNode;
 import org.ngscript.parseroid.parser.LalrParser;
 import org.ngscript.parseroid.parser.ParserException;
 import org.ngscript.parseroid.parser.Token;
-
-import java.util.List;
 
 /**
  * @author wssccc <wssccc@qq.com>
  */
 public class NgLalrParser extends LalrParser {
 
-    public AstNode root = new AstNode(new Token("program"));
+    Configuration configuration;
 
-    public NgLalrParser() {
+    public AstNode result = new AstNode(new Token("program"));
+
+    public NgLalrParser(Configuration configuration) {
         super(ParserLoader.INSTANCE.getTable());
+        this.configuration = configuration;
     }
 
-    public AstNode parse(Token[] tokens) throws ParserException {
-        initParser();
-        feed(tokens);
-        return root;
+    public boolean feed(Token[] tokens) throws ParserException {
+        result.contents.clear();
+        return feed(tokens, configuration.isInteractive());
+    }
+
+    public AstNode getResult() {
+        return result;
     }
 
     @Override
     public void onResult(AstNode astNode) {
         reduce(astNode);
-        System.out.println("caca " + astNode);
-        root.contents.add(astNode);
+        result.contents.add(astNode);
     }
 }

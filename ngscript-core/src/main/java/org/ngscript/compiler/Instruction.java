@@ -31,9 +31,9 @@ public class Instruction {
     @Override
     public String toString() {
         if ("//".equals(op)) {
-            return op + ' ' + (param == null ? "" : param);
+            return op + ' ' + (param == null ? "" : param) + "\n";
         } else {
-            return String.format("%-15s%-30s", op, (param == null ? "" : param) + (paramExtended == null ? "" : "," + paramExtended));
+            return String.format("%-15s%-30s", op, (param == null ? "" : param) + (paramExtended == null ? "" : "," + paramExtended)) + "\n";
         }
 
     }

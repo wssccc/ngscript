@@ -16,6 +16,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -27,7 +28,7 @@ public class VirtualMachine {
 
     HashMap<String, Method> cpuMethodCache = new HashMap<String, Method>();
     //static data
-    OpBinding[] instructions;
+    OpBinding[] instructions = new OpBinding[0];
     HashMap<String, Integer> labels = new HashMap<String, Integer>();
 
     HashMap<String, String> imported = new HashMap<String, String>();
@@ -85,7 +86,7 @@ public class VirtualMachine {
         return types;
     }
 
-    public void loadInstructions(ArrayList<Instruction> ins2) {
+    public void loadInstructions(List<Instruction> ins2) {
         Map<String, InvokableInstruction> map = OpMap.INSTANCE.getMap();
         //
         ArrayList<OpBinding> ins = new ArrayList<>();
@@ -93,21 +94,24 @@ public class VirtualMachine {
             ins.add(new OpBinding(instruction, map.get(instruction.op)));
         }
         //
-        loadLabels(ins);
-        //reset eip
-        eip = 0;
-        instructions = ins.toArray(new OpBinding[0]);
+        OpBinding[] opBindings = ins.toArray(new OpBinding[0]);
+        OpBinding[] merged = new OpBinding[opBindings.length + instructions.length];
+        System.arraycopy(instructions, 0, merged, 0, instructions.length);
+        System.arraycopy(opBindings, 0, merged, instructions.length, opBindings.length);
+        instructions = merged;
+        updateLabels();
     }
 
-    final void loadLabels(ArrayList<OpBinding> ins) {
-        for (int i = 0; i < ins.size(); ++i) {
-            if (ins.get(i).op.equals("label")) {
-                labels.put(ins.get(i).param, i);
+    void updateLabels() {
+        for (int i = 0; i < instructions.length; ++i) {
+            Instruction instruction = instructions[i];
+            if ("label".equals(instruction.op)) {
+                labels.put(instruction.param, i);
             }
         }
     }
 
-    final void init_builtins(HashMap<String, VmMemRef> map) {
+    void init_builtins(HashMap<String, VmMemRef> map) {
         map.put("println", new VmMemRef(new VmMethod() {
             @Override
             public void invoke(VirtualMachine vm, Object[] vars) {
@@ -174,7 +178,7 @@ public class VirtualMachine {
                 helptext = instruction;
                 continue;
             }
-            //System.out.println("run " + eip + "\t" + instruction);
+            //System.out.println("eval " + eip + "\t" + instruction);
             try {
                 //instant accleration
                 //AutoCreatedCpuDispatcher.dispatch(instruction, this);
