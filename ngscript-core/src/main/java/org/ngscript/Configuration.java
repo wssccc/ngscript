@@ -11,6 +11,6 @@ public class Configuration {
     public static final Configuration DEFAULT = new Configuration();
 
     boolean generateDebugInfo = true;
-    boolean interactive = true;
+    boolean interactive = false;
 
 }
