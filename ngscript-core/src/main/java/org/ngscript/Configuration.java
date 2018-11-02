@@ -10,7 +10,7 @@ public class Configuration {
 
     public static final Configuration DEFAULT = new Configuration();
 
-    boolean generateDebugInfo = true;
+    boolean generateDebugInfo = false;
     boolean interactive = false;
 
 }

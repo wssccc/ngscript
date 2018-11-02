@@ -19,6 +19,14 @@ import java.nio.charset.StandardCharsets;
 public class ConformanceTest {
 
     @Test
+    public void doTest() throws Exception {
+        Configuration.DEFAULT.setGenerateDebugInfo(false);
+        Configuration.DEFAULT.setInteractive(false);
+        testExamples();
+        Configuration.DEFAULT.setInteractive(true);
+        testExamples();
+    }
+
     public void testExamples() throws Exception {
         try {
             //

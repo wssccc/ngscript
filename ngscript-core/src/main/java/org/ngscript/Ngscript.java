@@ -48,7 +48,9 @@ public class Ngscript {
             AstNode ast = parser.getResult();
             parser.reduce(ast);
             NgLalrParser.removeNULL(ast);
-            System.out.println(ast);
+            if (configuration.isGenerateDebugInfo()) {
+                System.out.println(ast);
+            }
             compiler.compileCode(ast, code);
             //
             List<Instruction> ins = compiler.getCompiledInstructions();
