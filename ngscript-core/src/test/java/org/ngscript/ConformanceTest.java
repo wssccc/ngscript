@@ -10,6 +10,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.FileInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Scanner;
 
 /**
  *
@@ -20,32 +21,30 @@ public class ConformanceTest {
 
     @Test
     public void doTest() throws Exception {
-        Configuration.DEFAULT.setGenerateDebugInfo(false);
-        Configuration.DEFAULT.setInteractive(false);
-        testExamples();
-        Configuration.DEFAULT.setInteractive(true);
-        testExamples();
+        File folder = new File("src/test/ngscript/tc");
+        File[] files = folder.listFiles();
+        assert files != null;
+        for (File file : files) {
+            if (file.isFile()) {
+                System.out.println("Testing " + file);
+                testEval(file);
+                testInteractive(file);
+            }
+        }
     }
 
-    public void testExamples() throws Exception {
-        try {
-            //
-            File folder = new File("src/test/ngscript/tc");
-            File[] files = folder.listFiles();
-            for (File file : files) {
-                if (file.isFile()) {
-                    System.out.println("Testing " + file);
-                    try {
-                        new Ngscript().eval(IOUtils.toString(new FileInputStream(file), StandardCharsets.UTF_8));
-                    } catch (Exception ex) {
-                        System.out.println("Failed while testing " + file);
-                        throw ex;
-                    }
-                }
-            }
-        } catch (Exception ex) {
-            log.error("error", ex);
-            throw ex;
+    void testEval(File file) throws Exception {
+        new Ngscript().eval(IOUtils.toString(new FileInputStream(file), StandardCharsets.UTF_8));
+    }
+
+    void testInteractive(File file) throws Exception {
+        Scanner sc = new Scanner(new FileInputStream(file));
+        Configuration configuration = new Configuration();
+        configuration.setInteractive(true);
+        Ngscript ngscript = new Ngscript(configuration);
+        while (sc.hasNextLine()) {
+            String line = sc.nextLine();
+            ngscript.eval(line);
         }
     }
 }
