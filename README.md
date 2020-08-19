@@ -3,82 +3,86 @@
 [![Build Status](https://travis-ci.org/wssccc/ngscript.svg?branch=master)](https://travis-ci.org/wssccc/ngscript)
 
 ## Quick guide
+Clone the project `git clone https://github.com/wssccc/ngscript.git`
+
 Use `mvn test -DfailIfNoTests=false -Dtest=org.ngscript.TestRoseRenderer` to run the rose renderer test.
 
+An interactive online demo is available at https://shell.ngscript.org/.
+
 ## Introduction
-ngscript is an embedded script language for Java. It has almost the same features as Javascript, in addition, ngscript provides an elegant way to interact with native Java classes and objects. 
-Examples in this text are ready to run on http://shell.ngscript.org/.
+ngscript is an embedded script language for Java. It's a javascript-like language, with some impressive improvements, such as coroutine and tail call optimization(exprimental).
 
-## Language elements
 
-### Variable
+## Language Referreces
+
+### Define variable
 To define a variable, use `var` statement. 
-**Please notice that if you don't initialize the variable once it is declared, ngscript doesn't guarantee the content in it.**
+**Uninitialized variable may contain garbage.**
 
 >**Examples**
 >
->Define a variable named as var_name
+>Define a variable
 >
->       var var_name;
+>       var b;
+>
+>Define a variable and initialize
+>
+>       var a = 1;
 >
 >Inline definition
 >
 >       for (var i = 0; i < 9; ++i) ...
 
-Variables in ngscript seems typeless, in fact, they are all stored as Object in the VM. 
-Primitive types are auto-boxed, but if you call a native method that requires primitive types, the VM unbox primitives automatically.
+Variables are dynamic-typed objects, primitive-typed values(int, long, double ... ) are auto-boxed.
 
 ### Function
-#### Named function
-Named function is declared like
-
-        function func1 (param1, param2) {
-            println(param1 + "," + param2);
-        }
+#### Named Function
+>**Examples**
+>
+>        function func1 (param1, param2) {
+>            println(param1 + "," + param2);
+>        }
         
-You might as well notice that **named functions are registered in global scope**.
+**Named functions are registered in global scope**.
 
 #### Lambda
-ngscript supports anonymous function, the underlying implements of named function is a variable that stores an anonymous function along with global environment.
-
->Invoking lambda
+>**Examples**
+>
+>Defining and invoking lambda
 >
 >       (function (){
 >           println("hello");
 >       })();
 >
->Use a variable to store lambda
+>Lambda is a first-class object, which can be assigned to a variable
 >
 >       var f = function(){
->           println("hello, stored lambda");
+>           println("hello");
 >       };
 >
 
-#### Native closure
-It's known to all that object is a combination of `DATA` and `PROCESS`. The central concept of OOP is the `DATA` stored in members and the `PROCESS` defined as methods.
+#### Referrence To Java Method
+ngscript supports a way to make referrece to a method of a Java object. The referrece, like lambda, is a first-class object.
 
-The other way around, if `DATA` stores in environment(or enclosure variable), `PROCESS` is just a single function, obviously, the combination of `DATA` and `PROCESS` is called function closure.
-
-So ngscript provides a different way to reference native objects, that is what I called "Native closure".
-
->When we're making reference to native Java's object method, the VM creates a native closure to store it.
+>**Examples**
+>
+>Making referrece of a Java object
 >
 >       //native Java ArrayList
 >       var array = new ArrayList();
 >       //add something
 >       array.add(1); array.add(2); array.add(3);
->       //reference to method of a native object
+>       //reference to method of a Java object
 >       var ref_get = array.get;
 >       //call the reference to get the element of index 1
 >       println(ref_get(1));
 
-*ngscript's native closure also supports function overriding*
-
 ### Object
-ngscript's object system is based on environment and closure, and without annoying things like prototype and dynamic scoping.
 
 #### ngscript object
->Define a constructor is like define a named function
+>**Examples**
+>
+>Define a constructor
 >
 >       function One(name) {
 >           this.hiho = function(){
@@ -91,14 +95,16 @@ ngscript's object system is based on environment and closure, and without annoyi
 >       var newone = new One("wssccc");
 >       newone.hiho();
 >
->Or you can use the empty constructor 
+>Use the empty constructor 
 >
 >       var otherone = new Object();
 >       otherone.hiho = newone.hiho;
 >       otherone.hiho();
+**Dynamic scoping and prototype are not supported**
 
-#### Native Java support
-Native Java Classes are also available.
+#### Java Object
+>**Examples**
+>
 >Create an instance of ArrayList
 >
 >       var arraylist = new ArrayList();
@@ -109,12 +115,14 @@ Native Java Classes are also available.
 >       println(arraylist.toString());
 >
 
-#### Import Java class
-java.lang.\* and java.util.\* are imported by default.
-ngscript supports `import` statement, but it's not fully tested yet.
+#### Import Java Class
+Use `import` statement
+
+**java.lang.\* and java.util.\* are imported by default.**
 
 ### typeof
-`typeof` is an operator to retrieve the type information of data. The return value is a string.
+Get a string representation of the type of a given object
+>**Examples**
 >
 >       println(typeof println);
 >       var a = 1;
@@ -125,16 +133,13 @@ ngscript supports `import` statement, but it's not fully tested yet.
 println is to print a line.
 
 ### eval
-eval takes one string parameter, the string can be a valid expression or statements. 
-eval executes the code, and return the %eax once the VM returned.
+Execute a small piece of script and retrieve the result.
 >
 >       println(eval("15+20"));
 >
 
-### Error handling
-ngscript supports traditional try...catch statements to handle exceptions. These exceptions can be both ngscript's exception object(inner class name VMException) and Java native excetpion(inherited from Exception class).
-
->The try...catch statement is like this
+### Error Handling
+>**Examples**
 >
 >       try {
 >               println("will throw excepton");
@@ -144,12 +149,9 @@ ngscript supports traditional try...catch statements to handle exceptions. These
 >       }
 
 `throw` statement throws an object as exception body, the object can be anything(integer, string, or something else).
-Catchable Java exceptions can be caught as well, but exceptions such as RuntimeException will not caught by the statement.
-
-The current implementation of the VM catches all unhandled exceptions by default. But it may be useful to throw some of the exceptions to the outer host environment. You can modify the VM by yourself to accomplish this.
 
 ### Coroutine
-Coroutine is an useful feature in certain situation. ngscript supports coroutine by providing a class Coroutine.
+>**Examples**
 >
 >       //declare a function first
 >       function f(a,b) {
@@ -184,11 +186,6 @@ Coroutine is an useful feature in certain situation. ngscript supports coroutine
 >
 
 ## Other
-### ~~ngscript online~~ (currently not available)
-[http://shell.ngscript.org/](http://shell.ngscript.org/) is an online version of ngscript.
-It is a **REPL** shell, just write your code line, and tap enter to submit.
-If you write a valid statement(include expression, while, for, if, etc.), the VM knows it's time to compile and run, then you can see the outputs. Once the compiled code is run to the end, the VM prints the %eax register value.
-**If you wrote an incomplete structure and submitted, the prompt will display as `...`, to tell you continue writing. Only complete syntax structure will trigger a compile-run action.**
-It's useful to submit a `;` (semicolon) to flush the stream, and clear error status.
-
-Tap tab to active completion, the completion feature covers useful commands, and members in current scope.
+### ngscript online
+https://shell.ngscript.org/ is a website for trying ngscript online.
+It's a **REPL** shell, with tab-completion support.
