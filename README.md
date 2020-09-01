@@ -8,12 +8,12 @@ Clone the project `git clone https://github.com/wssccc/ngscript.git`
 Use `mvn test -DfailIfNoTests=false -Dtest=org.ngscript.TestRoseRenderer` to run the rose renderer test.
 
 An interactive online demo is available at https://shell.ngscript.org/.
-
+``
 ## Introduction
-ngscript is an embedded script language for Java. It's a javascript-like language, with some impressive improvements, such as coroutine and tail call optimization(exprimental).
+ngscript is an embedded script language for Java. It's a javascript-like language, with some impressive improvements, such as coroutine and tail call optimization(experimental).
 
 
-## Language Referreces
+## Language References
 
 ### Define variable
 To define a variable, use `var` statement. 
@@ -61,12 +61,12 @@ Variables are dynamic-typed objects, primitive-typed values(int, long, double ..
 >       };
 >
 
-#### Referrence To Java Method
-ngscript supports a way to make referrece to a method of a Java object. The referrece, like lambda, is a first-class object.
+#### Reference To Java Method
+ngscript supports a way to make reference to a method of a Java object. The reference, like lambda, is a first-class object.
 
 >**Examples**
 >
->Making referrece of a Java object
+>Making reference of a Java object
 >
 >       //native Java ArrayList
 >       var array = new ArrayList();
