@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/wssccc/ngscript.svg?branch=master)](https://travis-ci.org/wssccc/ngscript)
 
-## Quick guide
+## Quick Guide
 Clone the project `git clone https://github.com/wssccc/ngscript.git`
 
 Use `mvn test -DfailIfNoTests=false -Dtest=org.ngscript.TestRoseRenderer` to run the rose renderer test.
@@ -15,7 +15,7 @@ ngscript is an embedded script language for Java. It's a javascript-like languag
 
 ## Language References
 
-### Define variable
+### Variable
 To define a variable, use `var` statement. 
 **Uninitialized variable may contain garbage.**
 
