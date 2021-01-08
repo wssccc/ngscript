@@ -2,16 +2,15 @@
 
 [![Build Status](https://travis-ci.org/wssccc/ngscript.svg?branch=master)](https://travis-ci.org/wssccc/ngscript)
 
+## Introduction
+ngscript is an embedded script language for Java. It's a javascript-like language, with some impressive improvements, such as coroutine and tail call optimization(experimental).
+
 ## Quick Guide
 Clone the project `git clone https://github.com/wssccc/ngscript.git`
 
 Use `mvn test -DfailIfNoTests=false -Dtest=org.ngscript.TestRoseRenderer` to run the rose renderer test.
 
-An interactive online demo is available at https://shell.ngscript.org/.
-``
-## Introduction
-ngscript is an embedded script language for Java. It's a javascript-like language, with some impressive improvements, such as coroutine and tail call optimization(experimental).
-
+An interactive online demo is available at [https://shell.ngscript.org/](https://shell.ngscript.org/).
 
 ## Language References
 
@@ -187,5 +186,5 @@ println is to print a line.
 
 ## Other
 ### ngscript online
-https://shell.ngscript.org/ is a website for trying ngscript online.
+(https://shell.ngscript.org/)[https://shell.ngscript.org/] is a website for trying ngscript online.
 It's a **REPL** shell, with tab-completion support.
