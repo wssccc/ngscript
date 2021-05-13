@@ -3,20 +3,21 @@
 [![Build Status](https://travis-ci.org/wssccc/ngscript.svg?branch=master)](https://travis-ci.org/wssccc/ngscript)
 
 ## Introduction
-ngscript is an embedded script language for Java. It's a javascript-like language, with some impressive improvements, such as coroutine and tail call optimization(experimental).
+A Javascript-like scripting language for JVM, with coroutine.
 
-## Quick Guide
-Clone the project `git clone https://github.com/wssccc/ngscript.git`
+## Quick Start
+Clone project
 
-Use `mvn test -DfailIfNoTests=false -Dtest=org.ngscript.TestRoseRenderer` to run the rose renderer test.
+`git clone https://github.com/wssccc/ngscript.git`
 
-An interactive online demo is available at [https://shell.ngscript.org/](https://shell.ngscript.org/).
+Run Rose-Render test
+
+ `mvn test -Dtest=org.ngscript.TestRoseRenderer`
 
 ## Language References
 
 ### Variable
-To define a variable, use `var` statement. 
-**Uninitialized variable may contain garbage.**
+Use `var` to explicitly define a variable 
 
 >**Examples**
 >
@@ -24,7 +25,7 @@ To define a variable, use `var` statement.
 >
 >       var b;
 >
->Define a variable and initialize
+>Define a variable and initialize with a value
 >
 >       var a = 1;
 >
@@ -32,7 +33,6 @@ To define a variable, use `var` statement.
 >
 >       for (var i = 0; i < 9; ++i) ...
 
-Variables are dynamic-typed objects, primitive-typed values(int, long, double ... ) are auto-boxed.
 
 ### Function
 #### Named Function
@@ -42,30 +42,25 @@ Variables are dynamic-typed objects, primitive-typed values(int, long, double ..
 >            println(param1 + "," + param2);
 >        }
         
-**Named functions are registered in global scope**.
+**Named functions were registered in global scope**.
 
 #### Lambda
 >**Examples**
 >
->Defining and invoking lambda
 >
 >       (function (){
 >           println("hello");
 >       })();
 >
->Lambda is a first-class object, which can be assigned to a variable
->
+
 >       var f = function(){
 >           println("hello");
 >       };
 >
 
-#### Reference To Java Method
-ngscript supports a way to make reference to a method of a Java object. The reference, like lambda, is a first-class object.
+#### Java Method Reference
 
 >**Examples**
->
->Making reference of a Java object
 >
 >       //native Java ArrayList
 >       var array = new ArrayList();
@@ -81,30 +76,24 @@ ngscript supports a way to make reference to a method of a Java object. The refe
 #### ngscript object
 >**Examples**
 >
->Define a constructor
+>Define a constructor function
 >
 >       function One(name) {
->           this.hiho = function(){
+>           this.hello = function(){
 >               println("I'm " + name);
 >           };
 >       }
 >
->Create an object with `new` operator
+>Create an object with the `new` operator
 >
 >       var newone = new One("wssccc");
->       newone.hiho();
+>       newone.hello();
 >
->Use the empty constructor 
->
->       var otherone = new Object();
->       otherone.hiho = newone.hiho;
->       otherone.hiho();
-**Dynamic scoping and prototype are not supported**
 
 #### Java Object
 >**Examples**
 >
->Create an instance of ArrayList
+>Create an ArrayList
 >
 >       var arraylist = new ArrayList();
 >       arraylist.add(1);
@@ -114,13 +103,13 @@ ngscript supports a way to make reference to a method of a Java object. The refe
 >       println(arraylist.toString());
 >
 
-#### Import Java Class
-Use `import` statement
+#### Import
+The same as `import` statement in Java
 
-**java.lang.\* and java.util.\* are imported by default.**
+**java.lang.\* and java.util.\* classes were imported by default.**
 
 ### typeof
-Get a string representation of the type of a given object
+Get string representation of the type of an object
 >**Examples**
 >
 >       println(typeof println);
@@ -129,10 +118,9 @@ Get a string representation of the type of a given object
 >       println(typeof println);
 
 ### println
-println is to print a line.
+Print a line.
 
 ### eval
-Execute a small piece of script and retrieve the result.
 >
 >       println(eval("15+20"));
 >
@@ -147,44 +135,32 @@ println is to print a line.
 >               println(e.toString());
 >       }
 
-`throw` statement throws an object as exception body, the object can be anything(integer, string, or something else).
-
 ### Coroutine
 >**Examples**
 >
->       //declare a function first
 >       function f(a,b) {
 >               println("first = " + a);
->               //call yield to switch to previous
->               //and you can passing a retval
+>               // return 1 and switch to caller
 >               yield(1); 
->               //when resume at second time
->               //this coroutine will begins at here
+>               // resume here
 >               println("second = " + b);
 >       }
 >
->       //create coroutine
+>       // create coroutine
 >       var co = new Coroutine(f, "p1", "p2"); 
 >
 >       println("coroutine status=" + co.status());
->       //call resume to switch to coroutine
->       //and will returned with a retval
+>       // call resume() to run
 >       println("resume 1 = " + co.resume());
 >       println("coroutine status=" + co.status());
->       //the second resume has nothing returned but garbage
+>       // call resume() to run to the end of function f
 >       println("resume 2 = " + co.resume());
 >       println("coroutine status=" + co.status());
->       //when trying to resume a coroutine which is already returned
->       //will throw an exception
+>
 >       try {
 >               println("resume 3:");
 >               println(co.resume());
 >       } catch(e) {
->               println("you cannot resume a returned coroutine!");
+>               println("could not resume, status=" + co.status());
 >       }
 >
-
-## Other
-### ngscript online
-(https://shell.ngscript.org/)[https://shell.ngscript.org/] is a website for trying ngscript online.
-It's a **REPL** shell, with tab-completion support.
