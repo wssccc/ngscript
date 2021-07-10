@@ -25,7 +25,6 @@ import org.ngscript.runtime.vo.VmMethod;
 import org.ngscript.utils.FastStack;
 
 import java.io.PrintWriter;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -170,7 +169,7 @@ public class VirtualMachine {
 //        labels.put("coroutine_return_hook_exit", instructions.size());
     }
 
-    public void run() throws InvocationTargetException, VmRuntimeException, Exception {
+    public void run() throws VmRuntimeException {
         //initial
         exception.write(null);
         eax.write(null);

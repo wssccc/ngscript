@@ -19,10 +19,9 @@ package org.ngscript.compiler;
 import org.ngscript.Configuration;
 import org.ngscript.parseroid.parser.AstNode;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * @author wssccc
@@ -48,7 +47,7 @@ public class Compiler {
         this.configuration = configuration;
     }
 
-    public List<Instruction> compileCode(AstNode ast, String sourceCode) {
+    public List<Instruction> compileCode(AstNode ast, String sourceCode) throws CompilerException {
         assembler.instructions.clear();
         try (Scanner sc = new Scanner(sourceCode)) {
             this.scanner = sc;
@@ -75,7 +74,7 @@ public class Compiler {
         }
     }
 
-    private void compile(AstNode ast) {
+    private void compile(AstNode ast) throws CompilerException {
         if (ast == null) {
             return;
         }
@@ -83,12 +82,18 @@ public class Compiler {
         try {
             Method m = this.getClass().getDeclaredMethod("compile_" + ast.token.type, AstNode.class);
             m.invoke(this, ast);
-        } catch (Exception ex) {
-            Logger.getLogger(Compiler.class.getName()).log(Level.SEVERE, null, ex.getCause());
+        } catch (InvocationTargetException e) {
+            if (e.getCause() instanceof CompilerException) {
+                throw (CompilerException) e.getCause();
+            } else {
+                throw new RuntimeException(e);
+            }
+        } catch (NoSuchMethodException | IllegalAccessException e) {
+            throw new RuntimeException(e);
         }
     }
 
-    private void compile_program(AstNode ast) {
+    private void compile_program(AstNode ast) throws CompilerException {
         for (AstNode content : ast.contents) {
             compile(content);
         }
@@ -279,12 +284,12 @@ public class Compiler {
         compile_expr(child.get(2)); //param2
     }
 
-    private void compile_function_decl(AstNode ast) {
+    private void compile_function_decl(AstNode ast) throws CompilerException {
         String enter = _compile_function_body(ast);
         assembler.instructions.add(0, new Instruction("static_func", ast.contents.get(0).token.value, enter));
     }
 
-    private String _compile_function_body(AstNode ast) {
+    private String _compile_function_body(AstNode ast) throws CompilerException {
         String exit = assembler.label("func_exit", ast);
         String enter = assembler.label("func_enter", ast);
         assembler.emit("jmp", exit);
@@ -308,16 +313,16 @@ public class Compiler {
         return enter;
     }
 
-    private void compile_lambda(AstNode ast) {
+    private void compile_lambda(AstNode ast) throws CompilerException {
         String enter = _compile_function_body(ast);
         assembler.emit("new_closure", enter);
     }
 
-    private void compile_statements(AstNode ast) {
+    private void compile_statements(AstNode ast) throws CompilerException {
         compile_program(ast);
     }
 
-    private void compile_statement(AstNode ast) {
+    private void compile_statement(AstNode ast) throws CompilerException {
         compile_program(ast);
     }
 
@@ -400,7 +405,7 @@ public class Compiler {
         assembler.emit("label", breakLabel);
     }
 
-    private void compile_try_block(AstNode ast) {
+    private void compile_try_block(AstNode ast) throws CompilerException {
         String catchLabel = assembler.label("catch", ast);
         String finallyLabel = assembler.label("finally", ast);
         String exitLabel = assembler.label("exit", ast);

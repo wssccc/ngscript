@@ -17,11 +17,14 @@
 package org.ngscript;
 
 import org.ngscript.compiler.Compiler;
+import org.ngscript.compiler.CompilerException;
 import org.ngscript.compiler.Instruction;
 import org.ngscript.fastlexer.Lexer;
+import org.ngscript.fastlexer.LexerException;
 import org.ngscript.parser.NgLalrParser;
 import org.ngscript.parseroid.grammar.Symbol;
 import org.ngscript.parseroid.parser.AstNode;
+import org.ngscript.parseroid.parser.ParserException;
 import org.ngscript.parseroid.parser.Token;
 import org.ngscript.runtime.VirtualMachine;
 
@@ -48,12 +51,12 @@ public class Ngscript {
         this.parser = new NgLalrParser(configuration);
     }
 
-    public Object eval(String code) throws Exception {
+    public Object eval(String code) throws ParserException, CompilerException, LexerException {
         feed(code);
         return vm.eax;
     }
 
-    public boolean feed(String code) throws Exception {
+    public boolean feed(String code) throws CompilerException, LexerException, ParserException {
         List<Token> tokens = Lexer.scan(code);
         if (!configuration.isInteractive()) {
             tokens.add(new Token(Symbol.EOF.identifier));
