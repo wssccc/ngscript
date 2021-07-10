@@ -5,3 +5,4 @@
 rootProject.name = 'ngscript'
 include(':ngscript-examples')
 include(':ngscript-core')
+include(':ngscript-parseroid')
