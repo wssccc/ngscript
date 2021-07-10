@@ -1,0 +1,11 @@
+plugins {
+    id "org.sonarqube" version "3.3"
+}
+
+sonarqube {
+    properties {
+        property "sonar.projectKey", "wssccc_ngscript"
+        property "sonar.organization", "wssccc"
+        property "sonar.host.url", "https://sonarcloud.io"
+    }
+}
