@@ -14,7 +14,7 @@ Clone project
 
 Run Rose-Render test
 
- `mvn test -Dtest=org.ngscript.TestRoseRenderer`
+ `./gradlew run -Dexec.mainClass=org.ngscript.examples.RoseRender`
 
 ## Language References
 

@@ -4,6 +4,7 @@
 
 plugins {
     id 'org.ngscript.java-conventions'
+    id 'application'
 }
 
 dependencies {
@@ -13,3 +14,5 @@ dependencies {
 }
 
 description = 'ngscript-examples'
+
+mainClassName = System.getProperty("exec.mainClass")
