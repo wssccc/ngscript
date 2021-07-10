@@ -67,9 +67,8 @@ public class Ngscript {
             if (configuration.isGenerateDebugInfo()) {
                 System.out.println(ast);
             }
-            compiler.compileCode(ast, code);
             //
-            List<Instruction> ins = compiler.getCompiledInstructions();
+            List<Instruction> ins = compiler.compileCode(ast, code);
             if (configuration.isGenerateDebugInfo()) {
                 System.out.println(ins);
             }

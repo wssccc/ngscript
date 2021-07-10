@@ -29,61 +29,46 @@ import java.util.logging.Logger;
  */
 public class Compiler {
 
+    private static final Set<String> BINARY_OP = new HashSet<>(Arrays.asList(
+            "bit_xor", "bit_or", "bit_and", "eq", "neq", "lt", "gt", "le", "ge",
+            "veq", "vneq", "mul", "mod", "div", "add", "sub"
+    ));
 
     Configuration configuration;
 
-    Assembler asm = new Assembler();
-    Scanner sc;
-    int printedLines = 0;
+    Assembler assembler = new Assembler();
+    Scanner scanner;
+    int printedLines;
 
-    Deque<String> continues = new ArrayDeque<>();
-    Deque<String> breaks = new ArrayDeque<String>();
-    Deque<String> finallys = new ArrayDeque<String>();
-    final HashSet<String> binaryOp;
+    Deque<String> continueLabels = new ArrayDeque<>();
+    Deque<String> breakLabels = new ArrayDeque<>();
+    Deque<String> finallyLabels = new ArrayDeque<>();
 
     public Compiler(Configuration configuration) {
         this.configuration = configuration;
-        binaryOp = new HashSet<String>();
-        binaryOp.add("bit_xor");
-        binaryOp.add("bit_or");
-        binaryOp.add("bit_and");
-        binaryOp.add("eq");
-        binaryOp.add("neq");
-        binaryOp.add("lt");
-        binaryOp.add("gt");
-        binaryOp.add("le");
-        binaryOp.add("ge");
-        binaryOp.add("veq");
-        binaryOp.add("vneq");
-        binaryOp.add("mul");
-        binaryOp.add("mod");
-        binaryOp.add("div");
-        binaryOp.add("add");
-        binaryOp.add("sub");
     }
 
-    public List<Instruction> getCompiledInstructions() {
-        return asm.instructions;
-    }
-
-    public void compileCode(AstNode ast, String sourceCode) {
-        asm.instructions.clear();
-        sc = new Scanner(sourceCode);
-        printedLines = 0;
-        compile(ast);
-        if (configuration.isGenerateDebugInfo()) {
-            while (sc.hasNextLine()) {
-                asm.emit("//", sc.nextLine(), "" + printedLines);
+    public List<Instruction> compileCode(AstNode ast, String sourceCode) {
+        assembler.instructions.clear();
+        try (Scanner sc = new Scanner(sourceCode)) {
+            this.scanner = sc;
+            printedLines = 0;
+            compile(ast);
+            if (configuration.isGenerateDebugInfo()) {
+                while (sc.hasNextLine()) {
+                    assembler.emit("//", sc.nextLine(), "" + printedLines);
+                }
             }
         }
+        return assembler.instructions;
     }
 
-    void generateDebugInfo(AstNode ast) {
+    private void generateDebugInfo(AstNode ast) {
         if (configuration.isGenerateDebugInfo()) {
             if (printedLines != ast.token.line) {
                 while (printedLines < ast.token.line) {
-                    String line = sc.hasNextLine() ? sc.nextLine() : "no line";
-                    asm.emit("//", line, "" + printedLines);
+                    String line = scanner.hasNextLine() ? scanner.nextLine() : "no line";
+                    assembler.emit("//", line, "" + printedLines);
                     ++printedLines;
                 }
             }
@@ -114,7 +99,7 @@ public class Compiler {
         for (int i = 1; i < ast.contents.size(); i++) {
             sb.append(ast.contents.get(i).token.value);
         }
-        asm.emit("import_", sb.toString());
+        assembler.emit("import_", sb.toString());
     }
 
     private void compile_expr(AstNode ast) throws CompilerException {
@@ -135,170 +120,197 @@ public class Compiler {
     private void _compile_expr_opr(AstNode ast, boolean byref) throws CompilerException {
         ArrayList<AstNode> child = ast.contents;
         String header = child.get(0).token.type;
-        if (header.equals("assign")) {
-            compile_expr(child.get(1), true);
-            asm.emit("push_eax");
-            compile_expr(child.get(2));
-            asm.emit("assign");
-        } else if (header.equals("integer") || header.equals("string")) {
-            asm.emit(header, child.get(0).token.value);
-        } else if (header.equals("double")) {
-            asm.emit("double_", child.get(0).token.value);
-        } else if (header.equals("dot")) {
-            compile_expr(child.get(1));
-            asm.emit("push_eax");
-            asm.emit("string", child.get(2).token.value);
-            asm.emit("member_ref");
-            if (!byref) {
-                asm.emit("deref", "%eax");
-            }
-        } else if (header.equals("new")) {
-            _compile_funcall(ast);
-            asm.emit("new_op");
-        } else if (header.equals("lambda")) {
-            compile_lambda(ast);
-        } else if (header.equals("funcall")) {
-            //prepare env
-            _compile_funcall(ast);
-            asm.emit("pop_env");
-            asm.emit("pop");//pop params
-            asm.emit("pop");//pop function body
-        } else if (header.equals("inc")) {
-            compile_expr(child.get(1), true); //param1
-            asm.emit("inc");
-        } else if (header.equals("post_inc")) {
-            compile_expr(child.get(1), true); //param1
-            asm.emit("post_inc");
-        } else if (header.equals("dec")) {
-            compile_expr(child.get(1), true); //param1
-            asm.emit("dec");
-        } else if (header.equals("post_dec")) {
-            compile_expr(child.get(1), true); //param1
-            asm.emit("post_dec");
-        } else if (header.equals("undefined")) {
-            asm.emit("undefined");
-        } else if (header.equals("ident")) {
-            if (!byref) {
-                asm.emit("deref", child.get(0).token.value);
-            } else {
-                asm.emit("mov_eax", child.get(0).token.value);
-            }
-        } else if (header.equals("var")) {
-            if (!child.get(1).token.type.equals("ident")) {
-                throw new CompilerException(this, "var statement expect an ident");
-            }
-            asm.emit("clear", "%eax");
-            asm.emit("set", child.get(1).token.value);
-            if (!byref) {
-                asm.emit("deref", child.get(1).token.value);
-            } else {
-                asm.emit("mov_eax", child.get(1).token.value);
-            }
-        } else if (header.equals("array")) {
-            makeParam2(child);
-            asm.emit("array_ref");
-            if (!byref) {
-                asm.emit("deref", "%eax");
-            }
-        } else if (header.equals("typeof")) {
-            compile_expr(child.get(1)); //param1
-            asm.emit("typeof");
-        } else if (header.equals("null")) {
-            //null is real null
-            asm.emit("clear_null", "%eax");
-        } else if (header.equals("true")) {
-            asm.emit("bool", "true");
-        } else if (header.equals("false")) {
-            asm.emit("bool", "false");
-        } else if (header.equals("typeof")) {
-            compile_expr(child.get(1)); //param1
-            asm.emit("typeof");
-        } else if (header.equals("neg")) {
-            compile_expr(child.get(1)); //param1
-            asm.emit("neg");
-        } else if (header.equals("cond")) {
-            String falseLabel = asm.label("falsePart", ast);
-            String exitLabel = asm.label("exitPart", ast);
+        switch (header) {
+            case "assign":
+                compile_expr(child.get(1), true);
+                assembler.emit("push_eax");
+                compile_expr(child.get(2));
+                assembler.emit("assign");
+                break;
+            case "integer":
+            case "string":
+                assembler.emit(header, child.get(0).token.value);
+                break;
+            case "double":
+                assembler.emit("double_", child.get(0).token.value);
+                break;
+            case "dot":
+                compile_expr(child.get(1));
+                assembler.emit("push_eax");
+                assembler.emit("string", child.get(2).token.value);
+                assembler.emit("member_ref");
+                if (!byref) {
+                    assembler.emit("deref", "%eax");
+                }
+                break;
+            case "new":
+                _compile_funcall(ast);
+                assembler.emit("new_op");
+                break;
+            case "lambda":
+                compile_lambda(ast);
+                break;
+            case "funcall":
+                _compile_funcall(ast);
+                assembler.emit("pop_env");
+                assembler.emit("pop");//pop params
+                assembler.emit("pop");//pop function body
+                break;
+            case "inc":
+                compile_expr(child.get(1), true); //param1
+                assembler.emit("inc");
+                break;
+            case "post_inc":
+                compile_expr(child.get(1), true); //param1
+                assembler.emit("post_inc");
+                break;
+            case "dec":
+                compile_expr(child.get(1), true); //param1
+                assembler.emit("dec");
+                break;
+            case "post_dec":
+                compile_expr(child.get(1), true); //param1
+                assembler.emit("post_dec");
+                break;
+            case "undefined":
+                assembler.emit("undefined");
+                break;
+            case "ident":
+                if (!byref) {
+                    assembler.emit("deref", child.get(0).token.value);
+                } else {
+                    assembler.emit("mov_eax", child.get(0).token.value);
+                }
+                break;
+            case "var":
+                if (!child.get(1).token.type.equals("ident")) {
+                    throw new CompilerException(this, "var statement expect an ident");
+                }
+                assembler.emit("clear", "%eax");
+                assembler.emit("set", child.get(1).token.value);
+                if (!byref) {
+                    assembler.emit("deref", child.get(1).token.value);
+                } else {
+                    assembler.emit("mov_eax", child.get(1).token.value);
+                }
+                break;
+            case "array":
+                makeParam2(child);
+                assembler.emit("array_ref");
+                if (!byref) {
+                    assembler.emit("deref", "%eax");
+                }
+                break;
+            case "typeof":
+                compile_expr(child.get(1)); //param1
+                assembler.emit("typeof");
+                break;
+            case "null":
+                assembler.emit("clear_null", "%eax");
+                break;
+            case "true":
+                assembler.emit("bool", "true");
+                break;
+            case "false":
+                assembler.emit("bool", "false");
+                break;
+            case "neg":
+                compile_expr(child.get(1)); //param1
+                assembler.emit("neg");
+                break;
+            case "cond":
+                String falseLabel = assembler.label("falsePart", ast);
+                String exitLabel = assembler.label("exitPart", ast);
 
-            compile_expr(child.get(1));
-            asm.emit("jz", falseLabel);
-            compile_expr(child.get(2));
-            asm.emit("jmp", exitLabel);
-            asm.emit("label", falseLabel);
-            compile_expr(child.get(3));
-            asm.emit("label", exitLabel);
-        } else if (binaryOp.contains(header)) {
-            makeParam2(child);
-            asm.emit(header);
-        } else if (header.equals("or")) {
-            String exit = asm.label("exit_or", ast);
-            compile_expr(child.get(1));
-            asm.emit("jnz", exit);
-            compile_expr(child.get(2));
-            asm.emit("label", exit);
-        } else if (header.equals("and")) {
-            String exit = asm.label("exit_and", ast);
-            compile_expr(child.get(1));
-            asm.emit("jz", exit);
-            compile_expr(child.get(2));
-            asm.emit("label", exit);
-        } else if (header.equals("array_new")) {
-            for (int i = 0; i < child.get(1).contents.size(); i++) {
-                compile_expr(child.get(1).contents.get(i));
-                asm.emit("push_eax");
+                compile_expr(child.get(1));
+                assembler.emit("jz", falseLabel);
+                compile_expr(child.get(2));
+                assembler.emit("jmp", exitLabel);
+                assembler.emit("label", falseLabel);
+                compile_expr(child.get(3));
+                assembler.emit("label", exitLabel);
+                break;
+            case "or": {
+                String exit = assembler.label("exit_or", ast);
+                compile_expr(child.get(1));
+                assembler.emit("jnz", exit);
+                compile_expr(child.get(2));
+                assembler.emit("label", exit);
+                break;
             }
-            asm.emit("array_new", child.get(1).contents.size() + "");
-        } else if (header.equals("object_new")) {
-            for (int i = 0; i < child.get(1).contents.size(); i++) {
-                asm.emit("string", child.get(1).contents.get(i).contents.get(0).token.value);
-                asm.emit("push_eax");
-                compile_expr(child.get(1).contents.get(i).contents.get(1));
-                asm.emit("push_eax");
+            case "and": {
+                String exit = assembler.label("exit_and", ast);
+                compile_expr(child.get(1));
+                assembler.emit("jz", exit);
+                compile_expr(child.get(2));
+                assembler.emit("label", exit);
+                break;
             }
-            asm.emit("object_new", child.get(1).contents.size() + "");
-        } else {
-            throw new CompilerException(this, "unknown expr \r\n" + child);
+            case "array_new":
+                for (int i = 0; i < child.get(1).contents.size(); i++) {
+                    compile_expr(child.get(1).contents.get(i));
+                    assembler.emit("push_eax");
+                }
+                assembler.emit("array_new", child.get(1).contents.size() + "");
+                break;
+            case "object_new":
+                for (int i = 0; i < child.get(1).contents.size(); i++) {
+                    assembler.emit("string", child.get(1).contents.get(i).contents.get(0).token.value);
+                    assembler.emit("push_eax");
+                    compile_expr(child.get(1).contents.get(i).contents.get(1));
+                    assembler.emit("push_eax");
+                }
+                assembler.emit("object_new", child.get(1).contents.size() + "");
+                break;
+            default:
+                if (BINARY_OP.contains(header)) {
+                    makeParam2(child);
+                    assembler.emit(header);
+                } else {
+                    throw new CompilerException(this, "Unknown expression " + child);
+                }
+
         }
     }
 
-    void makeParam2(ArrayList<AstNode> child) throws CompilerException {
+    void makeParam2(List<AstNode> child) throws CompilerException {
         compile_expr(child.get(1)); //param1
-        asm.emit("push_eax");
+        assembler.emit("push_eax");
         compile_expr(child.get(2)); //param2
     }
 
     private void compile_function_decl(AstNode ast) {
         String enter = _compile_function_body(ast);
-        asm.instructions.add(0, new Instruction("static_func", ast.contents.get(0).token.value, enter));
+        assembler.instructions.add(0, new Instruction("static_func", ast.contents.get(0).token.value, enter));
     }
 
-    String _compile_function_body(AstNode ast) {
-        String exit = asm.label("func_exit", ast);
-        String enter = asm.label("func_enter", ast);
-        asm.emit("jmp", exit);
-        asm.emit("label", enter);
+    private String _compile_function_body(AstNode ast) {
+        String exit = assembler.label("func_exit", ast);
+        String enter = assembler.label("func_enter", ast);
+        assembler.emit("jmp", exit);
+        assembler.emit("label", enter);
 
         AstNode params = ast.getNode("param_list");
 
         ArrayList<AstNode> contents = params.contents;
         for (int i = 0; i < contents.size(); i++) {
             AstNode content = contents.get(i);
-            asm.emit("pickarg", i + "");
-            asm.emit("set", content.token.value, "%eax");
+            assembler.emit("pickarg", i + "");
+            assembler.emit("set", content.token.value, "%eax");
         }
 
         compile(ast.getNode("statements"));
         compile(ast.getNode("statement"));
         //default return void
-        asm.emit("clear", "%eax");
-        asm.emit("ret");
-        asm.emit("label", exit);
+        assembler.emit("clear", "%eax");
+        assembler.emit("ret");
+        assembler.emit("label", exit);
         return enter;
     }
 
     private void compile_lambda(AstNode ast) {
         String enter = _compile_function_body(ast);
-        asm.emit("new_closure", enter);
+        assembler.emit("new_closure", enter);
     }
 
     private void compile_statements(AstNode ast) {
@@ -312,7 +324,7 @@ public class Compiler {
     void _compile_nullable_expr(AstNode ast) throws CompilerException {
         if (ast.contents.size() == 1) {
             if (ast.contents.get(0).token.type.equals("NULL")) {
-                asm.emit("integer", "1");
+                assembler.emit("integer", "1");
                 return;
             }
         }
@@ -320,146 +332,146 @@ public class Compiler {
     }
 
     private void compile_for_block(AstNode ast) throws CompilerException {
-        String testLable = asm.label("test", ast);
-        String continueLabel = asm.label("continue", ast);
-        String breakLabel = asm.label("break", ast);
-        breaks.push(breakLabel);
-        continues.push(continueLabel);
+        String testLable = assembler.label("test", ast);
+        String continueLabel = assembler.label("continue", ast);
+        String breakLabel = assembler.label("break", ast);
+        breakLabels.push(breakLabel);
+        continueLabels.push(continueLabel);
         _compile_nullable_expr(ast.contents.get(0));
-        asm.emit("label", testLable);
+        assembler.emit("label", testLable);
         _compile_nullable_expr(ast.contents.get(1));
-        asm.emit("jz", breakLabel);
+        assembler.emit("jz", breakLabel);
         compile_statements(ast.contents.get(3));
-        asm.emit("label", continueLabel);
+        assembler.emit("label", continueLabel);
         _compile_nullable_expr(ast.contents.get(2));
-        asm.emit("jmp", testLable);
-        asm.emit("label", breakLabel);
-        breaks.pop();
-        continues.pop();
+        assembler.emit("jmp", testLable);
+        assembler.emit("label", breakLabel);
+        breakLabels.pop();
+        continueLabels.pop();
     }
 
     private void compile_while_block(AstNode ast) throws CompilerException {
-        String testLable = asm.label("test", ast);
-        String continueLabel = asm.label("continue", ast);
-        String breakLabel = asm.label("break", ast);
-        breaks.push(breakLabel);
-        continues.push(continueLabel);
+        String testLable = assembler.label("test", ast);
+        String continueLabel = assembler.label("continue", ast);
+        String breakLabel = assembler.label("break", ast);
+        breakLabels.push(breakLabel);
+        continueLabels.push(continueLabel);
 
-        asm.emit("label", testLable);
+        assembler.emit("label", testLable);
         compile_expr(ast.contents.get(0));
-        asm.emit("jz", breakLabel);
+        assembler.emit("jz", breakLabel);
         compile_statements(ast.contents.get(1));
-        asm.emit("label", continueLabel);
-        asm.emit("jmp", testLable);
-        asm.emit("label", breakLabel);
-        breaks.pop();
-        continues.pop();
+        assembler.emit("label", continueLabel);
+        assembler.emit("jmp", testLable);
+        assembler.emit("label", breakLabel);
+        breakLabels.pop();
+        continueLabels.pop();
     }
 
     private void compile_switch_block(AstNode ast) throws CompilerException {
-        String breakLabel = asm.label("break", ast);
-        breaks.push(breakLabel);
+        String breakLabel = assembler.label("break", ast);
+        breakLabels.push(breakLabel);
         compile_expr(ast.contents.get(0));
-        asm.emit("push_eax");
+        assembler.emit("push_eax");
 
         String nextBody = null;
         for (int i = 0; i < ast.contents.get(1).contents.size() - 1; i++) {
-            String nextLabel = asm.label("case_" + i, ast);
+            String nextLabel = assembler.label("case_" + i, ast);
 
             compile_expr(ast.contents.get(1).contents.get(i).contents.get(0));
-            asm.emit("eq");
-            asm.emit("jz", nextLabel);
+            assembler.emit("eq");
+            assembler.emit("jz", nextLabel);
             if (nextBody != null) {
-                asm.emit("label", nextBody);
+                assembler.emit("label", nextBody);
             }
-            nextBody = asm.label("body_" + i, ast);
+            nextBody = assembler.label("body_" + i, ast);
             compile_statements(ast.contents.get(1).contents.get(i).contents.get(1));
-            asm.emit("jmp", nextBody);
-            asm.emit("label", nextLabel);
+            assembler.emit("jmp", nextBody);
+            assembler.emit("label", nextLabel);
         }
         if (ast.contents.size() == 3) {
             //has default block
             if (nextBody != null) {
-                asm.emit("label", nextBody);
+                assembler.emit("label", nextBody);
             }
             compile_statements(ast.contents.get(2).contents.get(0));
         }
-        breaks.pop();
-        asm.emit("label", breakLabel);
+        breakLabels.pop();
+        assembler.emit("label", breakLabel);
     }
 
     private void compile_try_block(AstNode ast) {
-        String catchLabel = asm.label("catch", ast);
-        String finallyLabel = asm.label("finally", ast);
-        String exitLabel = asm.label("exit", ast);
-        finallys.push(finallyLabel);
-        asm.emit("save_machine_state");
-        asm.emit("test", "%exception");
-        asm.emit("jnz", catchLabel);
+        String catchLabel = assembler.label("catch", ast);
+        String finallyLabel = assembler.label("finally", ast);
+        String exitLabel = assembler.label("exit", ast);
+        finallyLabels.push(finallyLabel);
+        assembler.emit("save_machine_state");
+        assembler.emit("test", "%exception");
+        assembler.emit("jnz", catchLabel);
         compile_statements(ast.contents.get(0));
-        asm.emit("drop_machine_state");
-        asm.emit("push_eip");
-        asm.emit("jmp", finallyLabel);
-        asm.emit("jmp", exitLabel);
-        asm.emit("label", catchLabel);
-        asm.emit("mov_eax_exception");
-        asm.emit("set", ast.contents.get(1).token.value);
-        asm.emit("clear", "%exception");
+        assembler.emit("drop_machine_state");
+        assembler.emit("push_eip");
+        assembler.emit("jmp", finallyLabel);
+        assembler.emit("jmp", exitLabel);
+        assembler.emit("label", catchLabel);
+        assembler.emit("mov_eax_exception");
+        assembler.emit("set", ast.contents.get(1).token.value);
+        assembler.emit("clear", "%exception");
         compile_statements(ast.contents.get(2));
-        asm.emit("push_eip");
-        asm.emit("jmp", finallyLabel);
-        asm.emit("jmp", exitLabel);
-        asm.emit("label", finallyLabel);
+        assembler.emit("push_eip");
+        assembler.emit("jmp", finallyLabel);
+        assembler.emit("jmp", exitLabel);
+        assembler.emit("label", finallyLabel);
         if (ast.contents.size() == 4) {
             compile_statements(ast.contents.get(3));
         }
-        asm.emit("clear_call_stack");
-        asm.emit("pop_eax");
-        asm.emit("jmp", "offset", "1");
-        asm.emit("label", exitLabel);
-        finallys.pop();
+        assembler.emit("clear_call_stack");
+        assembler.emit("pop_eax");
+        assembler.emit("jmp", "offset", "1");
+        assembler.emit("label", exitLabel);
+        finallyLabels.pop();
     }
 
     private void compile_throw_exception(AstNode ast) throws CompilerException {
         compile_expr(ast.contents.get(0));
-        asm.emit("mov_exception_eax");
-        asm.emit("restore_machine_state");
+        assembler.emit("mov_exception_eax");
+        assembler.emit("restore_machine_state");
     }
 
     private void compile_if_block(AstNode ast) throws CompilerException {
-        String exitLable = asm.label("exit", ast);
+        String exitLable = assembler.label("exit", ast);
 
         compile_expr(ast.contents.get(0));
-        asm.emit("jz", exitLable);
+        assembler.emit("jz", exitLable);
         compile_statements(ast.contents.get(1));
 
-        asm.emit("label", exitLable);
+        assembler.emit("label", exitLable);
     }
 
     private void compile_if_else_block(AstNode ast) throws CompilerException {
-        String exitLabel = asm.label("exit", ast);
-        String elseLabel = asm.label("else", ast);
+        String exitLabel = assembler.label("exit", ast);
+        String elseLabel = assembler.label("else", ast);
         compile_expr(ast.contents.get(0));
-        asm.emit("jz", elseLabel);
+        assembler.emit("jz", elseLabel);
         compile_statements(ast.contents.get(1));
-        asm.emit("jmp", exitLabel);
-        asm.emit("label", elseLabel);
+        assembler.emit("jmp", exitLabel);
+        assembler.emit("label", elseLabel);
         compile_statements(ast.contents.get(2));
-        asm.emit("label", exitLabel);
+        assembler.emit("label", exitLabel);
     }
 
     private void compile_break(AstNode ast) throws CompilerException {
-        if (breaks.isEmpty()) {
+        if (breakLabels.isEmpty()) {
             throw new CompilerException(this, "break without loop");
         }
-        asm.emit("jmp", breaks.peek());
+        assembler.emit("jmp", breakLabels.peek());
     }
 
     private void compile_continue(AstNode ast) throws CompilerException {
-        if (breaks.isEmpty()) {
+        if (breakLabels.isEmpty()) {
             throw new CompilerException(this, "continue without loop");
         }
-        asm.emit("jmp", continues.peek());
+        assembler.emit("jmp", continueLabels.peek());
     }
 
     private void compile_hooked_break(AstNode ast) throws CompilerException {
@@ -473,22 +485,21 @@ public class Compiler {
     }
 
     private void compile_NULL(AstNode ast) {
-
     }
 
     private void compile_return_val(AstNode ast) throws CompilerException {
         compile_expr(ast.contents.get(0));
-        asm.emit("ret");
+        assembler.emit("ret");
     }
 
     private void compile_return_void(AstNode ast) {
-        asm.emit("clear", "%eax");
-        asm.emit("ret");
+        assembler.emit("clear", "%eax");
+        assembler.emit("ret");
     }
 
     private void _compile_call_finally() {
-        asm.emit("push_eip");
-        asm.emit("jmp", finallys.peek());
+        assembler.emit("push_eip");
+        assembler.emit("jmp", finallyLabels.peek());
     }
 
     private void compile_hooked_return_val(AstNode ast) throws CompilerException {
@@ -501,25 +512,25 @@ public class Compiler {
         compile_return_void(ast);
     }
 
-    void _compile_funcall(AstNode ast) throws CompilerException {
+    private void _compile_funcall(AstNode ast) throws CompilerException {
         //params
-        int param_n = 0;
+        int paramCount = 0;
         ArrayList<AstNode> contents = ast.contents.get(2).contents;
         for (int i = contents.size() - 1; i >= 0; i--) {
             AstNode content = contents.get(i);
             if (!content.token.type.equals("NULL")) {
-                ++param_n;
+                ++paramCount;
                 compile_expr(content);
-                asm.emit("push_eax");
+                assembler.emit("push_eax");
             }
         }
-        asm.emit("packargs", param_n + "");
-        asm.emit("push_eax");
+        assembler.emit("packargs", paramCount + "");
+        assembler.emit("push_eax");
         //function body
         compile_expr(ast.contents.get(1));
-        asm.emit("push_eax");
+        assembler.emit("push_eax");
 
-        asm.emit("push_env");
-        asm.emit("call");
+        assembler.emit("push_env");
+        assembler.emit("call");
     }
 }

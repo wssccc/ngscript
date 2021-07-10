@@ -48,6 +48,7 @@ public class Assembler {
     }
 
     public String label(String name, AstNode ast) {
+        //TODO: use relocation
         String labelName = ast.token.type + "_$" + ast.token.line + "_" + name;
         int i;
         if (labels.containsKey(labelName)) {
