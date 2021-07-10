@@ -1,6 +1,6 @@
 # ngscript
 
-[![Build Status](https://travis-ci.org/wssccc/ngscript.svg?branch=master)](https://travis-ci.org/wssccc/ngscript)
+[![CircleCI](https://circleci.com/gh/wssccc/ngscript/tree/master.svg?style=svg)](https://circleci.com/gh/wssccc/ngscript/tree/master)
 
 ## Introduction
 A Javascript-like scripting language for JVM, with coroutine.
