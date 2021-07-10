@@ -1,4 +1,5 @@
-import org.ngscript.examples.j2se.DrawWindow;
+import org.ngscript.examples.roserender.DrawWindow;
+
 var zBuffer = [];
 
 var SIZE = 500;
@@ -9,7 +10,7 @@ var cos = Math.cos;
 var sin = Math.sin;
 var pow = Math.pow;
 var rand = Math.random;
-var draw = DrawWindow.draw;
+var draw = new DrawWindow().drawPoint;
 function surface(a, b, c) {
 	if(c > 60) {
 		// The rose STICK.
@@ -79,7 +80,6 @@ function surface(a, b, c) {
 	}
 }
 
-new DrawWindow().setVisible(true);
 var canvasbuf = [];
 
 function render() {
