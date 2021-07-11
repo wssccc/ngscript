@@ -44,13 +44,13 @@ public class GrammarLoader {
                 if (header.equals("%filter")) {
                     while (linesc.hasNext()) {
                         String keywordNotation = linesc.next();
-                        g.filterNotations.add(keywordNotation);
+                        g.getFilterNotations().add(keywordNotation);
                     }
                 } else if (header.equals("%array")) {
                     while (linesc.hasNext()) {
                         String arrayNotation = linesc.next();
                         String name = getVnName(arrayNotation, "array notation starts with non-terminal symbol, at line" + lineno);
-                        g.arrayNotations.add(name);
+                        g.getArrayNotations().add(name);
                     }
                 } else if (header.equals("%equiv")) {
                     String classNotationHeader = linesc.next();
@@ -59,15 +59,15 @@ public class GrammarLoader {
                     while (linesc.hasNext()) {
                         String notationClass = linesc.next();
                         notationClass = getVnName(notationClass, "class notation starts with non-terminal symbol, at line" + lineno);
-                        g.classNotations.put(notationClass, classNotationHeader);
+                        g.getClassNotations().put(notationClass, classNotationHeader);
                     }
                 } else if (header.equals("%start")) {
                     String rootNotationHeader = linesc.next();
-                    if (g.rootSymbol != null) {
+                    if (g.getRootSymbol() != null) {
                         throw new RuntimeException("dunplicated root symbol notation");
                     } else {
                         rootNotationHeader = getVnName(rootNotationHeader, "class notation starts with non-terminal symbol, at line" + lineno);
-                        g.rootSymbol = rootNotationHeader;
+                        g.setRootSymbol(rootNotationHeader);
                     }
                 } else if (line.startsWith("#")) {
                     //nothing

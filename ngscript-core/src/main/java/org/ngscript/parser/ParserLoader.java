@@ -52,7 +52,7 @@ public class ParserLoader {
     }
 
     private void init() throws Exception {
-        InputStream resource = getClass().getResourceAsStream("grammar/ngscript-bnf.txt");
+        InputStream resource = getClass().getResourceAsStream("/grammar/ngscript-bnf.txt");
         if (resource == null) {
             throw new RuntimeException("Could not load grammar");
         }

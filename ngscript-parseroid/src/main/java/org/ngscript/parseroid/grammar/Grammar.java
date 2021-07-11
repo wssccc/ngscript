@@ -16,54 +16,44 @@
 
 package org.ngscript.parseroid.grammar;
 
+import lombok.Data;
+
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
 
 /**
  * @author wssccc
  */
+@Data
 public final class Grammar implements Serializable {
 
     private int id = 0;
-    public String rootSymbol;
-    public String oriRootSymbol;
-    public final HashSet<String> arrayNotations;
-    public final HashSet<String> filterNotations;
-    public final HashMap<String, String> classNotations;
-    private final HashMap<Integer, Production> productions;
-    private final HashMap<Integer, Symbol[]> productionAlias;
+    private String rootSymbol;
 
-    private final HashMap<String, Symbol> symbols;
-    /**
-     * cached
-     */
-    private final HashMap<Symbol, ArrayList<Production>> symbolProductions;
+    private final Set<String> arrayNotations = new HashSet<>();
+    private final Set<String> filterNotations = new HashSet<>();
+    private final Map<String, String> classNotations = new HashMap<>();
+    private final Map<Integer, Production> productions = new HashMap<>();
+    private final Map<Integer, Symbol[]> productionAlias = new HashMap<>();
 
-    private HashMap<Symbol, HashMap<String, Symbol>> firstSet;
+    private final Map<String, Symbol> symbols = new HashMap<>();
+
+    // calculated production map
+    private final Map<Symbol, List<Production>> symbolProductions = new HashMap<>();
+    private final Map<Symbol, Map<String, Symbol>> firstSet = new HashMap<>();
 
     public Grammar() {
-        filterNotations = new HashSet<String>();
-        arrayNotations = new HashSet<String>();
-        classNotations = new HashMap<String, String>();
-        productions = new HashMap<Integer, Production>();
-        productionAlias = new HashMap<Integer, Symbol[]>();
-        symbolProductions = new HashMap<Symbol, ArrayList<Production>>();
-        //symbols
-        symbols = new HashMap<String, Symbol>();
         //system defined symbols
         symbols.put(Symbol.NULL.identifier, Symbol.NULL);
         symbols.put(Symbol.EOF.identifier, Symbol.EOF);
         symbols.put(Symbol.ERROR.identifier, Symbol.ERROR);
-
     }
 
     public void checkProduction() {
         for (Symbol sym : symbols.values()) {
             if (!sym.isTerminal) {
                 if (getSymProductions(sym).isEmpty()) {
-                    throw new RuntimeException(sym + " has no productions");
+                    throw new RuntimeException(sym + " has no production");
                 }
             }
         }
@@ -72,14 +62,12 @@ public final class Grammar implements Serializable {
     public int createProduction(String symName, Symbol[] produces) {
         Production production = new Production(createSymbol(symName, false), produces, id);
         productions.put(id, production);
-        int thisid = id;
-        ++id;
-        return thisid;
+        return id++;
     }
 
-    public void createProductionAlias(int id, Symbol[] syms) {
+    public void createProductionAlias(int id, Symbol[] alias) {
         assert !productionAlias.containsKey(id);
-        productionAlias.put(id, syms);
+        productionAlias.put(id, alias);
     }
 
     public Symbol createSymbol(String name, boolean terminal) {
@@ -87,7 +75,7 @@ public final class Grammar implements Serializable {
             if (symbols.get(name).isTerminal == terminal) {
                 return symbols.get(name);
             } else {
-                throw new RuntimeException("symbol " + name + " defined as terminal=" + symbols.get(name).isTerminal);
+                throw new RuntimeException("Symbol " + name + " defined as terminal=" + symbols.get(name).isTerminal);
             }
         } else {
             Symbol s = Symbol.create(name, terminal);
@@ -100,8 +88,8 @@ public final class Grammar implements Serializable {
         return symbols.get(type);
     }
 
-    public HashMap<String, Symbol> getFirstSet(Symbol sym) {
-        if (firstSet == null) {
+    public Map<String, Symbol> getFirstSet(Symbol sym) {
+        if (firstSet.isEmpty()) {
             genFirstSet();
         }
         return firstSet.get(sym);
@@ -112,7 +100,7 @@ public final class Grammar implements Serializable {
         if (productions.containsKey(intObj)) {
             return productions.get(intObj);
         } else {
-            throw new RuntimeException("production id=" + id + " is not defined");
+            throw new RuntimeException("Production id=" + id + " is not defined");
         }
     }
 
@@ -120,12 +108,12 @@ public final class Grammar implements Serializable {
         return productionAlias.get(id);
     }
 
-    public ArrayList<Production> getSymProductions(Symbol sym) {
+    public List<Production> getSymProductions(Symbol sym) {
         assert !sym.isTerminal;
         if (symbolProductions.containsKey(sym)) {
             return symbolProductions.get(sym);
         } else {
-            ArrayList<Production> result = new ArrayList<Production>();
+            List<Production> result = new ArrayList<>();
             for (Production pro : productions.values()) {
                 if (pro.sym.identifier.equals(sym.identifier)) {
                     result.add(pro);
@@ -157,12 +145,12 @@ public final class Grammar implements Serializable {
         return p;
     }
 
-    public HashMap<String, Symbol> getFirstSet(Symbol[] seq) {
-        HashMap<String, Symbol> result = new HashMap<String, Symbol>();
-        for (int i = 0; i < seq.length; ++i) {
-            HashMap<String, Symbol> onefirstset = getFirstSet(seq[i]);
-            result.putAll(onefirstset);
-            if (onefirstset.containsKey(Symbol.NULL.identifier)) {
+    public Map<String, Symbol> getFirstSet(Symbol[] symbols) {
+        Map<String, Symbol> result = new HashMap<>();
+        for (Symbol symbol : symbols) {
+            Map<String, Symbol> oneFirstSet = getFirstSet(symbol);
+            result.putAll(oneFirstSet);
+            if (oneFirstSet.containsKey(Symbol.NULL.identifier)) {
                 result.remove(Symbol.NULL.identifier);
                 //continue
             } else {
@@ -174,7 +162,6 @@ public final class Grammar implements Serializable {
 
 
     private void genFirstSet() {
-        firstSet = new HashMap<Symbol, HashMap<String, Symbol>>();
         //add terminal symbols
         for (Production pro : productions.values()) {
             for (Symbol produce : pro.produces) {
@@ -191,15 +178,15 @@ public final class Grammar implements Serializable {
             changed = false;
             for (Production pro : productions.values()) {
                 for (Symbol produce : pro.produces) {
-                    HashMap<String, Symbol> onefirstset = getFirstSet(produce);
-                    if (onefirstset == null) {
-                        onefirstset = new HashMap<String, Symbol>();
-                        firstSet.put(produce, onefirstset);
+                    Map<String, Symbol> oneFirstSet = getFirstSet(produce);
+                    if (oneFirstSet == null) {
+                        oneFirstSet = new HashMap<>();
+                        firstSet.put(produce, oneFirstSet);
                     }
-                    for (Symbol sym : onefirstset.values()) {
+                    for (Symbol sym : oneFirstSet.values()) {
                         changed |= addToFirstSet(pro.sym, sym);
                     }
-                    if (!onefirstset.containsKey(Symbol.NULL.identifier)) {
+                    if (!oneFirstSet.containsKey(Symbol.NULL.identifier)) {
                         break;
                     }
                 }
@@ -209,11 +196,11 @@ public final class Grammar implements Serializable {
 
     boolean addToFirstSet(Symbol vn, Symbol vt) {
         boolean changed = false;
-        HashMap<String, Symbol> oneFirstSet;
+        Map<String, Symbol> oneFirstSet;
 
         if (!firstSet.containsKey(vn)) {
             changed = true;
-            oneFirstSet = new HashMap<String, Symbol>();
+            oneFirstSet = new HashMap<>();
             firstSet.put(vn, oneFirstSet);
         } else {
             oneFirstSet = firstSet.get(vn);

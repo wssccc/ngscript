@@ -36,7 +36,7 @@ public class LALRTable implements Serializable {
     }
 
     public boolean isArray(String sym) {
-        return g.arrayNotations.contains(sym);
+        return g.getArrayNotations().contains(sym);
     }
 
     public Production getProduction(int id) {

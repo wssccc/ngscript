@@ -20,6 +20,7 @@ import org.ngscript.parseroid.grammar.Production;
 import org.ngscript.parseroid.grammar.Symbol;
 
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author wssccc
@@ -66,14 +67,14 @@ public class Item {
         return false;
     }
 
-    public boolean addLookahead(HashMap<String, Symbol> syms) {
+    public boolean addLookahead(Map<String, Symbol> syms) {
         int n = lookahead.size();
         lookahead.putAll(syms);
 
         return n != lookahead.size();
     }
 
-    public boolean eq(Item other) {
+    public boolean almostEquals(Item other) {
         if (this.pos != other.pos) {
             return false;
         }
@@ -81,18 +82,18 @@ public class Item {
             return false;
         }
 
-        for (String symid : other.lookahead.keySet()) {
-            if (!lookahead.containsKey(symid)) {
+        for (String name : other.lookahead.keySet()) {
+            if (!lookahead.containsKey(name)) {
                 return false;
             }
         }
-        return this.production.eq(other.production);
+        return this.production.almostEquals(other.production);
     }
 
-    public boolean eqHeart(Item other) {
+    public boolean coreEquals(Item other) {
         if (this.pos != other.pos) {
             return false;
         }
-        return this.production.eq(other.production);
+        return this.production.almostEquals(other.production);
     }
 }

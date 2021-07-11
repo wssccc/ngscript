@@ -210,7 +210,7 @@ public abstract class LalrParser {
                     }
 
                 }
-                if (g.filterNotations.contains(node.contents.get(i).token.type)) {
+                if (g.getFilterNotations().contains(node.contents.get(i).token.type)) {
                     //filter
                     node.contents.remove(i);
                     changed = true;
@@ -226,7 +226,7 @@ public abstract class LalrParser {
             for (AstNode c : node.contents) {
                 //reduce child
                 reduce(c);
-                String equiv = g.classNotations.get(c.token.type);
+                String equiv = g.getClassNotations().get(c.token.type);
                 if (equiv != null) {
                     //process equiv classes
                     c.token.type = equiv;

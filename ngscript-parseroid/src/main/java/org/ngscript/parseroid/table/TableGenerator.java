@@ -36,13 +36,12 @@ public class TableGenerator {
     public LALRTable generate(boolean debug) {
         ItemSet initItemSet = new ItemSet();
 
-        Symbol[] pros = new Symbol[]{grammar.createSymbol(grammar.rootSymbol, false)};
-        if (grammar.rootSymbol == null) {
+        Symbol[] pros = new Symbol[]{grammar.createSymbol(grammar.getRootSymbol(), false)};
+        if (grammar.getRootSymbol() == null) {
             throw new RuntimeException("root symbol not set");
         }
-        grammar.oriRootSymbol = grammar.rootSymbol;
-        grammar.rootSymbol = grammar.rootSymbol + "'";
-        grammar.createProduction(grammar.rootSymbol, pros);
+        grammar.setRootSymbol(grammar.getRootSymbol() + "'");
+        grammar.createProduction(grammar.getRootSymbol(), pros);
         Item initItem = new Item(grammar.getRootProduction(), 0);
         initItem.addLookahead(Symbol.EOF);
         initItemSet.items.add(initItem);

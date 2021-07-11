@@ -87,7 +87,7 @@ public class CanonicalCollection {
                 } else {
                     for (Symbol lhsym : item.lookahead.values()) {
                         if (lhsym.isTerminal) {
-                            if (lhsym == Symbol.EOF && item.production.eq(grammar.getRootProduction())) {
+                            if (lhsym == Symbol.EOF && item.production.almostEquals(grammar.getRootProduction())) {
                                 table.add(lhsym.identifier, itemSet.id, ParserAction.accept());
                             } else {
                                 table.add(lhsym.identifier, itemSet.id, ParserAction.reduce(item.production.id));

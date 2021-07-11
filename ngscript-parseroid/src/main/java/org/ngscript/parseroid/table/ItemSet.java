@@ -20,10 +20,7 @@ import org.ngscript.parseroid.grammar.Grammar;
 import org.ngscript.parseroid.grammar.Production;
 import org.ngscript.parseroid.grammar.Symbol;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author wssccc
@@ -67,7 +64,7 @@ public class ItemSet {
     }
 
     void closure(Grammar g) {
-        Set<Item> expanded = new HashSet<Item>();
+        Set<Item> expanded = new HashSet<>();
         boolean changed = true;
         while (changed) {
             changed = false;
@@ -83,7 +80,7 @@ public class ItemSet {
                         if (!nextExpand.isTerminal) {
                             String keys[] = new String[item.lookahead.keySet().size()];
                             item.lookahead.keySet().toArray(keys);
-                            for (int k = 0; k < keys.length;) {
+                            for (int k = 0; k < keys.length; ) {
                                 Symbol lh = item.lookahead.get(keys[k]);
 
                                 Symbol[] suc = new Symbol[item.production.produces.length - item.pos];
@@ -91,12 +88,12 @@ public class ItemSet {
                                     suc[j - item.pos - 1] = item.production.produces[j];
                                 }
                                 suc[suc.length - 1] = lh;
-                                HashMap<String, Symbol> firstset = g.getFirstSet(suc);
+                                Map<String, Symbol> firstSet = g.getFirstSet(suc);
                                 //
-                                ArrayList<Production> pros = g.getSymProductions(nextExpand);
+                                List<Production> pros = g.getSymProductions(nextExpand);
                                 boolean lhchanged = false;
                                 for (Production p : pros) {
-                                    lhchanged |= (getItem(p, 0).addLookahead(firstset));
+                                    lhchanged |= (getItem(p, 0).addLookahead(firstSet));
                                 }
                                 if (lhchanged) {
                                     k = 0;
@@ -113,7 +110,7 @@ public class ItemSet {
 
     public Item getItem(Production production, int pos) {
         for (Item i : items) {
-            if (i.production.eq(production) && i.pos == pos) {
+            if (i.production.almostEquals(production) && i.pos == pos) {
                 return i;
             }
         }
@@ -135,7 +132,7 @@ public class ItemSet {
 
     boolean contains(Item item) {
         for (Item i : items) {
-            if (i.eq(item)) {
+            if (i.almostEquals(item)) {
                 return true;
             }
         }
@@ -156,7 +153,7 @@ public class ItemSet {
 
     Item getHeart(Item item) {
         for (Item i : items) {
-            if (i.eqHeart(item)) {
+            if (i.coreEquals(item)) {
                 return i;
             }
         }

@@ -33,7 +33,7 @@ public class Production implements Serializable {
         this.id = id;
     }
 
-    public boolean eq(Production other) {
+    public boolean almostEquals(Production other) {
         if (this.sym != other.sym) {
             return false;
         }
