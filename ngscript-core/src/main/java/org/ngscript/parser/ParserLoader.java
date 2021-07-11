@@ -26,6 +26,8 @@ import org.ngscript.parseroid.table.TableGenerator;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * @author wssccc
@@ -50,20 +52,27 @@ public class ParserLoader {
     }
 
     private void init() throws Exception {
-        String bnfString = IOUtils.toString(Thread.currentThread().getContextClassLoader().getResourceAsStream("grammar/ngscript-bnf.txt"), StandardCharsets.UTF_8);
-        String hash = DigestUtils.sha1Hex(bnfString);
-        String cacheFilePath = System.getProperty("java.io.tmpdir") + File.separator + "ng_bnf_cache_" + hash + ".classdump";
-        File cacheFile = new File(cacheFilePath);
+        InputStream resource = getClass().getResourceAsStream("grammar/ngscript-bnf.txt");
+        if (resource == null) {
+            throw new RuntimeException("Could not load grammar");
+        }
+        String bnfString = IOUtils.toString(resource, StandardCharsets.UTF_8);
+        String hash = DigestUtils.sha256Hex(bnfString);
+        String tableCacheFile = "ng_bnf_cache_" + hash + ".table";
+        Path cacheFilePath = Paths.get(System.getProperty("java.io.tmpdir"), tableCacheFile);
+        File cacheFile = cacheFilePath.toFile();
         if (cacheFile.exists()) {
             try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(cacheFile))) {
                 table = (LALRTable) ois.readObject();
                 return;
             } catch (Exception ex) {
-                log.warn("load parser table cache failed", ex);
+                log.warn("Failed to load parser table cache", ex);
             }
         }
+        // build parser table cache
         Grammar g = GrammarLoader.loadBnfString(bnfString);
         table = new TableGenerator(g).generate(false);
+        // write cache file
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(cacheFile))) {
             oos.writeObject(table);
         }
