@@ -40,9 +40,12 @@ public class Repl {
                 .history(new DefaultHistory())
                 .terminal(terminal)
                 .build();
-        Ngscript ngscript = new Ngscript();
+        Configuration configuration = new Configuration();
+        configuration.setInteractive(true);
+        Ngscript ngscript = new Ngscript(configuration);
         String prompt = "ngscript> ";
-        while (true) {
+        boolean running = true;
+        while (running) {
             String line;
             try {
                 line = lineReader.readLine(prompt);
@@ -52,14 +55,12 @@ public class Repl {
                 } else {
                     prompt = "... ";
                 }
-            } catch (UserInterruptException e) {
-                // Do nothing
-            } catch (EndOfFileException e) {
-                System.out.println("\nBye.");
-                return;
+            } catch (UserInterruptException | EndOfFileException e) {
+                running = false;
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
         }
+        System.out.println("\nBye.");
     }
 }
