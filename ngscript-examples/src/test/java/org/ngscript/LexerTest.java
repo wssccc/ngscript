@@ -15,14 +15,15 @@
  */
 
 package org.ngscript;
-import org.ngscript.fastlexer.Lexer;
-import org.ngscript.fastlexer.LexerException;
+
+import org.ngscript.parser.lexer.Lexer;
+import org.ngscript.parser.lexer.LexerException;
 import org.ngscript.parseroid.parser.Token;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author wssccc
@@ -42,7 +43,7 @@ public class LexerTest {
     }
 
     public static void main(String[] args) throws LexerException, IOException {
-        ArrayList<Token> tokens = Lexer.scan(readFile("rose.js"));
+        List<Token> tokens = Lexer.scan(readFile("rose.js"));
         System.out.println(tokens);
     }
 }

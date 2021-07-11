@@ -14,33 +14,33 @@
  * limitations under the License.
  */
 
-package org.ngscript.fastlexer;
-
-import org.ngscript.parseroid.parser.Token;
+package org.ngscript.parser.lexer;
 
 /**
  * @author wssccc
  */
-public class SourceStream {
+public class SourceReader {
 
     public static final char EOF = '\0';
-    int line_no = 1;
-    char ch[];
-    int pos = 0;
 
-    public SourceStream(String str) {
-        this.ch = str.toCharArray();
+    int lineNumber = 1;
+    int position = 0;
+
+    char[] chars;
+
+    public SourceReader(String str) {
+        this.chars = str.toCharArray();
     }
 
     public boolean eof() {
-        return pos >= ch.length;
+        return position >= chars.length;
     }
 
     public void forward() {
-        if (ch[pos] == '\n') {
-            ++line_no;
+        if (chars[position] == '\n') {
+            ++lineNumber;
         }
-        ++pos;
+        ++position;
     }
 
     public char read() {
@@ -52,10 +52,10 @@ public class SourceStream {
     }
 
     public char peek() {
-        return pos < ch.length ? ch[pos] : EOF;
+        return position < chars.length ? chars[position] : EOF;
     }
 
-    public boolean tryRead(char c) {
+    public boolean readNext(char c) {
         if (peek() == c) {
             forward();
             return true;
@@ -66,14 +66,6 @@ public class SourceStream {
 
     @Override
     public String toString() {
-        return "at line " + line_no + " char=" + (eof() ? "EOF" : "'" + (char) peek() + "'(" + peek() + ")") + "";
-    }
-
-    Token token(String type) {
-        return new Token(type, line_no);
-    }
-
-    Token token(String type, String value) {
-        return new Token(type, line_no, value);
+        return "at line " + lineNumber + " char=" + (eof() ? "EOF" : "'" + (char) peek() + "'(" + peek() + ")") + "";
     }
 }

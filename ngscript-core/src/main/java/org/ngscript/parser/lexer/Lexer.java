@@ -14,29 +14,28 @@
  * limitations under the License.
  */
 
-package org.ngscript.fastlexer;
+package org.ngscript.parser.lexer;
 
 import org.ngscript.parseroid.parser.Token;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author wssccc
  */
 public class Lexer {
-    private static Set<String> keywords = new HashSet<>(Arrays.asList("var", "true", "false", "null", "undefined",
+
+    private static final Set<String> KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            "var", "true", "false", "null", "undefined",
             "import", "function", "new", "if", "return",
             "break", "continue", "while", "switch", "case",
             "default", "typeof", "try", "catch", "finally",
-            "throw", "for", "else"));
+            "throw", "for", "else")));
 
-    SourceStream ss;
+    SourceReader reader;
 
-    public static ArrayList<Token> scan(String string) throws LexerException {
-        ArrayList<Token> tokens = new ArrayList<Token>();
+    public static List<Token> scan(String string) throws LexerException {
+        List<Token> tokens = new ArrayList<>();
         Token token;
         Lexer lexer = new Lexer(string);
         while ((token = lexer.getToken()) != null) {
@@ -44,171 +43,170 @@ public class Lexer {
                 tokens.add(token);
             }
         }
-        //tokens.add(lexer.ss.token("EOF"));
         return tokens;
     }
 
     private Lexer(String string) {
-        ss = new SourceStream(string);
+        reader = new SourceReader(string);
     }
 
     Token getToken() throws LexerException {
         int marker;
         //skip blanks
         while (true) {
-            char c = ss.peek();
-            if ((c == ' ' || c == '\t' || c == '\r' || c == '\n') && !ss.eof()) {
-                ss.forward();
+            char c = reader.peek();
+            if ((c == ' ' || c == '\t' || c == '\r' || c == '\n') && !reader.eof()) {
+                reader.forward();
             } else {
                 break;
             }
         }
         //read token
         char chr;
-        switch (chr = ss.read()) {
+        switch (chr = reader.read()) {
             case '/':
-                if (ss.peek() == '/') {
-                    marker = ss.pos + 1;
+                if (reader.peek() == '/') {
+                    marker = reader.position + 1;
                     while (true) {
-                        char c = ss.read();
+                        char c = reader.read();
                         if (c == '\0' || c == '\r' || c == '\n') {
-                            return ss.token("comment", substr(marker, ss.pos - 1));
+                            return token("comment", substr(marker, reader.position - 1));
                         }
                     }
                 } else {
-                    return ss.token("div");
+                    return token("div");
                 }
             case '.':
-                chr = ss.peek();
+                chr = reader.peek();
                 if (isNumeric(chr)) {
-                    marker = ss.pos - 1;
+                    marker = reader.position - 1;
                     while (true) {
-                        chr = ss.peek();
+                        chr = reader.peek();
                         if (chr == 'e' || isNumeric(chr)) {
-                            ss.forward();
+                            reader.forward();
                         } else {
-                            return ss.token("double", substr(marker, ss.pos));
+                            return token("double", substr(marker, reader.position));
                         }
                     }
                 } else {
-                    return ss.token("dot", ".");
+                    return token("dot", ".");
                 }
             case ';':
-                return ss.token("semicolon");
+                return token("semicolon");
             case '(':
-                return ss.token("lparen");
+                return token("lparen");
             case ')':
-                return ss.token("rparen");
+                return token("rparen");
             case '{':
-                return ss.token("lcurly");
+                return token("lcurly");
             case '}':
-                return ss.token("rcurly");
+                return token("rcurly");
             case '[':
-                return ss.token("lsqr");
+                return token("lsqr");
             case ']':
-                return ss.token("rsqr");
+                return token("rsqr");
             case '=':
-                if (ss.tryRead('=')) {
-                    if (ss.tryRead('=')) {
-                        return ss.token("veq");
+                if (reader.readNext('=')) {
+                    if (reader.readNext('=')) {
+                        return token("veq");
                     } else {
-                        return ss.token("eq");
+                        return token("eq");
                     }
                 } else {
-                    return ss.token("assign");
+                    return token("assign");
                 }
             case '!':
-                if (ss.tryRead('=')) {
-                    if (ss.tryRead('=')) {
-                        return ss.token("vneq");
+                if (reader.readNext('=')) {
+                    if (reader.readNext('=')) {
+                        return token("vneq");
                     } else {
-                        return ss.token("neq");
+                        return token("neq");
                     }
                 } else {
-                    return ss.token("not");
+                    return token("not");
                 }
             case '<':
                 return determine('=', "le", "lt");
             case '>':
                 return determine('=', "ge", "gt");
             case ',':
-                return ss.token("comma");
+                return token("comma");
             case '|':
                 return determine('|', "or", "bit_or");
             case '^':
-                return ss.token("xor");
+                return token("xor");
             case '&':
                 return determine('&', "and", "bit_and");
             case ':':
-                return ss.token("colon");
+                return token("colon");
             case '?':
-                return ss.token("question_mark");
+                return token("question_mark");
             case '+':
                 return determine('+', "inc", "add");
             case '-':
                 return determine('-', "dec", "sub");
             case '*':
-                return ss.token("mul");
+                return token("mul");
             case '%':
-                return ss.token("mod");
+                return token("mod");
             case '"':
-                marker = ss.pos;
+                marker = reader.position;
                 while (true) {
-                    switch (ss.read()) {
+                    switch (reader.read()) {
                         case '\\':
-                            ss.forward();
+                            reader.forward();
                             break;
                         case '\"':
-                            return ss.token("string", substr(marker, ss.pos - 1));
-                        case SourceStream.EOF:
-                            throw new LexerException("invalid string token. \r\n" + substr(marker, ss.pos - 1));
+                            return token("string", substr(marker, reader.position - 1));
+                        case SourceReader.EOF:
+                            throw new LexerException("invalid string token. \r\n" + substr(marker, reader.position - 1));
                         default:
                             //
                     }
                 }
-            case SourceStream.EOF:
+            case SourceReader.EOF:
                 return null;
             default:
                 if (isAlphabet(chr) || chr == '_') {
-                    marker = ss.pos - 1;
+                    marker = reader.position - 1;
                     while (true) {
-                        chr = ss.peek();
+                        chr = reader.peek();
                         if (isAlphabet(chr) || chr == '_' || isNumeric(chr)) {
                             //go on
-                            ss.forward();
+                            reader.forward();
                         } else {
-                            return translateIdent(substr(marker, ss.pos));
+                            return translateIdent(substr(marker, reader.position));
                         }
                     }
                 }
                 if (isNumeric(chr)) {
                     String type = "integer";
-                    marker = ss.pos - 1;
+                    marker = reader.position - 1;
                     while (true) {
-                        chr = ss.peek();
+                        chr = reader.peek();
                         if (chr == '.') {
-                            ss.forward();
+                            reader.forward();
                             type = "double";
                         } else if (chr == 'e') {
-                            ss.forward();
-                            ss.forward(); //skip a digit
+                            reader.forward();
+                            reader.forward(); //skip a digit
                             type = "double";
                         } else if (isNumeric(chr)) {
-                            ss.forward();
+                            reader.forward();
                         } else {
-                            return ss.token(type, substr(marker, ss.pos));
+                            return token(type, substr(marker, reader.position));
                         }
                     }
                 }
         }
-        throw new LexerException("unexpected char '" + chr + "'(" + (int) chr + ")" + ss.toString());
+        throw new LexerException("unexpected char '" + chr + "'(" + (int) chr + ")" + reader.toString());
     }
 
     Token translateIdent(String str) {
-        if (keywords.contains(str)) {
-            return ss.token(str);
+        if (KEYWORDS.contains(str)) {
+            return token(str);
         } else {
-            return ss.token("ident", str);
+            return token("ident", str);
         }
     }
 
@@ -220,15 +218,23 @@ public class Lexer {
         return (c >= '0' && c <= '9');
     }
 
-    Token determine(char nextchr, String ifTrue, String ifFalse) {
-        if (ss.tryRead(nextchr)) {
-            return ss.token(ifTrue);
+    Token determine(char next, String ifTrue, String ifFalse) {
+        if (reader.readNext(next)) {
+            return token(ifTrue);
         } else {
-            return ss.token(ifFalse);
+            return token(ifFalse);
         }
     }
 
     String substr(int begin, int end) {
-        return new String(ss.ch, begin, end - begin);
+        return new String(reader.chars, begin, end - begin);
+    }
+
+    private Token token(String type) {
+        return new Token(type, reader.lineNumber);
+    }
+
+    private Token token(String type, String value) {
+        return new Token(type, reader.lineNumber, value);
     }
 }

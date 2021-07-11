@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-package org.ngscript.fastlexer;
+package org.ngscript.parser.lexer;
+
+import org.ngscript.parseroid.parser.ParserException;
 
 /**
  * @author wssccc
  */
-public class LexerException extends Exception {
+public class LexerException extends ParserException {
 
     public LexerException(String message) {
         super(message);
