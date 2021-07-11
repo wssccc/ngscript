@@ -86,12 +86,13 @@ public class Assembler {
         }
     }
 
-    public static ArrayList<Instruction> toInstructions(String asm) {
-        ArrayList<Instruction> instructions = new ArrayList<Instruction>();
-        Scanner sc = new Scanner(asm);
-        while (sc.hasNextLine()) {
-            Instruction i = Assembler.parseLine(sc.nextLine());
-            instructions.add(i);
+    public static List<Instruction> toInstructions(String asm) {
+        List<Instruction> instructions = new ArrayList<>();
+        try (Scanner sc = new Scanner(asm)) {
+            while (sc.hasNextLine()) {
+                Instruction i = Assembler.parseLine(sc.nextLine());
+                instructions.add(i);
+            }
         }
         return instructions;
     }
