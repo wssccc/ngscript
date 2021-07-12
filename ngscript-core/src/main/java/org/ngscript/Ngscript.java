@@ -16,6 +16,7 @@
 
 package org.ngscript;
 
+import lombok.extern.slf4j.Slf4j;
 import org.ngscript.compiler.Compiler;
 import org.ngscript.compiler.CompilerException;
 import org.ngscript.compiler.Instruction;
@@ -34,6 +35,7 @@ import java.util.List;
 /**
  * @author wssccc
  */
+@Slf4j
 public class Ngscript {
 
     Configuration configuration;
@@ -68,12 +70,12 @@ public class Ngscript {
             parser.reduce(ast);
             NgLalrParser.removeNULL(ast);
             if (configuration.isGenerateDebugInfo()) {
-                System.out.println(ast);
+                log.info(ast.toString());
             }
             //
             List<Instruction> ins = compiler.compileCode(ast, code);
             if (configuration.isGenerateDebugInfo()) {
-                System.out.println(ins);
+                log.info(ins.toString());
             }
             vm.loadInstructions(ins);
             vm.run();
