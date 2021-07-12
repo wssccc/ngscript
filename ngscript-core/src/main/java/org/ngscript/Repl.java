@@ -16,6 +16,7 @@
 
 package org.ngscript;
 
+import lombok.extern.slf4j.Slf4j;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
@@ -29,6 +30,7 @@ import java.io.IOException;
 /**
  * @author wssccc
  */
+@Slf4j
 public class Repl {
 
     public static void main(String[] args) throws IOException {
@@ -58,7 +60,7 @@ public class Repl {
             } catch (UserInterruptException | EndOfFileException e) {
                 running = false;
             } catch (Exception ex) {
-                ex.printStackTrace();
+                log.info("compile error", ex);
             }
         }
         System.out.println("\nBye.");
