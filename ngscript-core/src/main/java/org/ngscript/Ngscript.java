@@ -51,7 +51,7 @@ public class Ngscript {
         this.parser = new NgLalrParser(configuration);
     }
 
-    public Object eval(String code) throws ParserException, CompilerException, LexerException {
+    public Object eval(String code) throws ParserException, CompilerException {
         feed(code);
         return vm.eax;
     }
