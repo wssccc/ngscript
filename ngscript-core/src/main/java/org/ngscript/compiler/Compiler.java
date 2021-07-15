@@ -199,6 +199,18 @@ public class Compiler {
                     assembler.emit("mov_eax", child.get(1).token.value);
                 }
                 break;
+            case "val":
+                if (!child.get(1).token.type.equals("ident")) {
+                    throw new CompilerException(this, "val statement expect an ident");
+                }
+                assembler.emit("clear", "%eax");
+                assembler.emit("val", child.get(1).token.value);
+                if (!byref) {
+                    assembler.emit("deref", child.get(1).token.value);
+                } else {
+                    assembler.emit("mov_eax", child.get(1).token.value);
+                }
+                break;
             case "array":
                 makeParam2(child);
                 assembler.emit("array_ref");

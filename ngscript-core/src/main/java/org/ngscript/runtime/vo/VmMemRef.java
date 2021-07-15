@@ -16,22 +16,34 @@
 
 package org.ngscript.runtime.vo;
 
+import lombok.Getter;
+
 /**
  * @author wssccc
  */
 public class VmMemRef {
 
     private Object value;
+    @Getter
+    private final boolean immutable;
 
     public VmMemRef() {
-        this.value = null;
+        this(null, false);
     }
 
     public VmMemRef(Object obj_v) {
-        this.value = obj_v;
+        this(obj_v, false);
+    }
+
+    public VmMemRef(Object value, boolean immutable) {
+        this.value = value;
+        this.immutable = immutable;
     }
 
     public void write(Object v) {
+        if (immutable && value != null) {
+            throw new RuntimeException("immutable");
+        }
         this.value = v;
     }
 

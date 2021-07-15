@@ -1,0 +1,20 @@
+val immutable = 1;
+
+try {
+    immutable = 2;
+} catch (e) {
+    println("can't change immutable");
+}
+
+val immutable2;
+
+// initialize once
+immutable2 = 1;
+try {
+    immutable2 = 2;
+} catch (e) {
+    println("can't change immutable2");
+}
+
+println(immutable);
+println(immutable2);

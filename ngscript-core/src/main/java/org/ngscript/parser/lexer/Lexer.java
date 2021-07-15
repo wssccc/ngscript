@@ -30,7 +30,7 @@ public class Lexer {
             "import", "function", "new", "if", "return",
             "break", "continue", "while", "switch", "case",
             "default", "typeof", "try", "catch", "finally",
-            "throw", "for", "else")));
+            "throw", "for", "else", "val")));
 
     SourceReader reader;
 

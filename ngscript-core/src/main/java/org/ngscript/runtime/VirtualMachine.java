@@ -30,8 +30,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * @author wssccc
@@ -211,14 +209,11 @@ public class VirtualMachine {
                 try {
                     //System.out.println(ex.getCause().toString());
                     //for detail
-                    System.out.println("eip=" + eip);
-                    Logger.getLogger(VirtualMachine.class.getName()).log(Level.SEVERE, null, ex);
                     exception.write(ex);
                     Op.restore_machine_state(this, null, null);
                 } catch (VmRuntimeException ex1) {
                     err.println("VM Exception");
                     err.println(ex1.toString());
-                    Logger.getLogger(VirtualMachine.class.getName()).log(Level.SEVERE, null, ex1.getCause());
                     throw ex1; //do not hold this type
                 }
             }

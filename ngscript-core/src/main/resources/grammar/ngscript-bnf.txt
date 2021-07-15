@@ -145,6 +145,7 @@
 
 //literals
 <expr9> ::= var ident;
+<expr9> ::= val ident;
 <expr9> ::= ident;
 <expr9> ::= undefined;
 <expr9> ::= double;

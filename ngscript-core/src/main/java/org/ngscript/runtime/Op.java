@@ -128,6 +128,10 @@ public class Op {
         ((Environment) vm.env.read()).data.put(param, new VmMemRef(vm.eax.read()));
     }
 
+    public static void val(VirtualMachine vm, String param, String param_extend) {
+        ((Environment) vm.env.read()).data.put(param, new VmMemRef(null, true));
+    }
+
     public static void member_ref(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
         String member = (String) objs[1];
