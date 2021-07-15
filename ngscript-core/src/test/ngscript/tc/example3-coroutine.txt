@@ -1,34 +1,32 @@
-//declare a function first
+// a coroutine function
 function f(a,b,c) {
       println("first = " + a);
-      //call yield to switch to previous
-      //and you can passing a retval
-      yield(1); 
-      //when resume at second time
-      //this coroutine will begins at here
+      // call yield to switch to previous context
+      // with a return value
+      yield(1);
+      // coroutine will resume here
       println("second = " + b);
       println("third = " + c);
 }
 
-//create coroutine
-var co = new Coroutine(f,"param 1","param 2","param 3"); 
-//use push to add args
-//co.push("p1");
-//co.push("p2");
+// start a coroutine
+var co = new Coroutine(f, "param 1", "param 2", "param 3");
+// push args, in the old-fashioned way
+// co.push("p1");
+// co.push("p2");
 
 println("coroutine status=" + co.status());
-//call resume to switch to coroutine
-//and will returned with a retval
+// call resume to switch to coroutine
+// and get the return value
 println("resume 1 = " + co.resume());
 println("coroutine status=" + co.status());
-//the second resume has nothing returned but garbages
+// the second resume has nothing returned
 println("resume 2 = " + co.resume());
 println("coroutine status=" + co.status());
-//when trying to resume a coroutine which is already returned
-//will throw an exception
+// don't resume a `returned` coroutine
 try {
       println("resume 3:");
       println(co.resume());
 } catch(e) {
-      println("you cannot resume a returned coroutine!");
+      println("can't resume a returned coroutine");
 }
