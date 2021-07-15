@@ -1,15 +1,13 @@
-var i;
-function a()
+function Obj()
 {
-	var c="1";
-	var cc = function ()
+	var c = "1";
+	var method = function ()
 	{
-		println("i'm cc");
-		println("upper c=" + (1+1));
+		println("in method");
+		println("c = " + c);
 	};
 }
 
-
-var b = new a();
-println(b.c,1,1,2,3);
-b.cc();
+var b = new Obj();
+println("b.c = " + b.c);
+b.method();
