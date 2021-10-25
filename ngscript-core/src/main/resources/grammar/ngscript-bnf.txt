@@ -4,7 +4,7 @@
 %equiv  <expr> <expr1> <expr2> <expr3> <expr4> <expr5>
         <expr6> <expr7> <expr8> <nullable_expr>
         <expr_bit_or> <expr_bit_xor> <expr_bit_and> <expr_cond>
-        <expr9> <expr_class>;
+        <expr9> <expr_class> <expr10>;
 %filter semicolon comma;
 
 <program> ::= <statements>;
@@ -173,6 +173,11 @@
 
 <kvp> ::= ident colon <expr>    => ident <expr>;
 <kvp> ::= string colon <expr> => string <expr>;
+
+<expr9> ::= <expr10> ;
+
+<expr10> ::= lparen <param_list> rparen_arrow_fn lcurly <statements> rcurly
+    => lambda <param_list> <statements>;
 
 <for_block> ::= for lparen <nullable_expr> semicolon <nullable_expr> semicolon <nullable_expr> rparen lcurly <statements> rcurly
     => <nullable_expr> <nullable_expr> <nullable_expr> <statements>;

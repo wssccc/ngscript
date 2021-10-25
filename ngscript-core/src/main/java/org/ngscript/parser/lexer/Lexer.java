@@ -53,14 +53,7 @@ public class Lexer {
     Token getToken() throws LexerException {
         int marker;
         //skip blanks
-        while (true) {
-            char c = reader.peek();
-            if ((c == ' ' || c == '\t' || c == '\r' || c == '\n') && !reader.eof()) {
-                reader.forward();
-            } else {
-                break;
-            }
-        }
+        reader.skipBlanks();
         //read token
         char chr;
         switch (chr = reader.read()) {
@@ -96,6 +89,12 @@ public class Lexer {
             case '(':
                 return token("lparen");
             case ')':
+                reader.skipBlanks();
+                if (reader.readNext('=')) {
+                    if (reader.readNext('>')) {
+                        return token("rparen_arrow_fn");
+                    }
+                }
                 return token("rparen");
             case '{':
                 return token("lcurly");

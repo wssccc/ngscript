@@ -29,11 +29,11 @@ import java.util.Scanner;
 @Slf4j
 public class SingleTest {
     public static void main(String[] args) throws Exception {
-        testInteractive();
+        test1Pass();
     }
 
     static void test1Pass() throws Exception {
-        new Ngscript().eval(IOUtils.toString(new FileInputStream("src/test/ngscript/tc/example1.txt"), StandardCharsets.UTF_8));
+        new Ngscript().eval(IOUtils.toString(new FileInputStream("ngscript-core/src/test/ngscript/tc/example6.txt"), StandardCharsets.UTF_8));
     }
 
     static void testInteractive() throws Exception {

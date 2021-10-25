@@ -51,6 +51,18 @@ public class SourceReader {
         return c;
     }
 
+    public void skipBlanks() {
+        //skip blanks
+        while (true) {
+            char c = peek();
+            if ((c == ' ' || c == '\t' || c == '\r' || c == '\n') && !eof()) {
+                forward();
+            } else {
+                break;
+            }
+        }
+    }
+
     public char peek() {
         return position < chars.length ? chars[position] : EOF;
     }
