@@ -21,6 +21,7 @@ import org.ngscript.parseroid.grammar.Symbol;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -28,7 +29,7 @@ import java.util.Set;
  */
 public class CanonicalCollection {
 
-    public ArrayList<ItemSet> cc = new ArrayList<ItemSet>();
+    public List<ItemSet> cc = new ArrayList<>();
     private Grammar grammar;
 
     public CanonicalCollection(Grammar grammar) {
@@ -40,7 +41,7 @@ public class CanonicalCollection {
      */
     public void buildCC() {
         //store expanded items
-        Set<ItemSet> expanded = new HashSet<ItemSet>();
+        Set<ItemSet> expanded = new HashSet<>();
         boolean changed = true;
         while (changed) {
             changed = false;

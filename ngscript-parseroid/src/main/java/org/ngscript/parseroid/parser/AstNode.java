@@ -17,6 +17,7 @@
 package org.ngscript.parseroid.parser;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author wssccc
@@ -24,7 +25,7 @@ import java.util.ArrayList;
 public class AstNode {
 
     public Token token;
-    public ArrayList<AstNode> contents;
+    public List<AstNode> contents;
 
     public AstNode(Token token) {
         this.token = token;

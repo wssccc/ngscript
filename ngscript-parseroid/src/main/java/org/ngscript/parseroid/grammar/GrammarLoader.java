@@ -28,7 +28,7 @@ public class GrammarLoader {
 
     public static Grammar loadBnfString(String bnfString) throws FileNotFoundException {
 
-        Queue<String> q = new LinkedList<String>();
+        Queue<String> q = new LinkedList<>();
         Scanner sc = new Scanner(bnfString);
 
         sc.useDelimiter(";|//.*");

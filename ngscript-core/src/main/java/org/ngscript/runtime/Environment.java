@@ -16,8 +16,8 @@
 
 package org.ngscript.runtime;
 
-import org.ngscript.runtime.vo.JavaMethod;
 import org.ngscript.runtime.vo.JavaMemRef;
+import org.ngscript.runtime.vo.JavaMethod;
 import org.ngscript.runtime.vo.VmMemRef;
 import org.ngscript.runtime.vo.undefined;
 
@@ -25,13 +25,14 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author wssccc
  */
 public class Environment {
 
-    HashMap<String, VmMemRef> data = new HashMap<>();
+    Map<String, VmMemRef> data = new HashMap<>();
     Environment parent;
 
     public Environment(Environment parent) {

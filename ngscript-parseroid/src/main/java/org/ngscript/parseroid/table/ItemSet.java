@@ -28,8 +28,8 @@ import java.util.*;
 public class ItemSet {
 
     int id;
-    ArrayList<Item> items = new ArrayList<Item>();
-    HashMap<Symbol, ItemSet> go = new HashMap<Symbol, ItemSet>();
+    List<Item> items = new ArrayList<>();
+    Map<Symbol, ItemSet> go = new HashMap<>();
 
     public ItemSet() {
         this.id = -1;

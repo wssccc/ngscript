@@ -123,7 +123,7 @@ public class Compiler {
     }
 
     private void _compile_expr_opr(AstNode ast, boolean byref) throws CompilerException {
-        ArrayList<AstNode> child = ast.contents;
+        List<AstNode> child = ast.contents;
         String header = child.get(0).token.type;
         switch (header) {
             case "assign":
@@ -309,7 +309,7 @@ public class Compiler {
 
         AstNode params = ast.getNode("param_list");
 
-        ArrayList<AstNode> contents = params.contents;
+        List<AstNode> contents = params.contents;
         for (int i = 0; i < contents.size(); i++) {
             AstNode content = contents.get(i);
             assembler.emit("pickarg", i + "");
@@ -532,7 +532,7 @@ public class Compiler {
     private void _compile_funcall(AstNode ast) throws CompilerException {
         //params
         int paramCount = 0;
-        ArrayList<AstNode> contents = ast.contents.get(2).contents;
+        List<AstNode> contents = ast.contents.get(2).contents;
         for (int i = contents.size() - 1; i >= 0; i--) {
             AstNode content = contents.get(i);
             if (!content.token.type.equals("NULL")) {

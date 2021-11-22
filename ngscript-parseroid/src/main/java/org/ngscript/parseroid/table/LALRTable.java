@@ -19,9 +19,11 @@ package org.ngscript.parseroid.table;
 import org.ngscript.parseroid.grammar.Grammar;
 import org.ngscript.parseroid.grammar.Production;
 import org.ngscript.parseroid.grammar.Symbol;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author wssccc
@@ -29,7 +31,7 @@ import java.util.HashMap;
 public class LALRTable implements Serializable {
 
     public Grammar g;
-    HashMap<String, HashMap<Integer, ParserAction>> data = new HashMap<String, HashMap<Integer, ParserAction>>();
+    Map<String, HashMap<Integer, ParserAction>> data = new HashMap<>();
 
     public LALRTable(Grammar g) {
         this.g = g;

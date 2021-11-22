@@ -36,14 +36,14 @@ import java.util.Map;
  */
 public class VirtualMachine {
 
-    HashMap<String, Method> cpuMethodCache = new HashMap<String, Method>();
+    Map<String, Method> cpuMethodCache = new HashMap<>();
     //static data
     OpBinding[] instructions = new OpBinding[0];
-    HashMap<String, Integer> labels = new HashMap<String, Integer>();
+    Map<String, Integer> labels = new HashMap<>();
 
-    HashMap<String, String> imported = new HashMap<String, String>();
-    FastStack<Context> machine_state_stack = new FastStack<Context>(32);
-    FastStack<Context> contextStack = new FastStack<Context>(32);
+    Map<String, String> imported = new HashMap<>();
+    FastStack<Context> machine_state_stack = new FastStack<>(32);
+    FastStack<Context> contextStack = new FastStack<>(32);
 
     //machine states
     Instruction helptext;
@@ -121,7 +121,7 @@ public class VirtualMachine {
         }
     }
 
-    void init_builtins(HashMap<String, VmMemRef> map) {
+    void init_builtins(Map<String, VmMemRef> map) {
         map.put("println", new VmMemRef(new VmMethod() {
             @Override
             public void invoke(VirtualMachine vm, Object[] vars) {

@@ -29,7 +29,7 @@ public class Item {
 
     Production production;
     int pos;
-    HashMap<String, Symbol> lookahead = new HashMap<String,Symbol>();
+    Map<String, Symbol> lookahead = new HashMap<>();
 
     public Item(Production production, int pos) {
         this.production = production;
