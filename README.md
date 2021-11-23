@@ -60,6 +60,19 @@ Use `var` to explicitly define a variable
 >       };
 >
 
+>       val f2 = (x, y) => { x + y; };
+>
+>       val f3 = (x) => {
+>           return x + 1;
+>       };
+>
+>       val f4 = (x ,y) => {
+>           return x + y;
+>       };
+>
+>       println("call an arrow func");
+>       println(f3(1));
+
 #### Java Method Reference
 
 >**Examples**
