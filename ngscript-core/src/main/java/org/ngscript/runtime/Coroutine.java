@@ -122,7 +122,7 @@ public final class Coroutine extends FunctionDef {
          3 is the offset from native call to the next instruction after call frame
          when calling back, we should not touch the pops for yield
          */
-        context.eip = vm.eip + 3;
+        context.eip = vm.getEip() + 3;
         /*
          when jumping back, will meet the pops for resume call,
          the pops for resume will be used to clear the frame of calling coroutine body

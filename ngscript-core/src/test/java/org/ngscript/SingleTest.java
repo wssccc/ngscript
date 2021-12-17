@@ -33,7 +33,7 @@ public class SingleTest {
     }
 
     static void test1Pass() throws Exception {
-        new Ngscript().eval(IOUtils.toString(new FileInputStream("ngscript-core/src/test/ngscript/tc/example6.txt"), StandardCharsets.UTF_8));
+        new Ngscript().eval(IOUtils.toString(new FileInputStream("ngscript-core/src/test/ngscript/tc/example9.txt"), StandardCharsets.UTF_8));
     }
 
     static void testInteractive() throws Exception {

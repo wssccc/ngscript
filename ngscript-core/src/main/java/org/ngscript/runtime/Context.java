@@ -39,7 +39,7 @@ public class Context {
     public final void save(VirtualMachine vm) {
         this.eax = vm.eax.read();
         this.env = (Environment) vm.env.read();
-        this.eip = vm.eip;
+        this.eip = vm.getEip();
         this.hint = vm.helptext;
         this.stackSize = vm.stack.size();
         this.callStackSize = vm.callstack.size();
@@ -49,7 +49,7 @@ public class Context {
     public final void restore(VirtualMachine vm) {
         vm.eax.write(eax);
         vm.env.write(env);
-        vm.eip = eip;
+        vm.setEip(eip);
         vm.helptext = hint;
         vm.stack = stack;
         //the following while loop is to ensure the stack is balanced when in a try catch block

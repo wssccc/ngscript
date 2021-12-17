@@ -121,7 +121,7 @@ public class Op {
     }
 
     public static void push_eip(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        vm.stack.push(vm.eip);
+        vm.stack.push(vm.getEip());
     }
 
     public static void set(VirtualMachine vm, String param, String param_extend) {
@@ -296,11 +296,11 @@ public class Op {
     public static void jmp(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         if ("offset".equals(param)) {
             int nip = (Integer) vm.eax.read();
-            vm.eip = nip + Integer.parseInt(param_extend);
+            vm.setEip(nip + Integer.parseInt(param_extend));
         } else {
             if (vm.labels.containsKey(param)) {
                 int nip = vm.labels.get(param);
-                vm.eip = nip;
+                vm.setEip(nip);
             } else {
                 throw new VmRuntimeException(vm, "jump to no where " + param);
             }
@@ -312,7 +312,7 @@ public class Op {
         if (!OpUtils.testValue(testObj)) {
             if (vm.labels.containsKey(param)) {
                 int nip = vm.labels.get(param);
-                vm.eip = nip;
+                vm.setEip(nip);
             } else {
                 throw new VmRuntimeException(vm, "jump to no where");
             }
@@ -324,7 +324,7 @@ public class Op {
         if (OpUtils.testValue(testObj)) {
             if (vm.labels.containsKey(param)) {
                 int nip = vm.labels.get(param);
-                vm.eip = nip;
+                vm.setEip(nip);
             } else {
                 throw new VmRuntimeException(vm, "jump to no where");
             }
@@ -392,7 +392,7 @@ public class Op {
     public static void ret(VirtualMachine vm, String param, String param_extend) {
         int nip = (Integer) vm.stack.pop();
         vm.callstack.pop();
-        vm.eip = nip;
+        vm.setEip(nip);
     }
 
     public static void add(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
@@ -481,8 +481,8 @@ public class Op {
             Environment env = new Environment((Environment) c.environment);
             vm.env.write(env);
             int nip = vm.labels.get(c.functionLabel);
-            vm.stack.push(vm.eip);
-            vm.eip = nip;
+            vm.stack.push(vm.getEip());
+            vm.setEip(nip);
             return;
         }
 
@@ -604,4 +604,14 @@ public class Op {
         vm.stack.pop(); //params
     }
 
+    public static void go(VirtualMachine vm, String param, String param_extend) {
+        new Thread(() -> {
+            jmp(vm, param, param_extend);
+            vm.run();
+        }).start();
+    }
+
+    public static void halt(VirtualMachine vm, String param, String param_extend) {
+        vm.setEip(-1);
+    }
 }

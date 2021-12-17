@@ -40,7 +40,7 @@ public class ConformanceTest {
             if (file.isFile()) {
                 System.out.println("Testing " + file);
                 testEval(file);
-                testInteractive(file);
+                // testInteractive(file);
             }
         }
     }

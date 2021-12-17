@@ -56,7 +56,7 @@ public class VirtualMachine {
     public final VmMemRef exception = new VmMemRef();
 
     public final VmMemRef env = new VmMemRef();
-    int eip = 0;
+    private ThreadLocal<Integer> eip = ThreadLocal.withInitial(() -> 0);
     //
 
     PrintWriter out;
@@ -66,7 +66,7 @@ public class VirtualMachine {
         this.out = out;
         this.err = err;
         //init register
-        eip = 0;
+        setEip(0);
         env.write(new Environment(null));
         init_builtins(((Environment) env.read()).data);
         //init_builtins(func);
@@ -172,7 +172,7 @@ public class VirtualMachine {
         exception.write(null);
         eax.write(null);
         while (true) {
-            if (eip < 0 || eip >= instructions.length) {
+            if (getEip() < 0 || getEip() >= instructions.length) {
                 //halted, try upper context
                 if (!contextStack.isEmpty()) {
                     Context lastContext = contextStack.pop();
@@ -182,8 +182,8 @@ public class VirtualMachine {
                 }
             }
 
-            OpBinding instruction = instructions[eip];
-            ++eip;
+            OpBinding instruction = instructions[getEip()];
+            setEip(getEip() + 1);
             if (instruction.op.equals("//")) {
                 helptext = instruction;
                 continue;
@@ -218,5 +218,13 @@ public class VirtualMachine {
                 }
             }
         }
+    }
+
+    public int getEip() {
+        return eip.get();
+    }
+
+    public void setEip(int eip) {
+        this.eip.set(eip);
     }
 }

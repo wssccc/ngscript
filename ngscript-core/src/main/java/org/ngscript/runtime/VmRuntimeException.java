@@ -45,8 +45,8 @@ public class VmRuntimeException extends RuntimeException {
                     .append("\r\nnear code line ").append(vm.helptext.paramExtended).append("\r\n")
                     .append(vm.helptext.toString())
                     .append("\r\n========== VM STATUS ==========\r\n")
-                    .append("%eip = ").append(vm.eip).append("\r\n")
-                    .append("ins = ").append(vm.instructions[vm.eip - 1]).append("\r\n")
+                    .append("%eip = ").append(vm.getEip()).append("\r\n")
+                    .append("ins = ").append(vm.instructions[vm.getEip() - 1]).append("\r\n")
                     .append("%env = ").append((vm.env.read()).toString()).append("\r\n")
                     .append("%eax = ").append(vm.eax.read() == null ? "null" : vm.eax.read().toString()).append("\r\n")
                     .append("==============================\r\n");

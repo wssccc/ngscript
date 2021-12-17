@@ -28,10 +28,7 @@ import java.util.*;
  */
 public class Compiler {
 
-    private static final Set<String> BINARY_OP = new HashSet<>(Arrays.asList(
-            "bit_xor", "bit_or", "bit_and", "eq", "neq", "lt", "gt", "le", "ge",
-            "veq", "vneq", "mul", "mod", "div", "add", "sub"
-    ));
+    private static final Set<String> BINARY_OP = new HashSet<>(Arrays.asList("bit_xor", "bit_or", "bit_and", "eq", "neq", "lt", "gt", "le", "ge", "veq", "vneq", "mul", "mod", "div", "add", "sub"));
 
     Configuration configuration;
 
@@ -105,6 +102,22 @@ public class Compiler {
             sb.append(ast.contents.get(i).token.value);
         }
         assembler.emit("import_", sb.toString());
+    }
+
+    private void compile_go_statement(AstNode ast) throws CompilerException {
+        String entryLabel = assembler.label("entry", ast);
+        String goLabel = assembler.label("go", ast);
+        assembler.emit("jmp", goLabel);
+        assembler.emit("label", entryLabel);
+
+        _compile_funcall(ast);
+        assembler.emit("pop_env");
+        assembler.emit("pop");//pop params
+        assembler.emit("pop");//pop function body
+
+        assembler.emit("halt");
+        assembler.emit("label", goLabel);
+        assembler.emit("go", entryLabel);
     }
 
     private void compile_expr(AstNode ast) throws CompilerException {
@@ -349,37 +362,37 @@ public class Compiler {
     }
 
     private void compile_for_block(AstNode ast) throws CompilerException {
-        String testLable = assembler.label("test", ast);
+        String testLabel = assembler.label("test", ast);
         String continueLabel = assembler.label("continue", ast);
         String breakLabel = assembler.label("break", ast);
         breakLabels.push(breakLabel);
         continueLabels.push(continueLabel);
         _compile_nullable_expr(ast.contents.get(0));
-        assembler.emit("label", testLable);
+        assembler.emit("label", testLabel);
         _compile_nullable_expr(ast.contents.get(1));
         assembler.emit("jz", breakLabel);
         compile_statements(ast.contents.get(3));
         assembler.emit("label", continueLabel);
         _compile_nullable_expr(ast.contents.get(2));
-        assembler.emit("jmp", testLable);
+        assembler.emit("jmp", testLabel);
         assembler.emit("label", breakLabel);
         breakLabels.pop();
         continueLabels.pop();
     }
 
     private void compile_while_block(AstNode ast) throws CompilerException {
-        String testLable = assembler.label("test", ast);
+        String testLabel = assembler.label("test", ast);
         String continueLabel = assembler.label("continue", ast);
         String breakLabel = assembler.label("break", ast);
         breakLabels.push(breakLabel);
         continueLabels.push(continueLabel);
 
-        assembler.emit("label", testLable);
+        assembler.emit("label", testLabel);
         compile_expr(ast.contents.get(0));
         assembler.emit("jz", breakLabel);
         compile_statements(ast.contents.get(1));
         assembler.emit("label", continueLabel);
-        assembler.emit("jmp", testLable);
+        assembler.emit("jmp", testLabel);
         assembler.emit("label", breakLabel);
         breakLabels.pop();
         continueLabels.pop();
@@ -456,13 +469,13 @@ public class Compiler {
     }
 
     private void compile_if_block(AstNode ast) throws CompilerException {
-        String exitLable = assembler.label("exit", ast);
+        String exitLabel = assembler.label("exit", ast);
 
         compile_expr(ast.contents.get(0));
-        assembler.emit("jz", exitLable);
+        assembler.emit("jz", exitLabel);
         compile_statements(ast.contents.get(1));
 
-        assembler.emit("label", exitLable);
+        assembler.emit("label", exitLabel);
     }
 
     private void compile_if_else_block(AstNode ast) throws CompilerException {

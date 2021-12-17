@@ -1,0 +1,6 @@
+val f = function(arg) {
+    println("in other routine " + arg);
+};
+
+go f(123);
+println("in main routine");

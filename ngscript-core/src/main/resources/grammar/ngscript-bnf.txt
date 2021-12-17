@@ -24,6 +24,9 @@
 <statement> ::= <fc_statement>;
 <statement> ::= <throw_exception>;
 <statement> ::= <import_statement>;
+<statement> ::= <go_statement>;
+
+<go_statement> ::= go <expr8> lparen <params> rparen semicolon => go <expr8> <params>;
 
 <import_statement> ::= import <package_path> semicolon;
 <package_path> ::= ident dot <package_path>;
