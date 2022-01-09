@@ -86,6 +86,18 @@ Use `var` to explicitly define a variable
 >       //call the reference to get the element of index 1
 >       println(ref_get(1));
 
+### Go statement
+
+>**Examples**
+>
+>       val f = function(arg) {
+>           println("in other routine " + arg);
+>       };
+>
+>       go f(123);
+>       println("in main routine");
+>
+
 ### Object
 
 #### ngscript object
