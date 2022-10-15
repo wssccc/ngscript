@@ -1,0 +1,2 @@
+grammar Test;
+r :'hello';
