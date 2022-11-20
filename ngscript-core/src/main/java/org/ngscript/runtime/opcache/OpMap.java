@@ -21,7 +21,6 @@ import javassist.CtClass;
 import javassist.CtNewConstructor;
 import javassist.CtNewMethod;
 import org.apache.commons.lang3.StringUtils;
-import org.ngscript.runtime.InvokableInstruction;
 import org.ngscript.runtime.Op;
 import org.ngscript.runtime.VirtualMachine;
 
@@ -32,7 +31,7 @@ import java.util.Map;
 
 public class OpMap {
 
-    private Map<String, InvokableInstruction> map;
+    private Map<String, OpInvokable> map;
     private ClassPool classPool = new ClassPool(true);
 
     public static OpMap INSTANCE = new OpMap();
@@ -41,7 +40,7 @@ public class OpMap {
         init();
     }
 
-    public Map<String, InvokableInstruction> getMap() {
+    public Map<String, OpInvokable> getMap() {
         return map;
     }
 
@@ -64,13 +63,13 @@ public class OpMap {
         map = Collections.unmodifiableMap(map);
     }
 
-    private InvokableInstruction toInstruction(String inst, String appendInst, String appendCode) throws Exception {
-        CtClass mCtc = classPool.makeClass(InvokableInstruction.class.getName() + StringUtils.capitalize(inst + appendInst));
-        mCtc.addInterface(classPool.get(InvokableInstruction.class.getName()));
+    private OpInvokable toInstruction(String inst, String appendInst, String appendCode) throws Exception {
+        CtClass mCtc = classPool.makeClass(OpInvokable.class.getName() + StringUtils.capitalize(inst + appendInst));
+        mCtc.addInterface(classPool.get(OpInvokable.class.getName()));
         mCtc.addConstructor(CtNewConstructor.defaultConstructor(mCtc));
         mCtc.addMethod(CtNewMethod.make("public void invoke(VirtualMachine runtime, String param, String param_extend) throws VmRuntimeException { Op." + inst + "(runtime,param,param_extend);" + appendCode + "}", mCtc));
         Class pc = mCtc.toClass();
-        InvokableInstruction bytecodeProxy = (InvokableInstruction) pc.newInstance();
+        OpInvokable bytecodeProxy = (OpInvokable) pc.newInstance();
         /*
         FileOutputStream fos = new FileOutputStream("target/" + pc.getSimpleName() + ".class");
         fos.write(mCtc.toBytecode());

@@ -384,7 +384,7 @@ public class Op {
     }
 
     public static void clear_call_stack(VirtualMachine vm, String param, String param_extend) {
-        while (vm.callstack.size() > vm.call_stack_size) {
+        while (vm.callstack.size() > vm.callStackSize) {
             vm.callstack.pop();
         }
     }
@@ -487,9 +487,9 @@ public class Op {
         }
 
         //call native things
-        if (callee instanceof VmMethod) {
+        if (callee instanceof VmInvokable) {
             try {
-                ((VmMethod) callee).invoke(vm, args);
+                ((VmInvokable) callee).invoke(vm, args);
             } catch (Exception ex) {
                 Logger.getLogger(VirtualMachine.class.getName()).log(Level.SEVERE, null, ex);
                 Object e = ex.getCause();
@@ -549,15 +549,15 @@ public class Op {
 
     public static void save_machine_state(VirtualMachine vm, String param, String param_extend) {
         Context ms = new Context(vm);
-        vm.machine_state_stack.push(ms);
+        vm.machineStateStack.push(ms);
     }
 
     public static void drop_machine_state(VirtualMachine vm, String param, String param_extend) {
-        vm.machine_state_stack.pop();
+        vm.machineStateStack.pop();
     }
 
     public static void restore_machine_state(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        if (vm.machine_state_stack.isEmpty()) {
+        if (vm.machineStateStack.isEmpty()) {
             Object ex = vm.exception.read();
             if (ex instanceof VmRuntimeException) {
                 throw (VmRuntimeException) ex;
@@ -565,7 +565,7 @@ public class Op {
                 throw new VmRuntimeException(vm, ex.toString());
             }
         } else {
-            Context ms = vm.machine_state_stack.pop();
+            Context ms = vm.machineStateStack.pop();
             ms.restore(vm);
         }
     }

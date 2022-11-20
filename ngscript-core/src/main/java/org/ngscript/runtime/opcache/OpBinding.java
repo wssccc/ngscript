@@ -17,20 +17,19 @@
 package org.ngscript.runtime.opcache;
 
 import org.ngscript.compiler.Instruction;
-import org.ngscript.runtime.InvokableInstruction;
 import org.ngscript.runtime.VirtualMachine;
 import org.ngscript.runtime.VmRuntimeException;
 
 public class OpBinding extends Instruction {
 
-    InvokableInstruction invokableInstruction;
+    OpInvokable opInvokable;
 
-    public OpBinding(Instruction instruction, InvokableInstruction invokableInstruction) {
+    public OpBinding(Instruction instruction, OpInvokable opInvokable) {
         super(instruction.op, instruction.param, instruction.paramExtended);
-        this.invokableInstruction = invokableInstruction;
+        this.opInvokable = opInvokable;
     }
 
     public void invoke(VirtualMachine vm) throws VmRuntimeException {
-        invokableInstruction.invoke(vm, param, paramExtended);
+        opInvokable.invoke(vm, param, paramExtended);
     }
 }

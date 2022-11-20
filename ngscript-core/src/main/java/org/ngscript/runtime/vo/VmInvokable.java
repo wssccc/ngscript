@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
-package org.ngscript.runtime;
+package org.ngscript.runtime.vo;
 
-public interface InvokableInstruction {
+import org.ngscript.runtime.VirtualMachine;
 
-    void invoke(VirtualMachine vm, String param, String paramEx) throws VmRuntimeException;
+/**
+ * @author wssccc
+ */
+public interface VmInvokable {
+
+    void invoke(VirtualMachine vm, Object[] args) throws Exception;
 }

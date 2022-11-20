@@ -28,7 +28,7 @@ import java.util.Arrays;
 /**
  * @author wssccc
  */
-public class JavaMethod implements VmMethod {
+public class JavaMethod implements VmInvokable {
 
     public Object caller;
     public ArrayList<Method> methods;

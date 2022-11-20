@@ -27,7 +27,7 @@ public class Context {
     Object eax;
     Environment env;
     int eip;
-    Instruction hint;
+    Instruction hints;
     int stackSize;
     int callStackSize;
     FastStack<Object> stack;
@@ -40,7 +40,7 @@ public class Context {
         this.eax = vm.eax.read();
         this.env = (Environment) vm.env.read();
         this.eip = vm.getEip();
-        this.hint = vm.helptext;
+        this.hints = vm.hints;
         this.stackSize = vm.stack.size();
         this.callStackSize = vm.callstack.size();
         this.stack = vm.stack;
@@ -50,12 +50,12 @@ public class Context {
         vm.eax.write(eax);
         vm.env.write(env);
         vm.setEip(eip);
-        vm.helptext = hint;
+        vm.hints = hints;
         vm.stack = stack;
-        //the following while loop is to ensure the stack is balanced when in a try catch block
+
         while (vm.stack.size() > stackSize) {
             vm.stack.pop();
         }
-        vm.call_stack_size = callStackSize;
+        vm.callStackSize = callStackSize;
     }
 }

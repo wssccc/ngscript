@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 wssccc
+ * Copyright 2023 wssccc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,12 @@
  * limitations under the License.
  */
 
-package org.ngscript.runtime.vo;
+package org.ngscript.runtime.opcache;
 
 import org.ngscript.runtime.VirtualMachine;
+import org.ngscript.runtime.VmRuntimeException;
 
-/**
- * @author wssccc
- */
-public interface VmMethod {
+public interface OpInvokable {
 
-    void invoke(VirtualMachine vm, Object[] vars) throws Exception;
+    void invoke(VirtualMachine vm, String param, String paramEx) throws VmRuntimeException;
 }

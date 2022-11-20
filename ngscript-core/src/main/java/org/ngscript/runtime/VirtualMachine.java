@@ -18,10 +18,11 @@ package org.ngscript.runtime;
 
 import org.ngscript.compiler.Instruction;
 import org.ngscript.runtime.opcache.OpBinding;
+import org.ngscript.runtime.opcache.OpInvokable;
 import org.ngscript.runtime.opcache.OpMap;
 import org.ngscript.runtime.vo.FunctionDef;
+import org.ngscript.runtime.vo.VmInvokable;
 import org.ngscript.runtime.vo.VmMemRef;
-import org.ngscript.runtime.vo.VmMethod;
 import org.ngscript.utils.FastStack;
 
 import java.io.PrintWriter;
@@ -42,15 +43,15 @@ public class VirtualMachine {
     Map<String, Integer> labels = new HashMap<>();
 
     Map<String, String> imported = new HashMap<>();
-    FastStack<Context> machine_state_stack = new FastStack<>(32);
+    FastStack<Context> machineStateStack = new FastStack<>(32);
     FastStack<Context> contextStack = new FastStack<>(32);
 
     //machine states
-    Instruction helptext;
+    Instruction hints;
     FastStack<Object> stack = new FastStack<>(32);
     FastStack<FunctionDef> callstack = new FastStack<FunctionDef>(32);
     //temp var for clear callStackSize op
-    int call_stack_size;
+    int callStackSize;
     //registers
     public final VmMemRef eax = new VmMemRef();
     public final VmMemRef exception = new VmMemRef();
@@ -68,13 +69,13 @@ public class VirtualMachine {
         //init register
         setEip(0);
         env.write(new Environment(null));
-        init_builtins(((Environment) env.read()).data);
+        initBuiltins(((Environment) env.read()).data);
         //init_builtins(func);
     }
 
-    public void printEax(boolean highlight) {
+    public void printEax(boolean colorize) {
         if (eax.read() != null) {
-            out.println((highlight ? "[[b;white;black]%eax] = " : "%eax = ") + ((eax.read() == null ? "null" : eax.read()) + " (" + (eax.read() == null ? "null" : (eax.read().getClass().isAnonymousClass() ? eax.read().getClass().getSuperclass().getSimpleName() : eax.read().getClass().getSimpleName()))) + ")");
+            out.println((colorize ? "[[b;white;black]%eax] = " : "%eax = ") + ((eax.read() == null ? "null" : eax.read()) + " (" + (eax.read() == null ? "null" : (eax.read().getClass().isAnonymousClass() ? eax.read().getClass().getSuperclass().getSimpleName() : eax.read().getClass().getSimpleName()))) + ")");
         }
     }
 
@@ -97,7 +98,7 @@ public class VirtualMachine {
     }
 
     public void loadInstructions(List<Instruction> ins2) {
-        Map<String, InvokableInstruction> map = OpMap.INSTANCE.getMap();
+        Map<String, OpInvokable> map = OpMap.INSTANCE.getMap();
         //
         ArrayList<OpBinding> ins = new ArrayList<>();
         for (Instruction instruction : ins2) {
@@ -121,39 +122,39 @@ public class VirtualMachine {
         }
     }
 
-    void init_builtins(Map<String, VmMemRef> map) {
-        map.put("println", new VmMemRef(new VmMethod() {
+    void initBuiltins(Map<String, VmMemRef> map) {
+        map.put("println", new VmMemRef(new VmInvokable() {
             @Override
-            public void invoke(VirtualMachine vm, Object[] vars) {
-                for (Object var : vars) {
+            public void invoke(VirtualMachine vm, Object[] args) {
+                for (Object var : args) {
                     out.print(var);
                 }
                 out.println();
                 out.flush();
             }
         }));
-        map.put("print", new VmMemRef(new VmMethod() {
+        map.put("print", new VmMemRef(new VmInvokable() {
             @Override
-            public void invoke(VirtualMachine vm, Object[] vars) {
-                for (Object var : vars) {
+            public void invoke(VirtualMachine vm, Object[] args) {
+                for (Object var : args) {
                     out.print(var);
                 }
                 out.flush();
             }
         }));
-        map.put("assert", new VmMemRef(new VmMethod() {
+        map.put("assert", new VmMemRef(new VmInvokable() {
             @Override
-            public void invoke(VirtualMachine vm, Object[] vars) {
-                for (Object var : vars) {
+            public void invoke(VirtualMachine vm, Object[] args) {
+                for (Object var : args) {
                     if (!OpUtils.testValue(var)) {
                         throw new VmRuntimeException("Assertion failed");
                     }
                 }
             }
         }));
-        map.put("Object", new VmMemRef(new VmMethod() {
+        map.put("Object", new VmMemRef(new VmInvokable() {
             @Override
-            public void invoke(VirtualMachine vm, Object[] vars) {
+            public void invoke(VirtualMachine vm, Object[] args) {
                 //prepare env
                 Environment env = new Environment((Environment) vm.env.read());
                 vm.env.write(env);
@@ -173,7 +174,6 @@ public class VirtualMachine {
         eax.write(null);
         while (true) {
             if (getEip() < 0 || getEip() >= instructions.length) {
-                //halted, try upper context
                 if (!contextStack.isEmpty()) {
                     Context lastContext = contextStack.pop();
                     lastContext.restore(this);
@@ -185,36 +185,19 @@ public class VirtualMachine {
             OpBinding instruction = instructions[getEip()];
             setEip(getEip() + 1);
             if (instruction.op.equals("//")) {
-                helptext = instruction;
+                hints = instruction;
                 continue;
             }
-            //System.out.println("eval " + eip + "\t" + instruction);
             try {
-                //instant accleration
-                //AutoCreatedCpuDispatcher.dispatch(instruction, this);
                 instruction.invoke(this);
-//                if (AutoCreatedCpuDispatcher.dispatch(instruction, this)) {
-//                    continue;
-//                }
-//                Method m;
-//                if (cpuMethodCache.containsKey(instruction.op)) {
-//                    m = cpuMethodCache.get(instruction.op);
-//                } else {
-//                    m = Op.class.getMethod(instruction.op, VirtualMachine.class, String.class, String.class);
-//                    cpuMethodCache.put(instruction.op, m);
-//                }
-//                m.invoke(Op.class, this, instruction.param, instruction.paramExtended);
-
             } catch (Exception ex) {
                 try {
-                    //System.out.println(ex.getCause().toString());
-                    //for detail
                     exception.write(ex);
                     Op.restore_machine_state(this, null, null);
                 } catch (VmRuntimeException ex1) {
                     err.println("VM Exception");
-                    err.println(ex1.toString());
-                    throw ex1; //do not hold this type
+                    err.println(ex1);
+                    throw ex1;
                 }
             }
         }
