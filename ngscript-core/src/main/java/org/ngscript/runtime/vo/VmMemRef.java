@@ -31,8 +31,8 @@ public class VmMemRef {
         this(null, false);
     }
 
-    public VmMemRef(Object obj_v) {
-        this(obj_v, false);
+    public VmMemRef(Object obj) {
+        this(obj, false);
     }
 
     public VmMemRef(Object value, boolean immutable) {

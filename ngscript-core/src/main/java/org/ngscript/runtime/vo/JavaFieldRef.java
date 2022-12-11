@@ -24,12 +24,12 @@ import java.lang.reflect.Field;
  * @author wssccc
  */
 @Slf4j
-public class JavaMemRef extends VmMemRef {
+public class JavaFieldRef extends VmMemRef {
 
-    private Object obj;
-    private Field field;
+    private final Object obj;
+    private final Field field;
 
-    public JavaMemRef(Object obj, Field field) {
+    public JavaFieldRef(Object obj, Field field) {
         this.obj = obj;
         this.field = field;
     }

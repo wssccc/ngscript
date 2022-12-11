@@ -19,7 +19,7 @@ package org.ngscript.runtime.vo;
 import org.ngscript.runtime.Op;
 import org.ngscript.runtime.VirtualMachine;
 import org.ngscript.runtime.VmRuntimeException;
-import org.ngscript.runtime.utils.VarArgHelper;
+import org.ngscript.runtime.utils.VarArgUtils;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -57,10 +57,10 @@ public class JavaMethod implements VmInvokable {
         Class[] types = vm.getParamTypes(2);
         Method properMethod = MethodTypeMap.INSTANCE.getProperMethod(methodName, methods, types);
         if (properMethod == null) {
-            throw new VmRuntimeException(vm, "no proper method found for " + methods + "[" + Arrays.toString(types) + "]");
+            throw new VmRuntimeException(vm, "no method found for " + methods + "[" + Arrays.toString(types) + "]");
         }
         if (properMethod.isVarArgs()) {
-            args = VarArgHelper.packVarArgs(args);
+            args = VarArgUtils.packVarArgs(args);
         }
         try {
             Object val = properMethod.invoke(caller, args);

@@ -19,7 +19,7 @@ package org.ngscript.runtime.utils;
 /**
  * @author wssccc
  */
-public class VarArgHelper {
+public class VarArgUtils {
 
     public static Object[] packVarArgs(Object[] args) {
         int nonVarsCount = args.length - 1;

@@ -16,7 +16,7 @@
 
 package org.ngscript.runtime;
 
-import org.ngscript.runtime.utils.TypeCheck;
+import org.ngscript.runtime.utils.TypeCheckUtils;
 import org.ngscript.runtime.utils.TypeOp;
 import org.ngscript.runtime.vo.*;
 
@@ -517,20 +517,19 @@ public class Op {
                 properCons = conses[0];
             } else {
                 for (Constructor cons : conses) {
-                    if (TypeCheck.typeAcceptable(types, cons.getParameterTypes())) {
+                    if (TypeCheckUtils.typeAcceptable(types, cons.getParameterTypes())) {
                         properCons = cons;
                         break;
                     }
                 }
             }
             if (properCons == null) {
-                throw new VmRuntimeException(vm, "no proper constructor found for " + Arrays.toString(types));
+                throw new VmRuntimeException(vm, "no constructor found for " + Arrays.toString(types));
             }
             //adjust args
             if (properCons.isVarArgs()) {
                 Class[] argTypes = properCons.getParameterTypes();
                 int nonVarsCount = argTypes.length - 1;
-                Class varElemType = argTypes[argTypes.length - 1].getComponentType();
                 Object[] newargs = new Object[nonVarsCount + 1];
                 Object[] varargs = new Object[args.length - nonVarsCount];
                 System.arraycopy(args, nonVarsCount, varargs, 0, varargs.length);
@@ -538,8 +537,7 @@ public class Op {
                 newargs[newargs.length - 1] = varargs;
                 args = newargs;
             }
-            //
-            //prepare env with an instance
+            //prepare env
             vm.stack.push(properCons.newInstance(args));
             vm.env.write(null);
             return;

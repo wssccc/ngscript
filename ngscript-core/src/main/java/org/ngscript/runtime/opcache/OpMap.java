@@ -70,12 +70,6 @@ public class OpMap {
         mCtc.addMethod(CtNewMethod.make("public void invoke(VirtualMachine runtime, String param, String param_extend) throws VmRuntimeException { Op." + inst + "(runtime,param,param_extend);" + appendCode + "}", mCtc));
         Class pc = mCtc.toClass();
         OpInvokable bytecodeProxy = (OpInvokable) pc.newInstance();
-        /*
-        FileOutputStream fos = new FileOutputStream("target/" + pc.getSimpleName() + ".class");
-        fos.write(mCtc.toBytecode());
-        fos.close();
-        */
-        //
         return bytecodeProxy;
     }
 }

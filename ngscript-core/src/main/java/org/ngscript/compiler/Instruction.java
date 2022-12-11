@@ -24,7 +24,7 @@ public class Instruction {
 
     public String op;
     public String param;
-    public String paramExtended;
+    public String paramExt;
 
     public Instruction(String op) {
         this.op = op;
@@ -35,10 +35,10 @@ public class Instruction {
         this.param = param;
     }
 
-    public Instruction(String op, String param, String paramExtended) {
+    public Instruction(String op, String param, String paramExt) {
         this.op = op;
         this.param = param;
-        this.paramExtended = paramExtended;
+        this.paramExt = paramExt;
     }
 
     @Override
@@ -46,7 +46,7 @@ public class Instruction {
         if ("//".equals(op)) {
             return op + ' ' + (param == null ? "" : param) + "\n";
         } else {
-            return String.format("%-15s%-30s", op, (param == null ? "" : param) + (paramExtended == null ? "" : "," + paramExtended)) + "\n";
+            return String.format("%-15s%-30s", op, (param == null ? "" : param) + (paramExt == null ? "" : "," + paramExt)) + "\n";
         }
 
     }

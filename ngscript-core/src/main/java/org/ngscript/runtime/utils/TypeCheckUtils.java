@@ -23,7 +23,7 @@ import java.util.HashSet;
 /**
  * @author wssccc
  */
-public class TypeCheck {
+public class TypeCheckUtils {
 
     static final HashMap<Class, HashSet<Class>> typeHierarchy = new HashMap<Class, HashSet<Class>>();
 

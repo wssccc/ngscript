@@ -16,7 +16,7 @@
 
 package org.ngscript.runtime;
 
-import org.ngscript.runtime.vo.JavaMemRef;
+import org.ngscript.runtime.vo.JavaFieldRef;
 import org.ngscript.runtime.vo.JavaMethod;
 import org.ngscript.runtime.vo.VmMemRef;
 import org.ngscript.runtime.vo.undefined;
@@ -139,7 +139,7 @@ public class Environment {
         //try field
         try {
             Field field = cls.getField(member);
-            return new JavaMemRef(nativeObj, field);
+            return new JavaFieldRef(nativeObj, field);
         } catch (NoSuchFieldException ex) {
         }
         //try method

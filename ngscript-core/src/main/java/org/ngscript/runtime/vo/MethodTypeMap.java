@@ -16,7 +16,7 @@
 
 package org.ngscript.runtime.vo;
 
-import org.ngscript.runtime.utils.TypeCheck;
+import org.ngscript.runtime.utils.TypeCheckUtils;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -44,7 +44,7 @@ public class MethodTypeMap {
             } else {
                 for (Method m : methods) {
                     if (Modifier.isPublic(m.getDeclaringClass().getModifiers()) && Modifier.isPublic(m.getModifiers())) {
-                        if (TypeCheck.typeAcceptable(types, m.getParameterTypes())) {
+                        if (TypeCheckUtils.typeAcceptable(types, m.getParameterTypes())) {
                             map.put(key, m);
                             return m;
                         }

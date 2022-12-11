@@ -25,11 +25,11 @@ public class OpBinding extends Instruction {
     OpInvokable opInvokable;
 
     public OpBinding(Instruction instruction, OpInvokable opInvokable) {
-        super(instruction.op, instruction.param, instruction.paramExtended);
+        super(instruction.op, instruction.param, instruction.paramExt);
         this.opInvokable = opInvokable;
     }
 
     public void invoke(VirtualMachine vm) throws VmRuntimeException {
-        opInvokable.invoke(vm, param, paramExtended);
+        opInvokable.invoke(vm, param, paramExt);
     }
 }

@@ -63,7 +63,7 @@ public final class Coroutine extends FunctionDef {
         //frame for call coroutine body
         context.stack.push(args);  //args
         context.stack.push(this);  //callee, for hook
-        context.stack.push(null);//no need to know outter env
+        context.stack.push(null);
         context.stack.push(-1); //return address is a halt instruction
 
         context.stackSize = context.stack.size();
@@ -83,9 +83,7 @@ public final class Coroutine extends FunctionDef {
             environment.data.put("yield", new VmMemRef(new JavaMethod(this, yields)));
             environment.data.put("status", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("status"))));
             environment.data.put("invoke", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("invoke", Object[].class))));
-        } catch (NoSuchMethodException ex) {
-            Logger.getLogger(Coroutine.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (SecurityException ex) {
+        } catch (NoSuchMethodException | SecurityException ex) {
             Logger.getLogger(Coroutine.class.getName()).log(Level.SEVERE, null, ex);
         }
 
@@ -96,7 +94,7 @@ public final class Coroutine extends FunctionDef {
             throw new VmRuntimeException(this.vm, "coroutine is not suspended");
         }
         running = true;
-        Environment outenv = (Environment) vm.stack.peek();
+        Environment outerEnv = (Environment) vm.stack.peek();
         //switch context
         Context saved = new Context(vm);
         vm.contextStack.push(saved);
