@@ -29,7 +29,7 @@ import java.util.logging.Logger;
 /**
  * @author wssccc
  */
-public class Op {
+public class OpImpl {
 
     public static void deref(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         VmMemRef v1;
@@ -171,8 +171,8 @@ public class Op {
     }
 
     public static void static_func(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        Op.new_closure(vm, param_extend, null);
-        Op.set(vm, param, null);
+        OpImpl.new_closure(vm, param_extend, null);
+        OpImpl.set(vm, param, null);
     }
 
     public static void typeof(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
@@ -210,8 +210,8 @@ public class Op {
     }
 
     public static void import_(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
-        String[] splitted = param.split("\\.");
-        String shortName = splitted[splitted.length - 1];
+        String[] split = param.split("\\.");
+        String shortName = split[split.length - 1];
         vm.imported.put(shortName, param);
     }
 

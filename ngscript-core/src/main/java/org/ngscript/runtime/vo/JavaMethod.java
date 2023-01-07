@@ -16,7 +16,7 @@
 
 package org.ngscript.runtime.vo;
 
-import org.ngscript.runtime.Op;
+import org.ngscript.runtime.OpImpl;
 import org.ngscript.runtime.VirtualMachine;
 import org.ngscript.runtime.VmRuntimeException;
 import org.ngscript.runtime.utils.VarArgUtils;
@@ -70,7 +70,7 @@ public class JavaMethod implements VmInvokable {
             vm.eax.write(val);
         } catch (Exception ex) {
             vm.exception.write(new VmRuntimeException(vm, ex.getCause() == null ? ex.toString() : ex.getCause().toString()));
-            Op.restore_machine_state(vm, null, null);
+            OpImpl.restore_machine_state(vm, null, null);
         }
     }
 }

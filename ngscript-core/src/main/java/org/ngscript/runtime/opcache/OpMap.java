@@ -21,7 +21,7 @@ import javassist.CtClass;
 import javassist.CtNewConstructor;
 import javassist.CtNewMethod;
 import org.apache.commons.lang3.StringUtils;
-import org.ngscript.runtime.Op;
+import org.ngscript.runtime.OpImpl;
 import org.ngscript.runtime.VirtualMachine;
 
 import java.lang.reflect.Method;
@@ -47,7 +47,7 @@ public class OpMap {
     public void init() {
         map = new HashMap<>();
         classPool.importPackage(VirtualMachine.class.getPackage().getName());
-        Class clazz = Op.class;
+        Class clazz = OpImpl.class;
         Method[] methods = clazz.getMethods();
         for (Method m : methods) {
             Class[] cls = m.getParameterTypes();
@@ -67,7 +67,7 @@ public class OpMap {
         CtClass mCtc = classPool.makeClass(OpInvokable.class.getName() + StringUtils.capitalize(inst + appendInst));
         mCtc.addInterface(classPool.get(OpInvokable.class.getName()));
         mCtc.addConstructor(CtNewConstructor.defaultConstructor(mCtc));
-        mCtc.addMethod(CtNewMethod.make("public void invoke(VirtualMachine runtime, String param, String param_extend) throws VmRuntimeException { Op." + inst + "(runtime,param,param_extend);" + appendCode + "}", mCtc));
+        mCtc.addMethod(CtNewMethod.make("public void invoke(VirtualMachine runtime, String param, String param_extend) throws VmRuntimeException { OpImpl." + inst + "(runtime,param,param_extend);" + appendCode + "}", mCtc));
         Class pc = mCtc.toClass();
         OpInvokable bytecodeProxy = (OpInvokable) pc.newInstance();
         return bytecodeProxy;

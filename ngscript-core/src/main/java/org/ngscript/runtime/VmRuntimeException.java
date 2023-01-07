@@ -36,21 +36,18 @@ public class VmRuntimeException extends RuntimeException {
         this.vm = vm;
     }
 
-    final static String genInfoString(VirtualMachine vm, String message) {
+    static String genInfoString(VirtualMachine vm, String message) {
         try {
-            StringBuilder sb = new StringBuilder();
-            sb
-                    .append("\r\n========== VM ERROR ==========\r\n")
-                    .append(message)
-                    .append("\r\nnear code line ").append(vm.hints.paramExt).append("\r\n")
-                    .append(vm.hints.toString())
-                    .append("\r\n========== VM STATUS ==========\r\n")
-                    .append("%eip = ").append(vm.getEip()).append("\r\n")
-                    .append("ins = ").append(vm.instructions[vm.getEip() - 1]).append("\r\n")
-                    .append("%env = ").append((vm.env.read()).toString()).append("\r\n")
-                    .append("%eax = ").append(vm.eax.read() == null ? "null" : vm.eax.read().toString()).append("\r\n")
-                    .append("==============================\r\n");
-            return sb.toString();
+            return "\r\n========== VM ERROR ==========\r\n" +
+                    message +
+                    "\r\nnear code line " + vm.hints.paramExt + "\r\n" +
+                    vm.hints +
+                    "\r\n========== VM STATUS ==========\r\n" +
+                    "%eip = " + vm.getEip() + "\r\n" +
+                    "ins = " + vm.instructions[vm.getEip() - 1] + "\r\n" +
+                    "%env = " + (vm.env.read()).toString() + "\r\n" +
+                    "%eax = " + (vm.eax.read() == null ? "null" : vm.eax.read().toString()) + "\r\n" +
+                    "==============================\r\n";
         } catch (Exception ex) {
             return message;
         }

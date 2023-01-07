@@ -55,14 +55,14 @@ public class Environment {
                 if (ref != null) {
                     return ref;
                 } else {
-                    ref = lookupHash(member, vm, isMember);
+                    ref = lookupEnv(member, vm, isMember);
                     data.put(member, ref);
                     return ref;
                 }
         }
     }
 
-    private VmMemRef lookupHash(String member, VirtualMachine vm, boolean isMember) throws VmRuntimeException {
+    private VmMemRef lookupEnv(String member, VirtualMachine vm, boolean isMember) throws VmRuntimeException {
         if (isMember) {
             //throw new Runtime-Exception("no member " + varName + " found.");
             VmMemRef mem = new VmMemRef(undefined.value);
@@ -83,22 +83,22 @@ public class Environment {
             try {
                 Class cls = Class.forName("java.util." + member);
                 return new VmMemRef(cls);
-            } catch (ClassNotFoundException ex) {
-                //nothing happend...
+            } catch (ClassNotFoundException ignored) {
+                //ignored
             }
             //try java.lang
             try {
                 Class cls = Class.forName("java.lang." + member);
                 return new VmMemRef(cls);
-            } catch (ClassNotFoundException ex) {
-                //nothing happend...
+            } catch (ClassNotFoundException ignored) {
+                //ignored
             }
             //try java.io
             try {
                 Class cls = Class.forName("java.io." + member);
                 return new VmMemRef(cls);
-            } catch (ClassNotFoundException ex) {
-                //nothing happend...
+            } catch (ClassNotFoundException ignored) {
+                //ignored
             }
             //imports
             //try import
@@ -106,8 +106,8 @@ public class Environment {
                 try {
                     Class cls = Class.forName(vm.imported.get(member));
                     return new VmMemRef(cls);
-                } catch (ClassNotFoundException ex) {
-                    //nothing happend...
+                } catch (ClassNotFoundException ignored) {
+                    //ignored
                 }
             }
 
@@ -115,8 +115,8 @@ public class Environment {
             try {
                 Class cls = Class.forName("java.lang." + member);
                 return new VmMemRef(cls);
-            } catch (ClassNotFoundException ex) {
-
+            } catch (ClassNotFoundException ignored) {
+                //ignored
             }
             throw new VmRuntimeException(vm, member + " is not declared");
         }

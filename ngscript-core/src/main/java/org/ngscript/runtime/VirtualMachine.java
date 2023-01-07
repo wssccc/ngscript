@@ -193,7 +193,7 @@ public class VirtualMachine {
             } catch (Exception ex) {
                 try {
                     exception.write(ex);
-                    Op.restore_machine_state(this, null, null);
+                    OpImpl.restore_machine_state(this, null, null);
                 } catch (VmRuntimeException ex1) {
                     err.println("VM Exception");
                     err.println(ex1);
