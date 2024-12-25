@@ -1,26 +1,32 @@
-function Obj() {
-    var list = new ArrayList();
-    list.add("1");
-    list.add(123);
+/**
+ * Example class demonstrating ArrayList operations and exception handling
+ */
+function DataContainer() {
+    var dataList = new ArrayList();
+    dataList.add("1");
+    dataList.add(123);
 
-    this.method1 = function() {
-        println(list.toString());
-        println("element[1] = " + list.get(1));
+    this.displayData = function() {
+        println(dataList.toString());
+        println("Element at index 1: " + dataList.get(1));
     };
 
-    this.method2 = function() {
-        println("before");
-        list.get(2); // invalid index
-        println("after");
+    this.testException = function() {
+        println("Attempting to access invalid index...");
+        dataList.get(2); // Accessing invalid index (2) when list size is 2
+        println("This line should not be reached");
     };
 }
 
-var instance = new Obj();
-instance.method1();
+// Create instance and demonstrate functionality
+var container = new DataContainer();
+container.displayData();
+
+// Demonstrate exception handling
 try {
-    instance.method2();
+    container.testException();
 } catch (ex) {
-    println(ex);
+    println("Exception caught: " + ex);
 } finally {
-    println("finally...");
+    println("Cleanup completed");
 }

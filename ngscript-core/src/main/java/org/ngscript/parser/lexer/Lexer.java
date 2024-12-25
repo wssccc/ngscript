@@ -67,6 +67,20 @@ public class Lexer {
                             return token("comment", substr(marker, reader.position - 1));
                         }
                     }
+                } else if (reader.peek() == '*') {
+                    // Handle multiline comment
+                    marker = reader.position + 1;
+                    reader.forward(); // Skip the '*'
+                    while (true) {
+                        char c = reader.read();
+                        if (c == '\0') {
+                            throw new LexerException("unclosed multiline comment");
+                        }
+                        if (c == '*' && reader.peek() == '/') {
+                            reader.forward(); // Skip the '/'
+                            return token("comment", substr(marker, reader.position - 2));
+                        }
+                    }
                 } else {
                     return token("div");
                 }

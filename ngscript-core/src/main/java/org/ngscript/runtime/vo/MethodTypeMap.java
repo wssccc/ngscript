@@ -43,7 +43,7 @@ public class MethodTypeMap {
                 return map.get(key);
             } else {
                 for (Method m : methods) {
-                    if (Modifier.isPublic(m.getDeclaringClass().getModifiers()) && Modifier.isPublic(m.getModifiers())) {
+                    if (Modifier.isPublic(m.getModifiers())) {
                         if (TypeCheckUtils.typeAcceptable(types, m.getParameterTypes())) {
                             map.put(key, m);
                             return m;

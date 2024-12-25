@@ -24,6 +24,7 @@ import org.ngscript.runtime.utils.VarArgUtils;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.stream.Collectors;
 
 /**
  * @author wssccc
@@ -56,8 +57,17 @@ public class JavaMethod implements VmInvokable {
     public void invoke(VirtualMachine vm, Object[] args) throws Exception {
         Class[] types = vm.getParamTypes(2);
         Method properMethod = MethodTypeMap.INSTANCE.getProperMethod(methodName, methods, types);
+        properMethod.setAccessible(true);
         if (properMethod == null) {
-            throw new VmRuntimeException(vm, "no method found for " + methods + "[" + Arrays.toString(types) + "]");
+            throw new VmRuntimeException(vm,
+                    String.format("No matching method found for %s#%s with parameter types %s. Available methods: %s",
+                            methods.get(0).getDeclaringClass().getSimpleName(),
+                            methods.get(0).getName(),
+                            Arrays.toString(types),
+                            methods.stream()
+                                    .map(m -> m.getDeclaringClass().getSimpleName() + "#" + m.getName() + "("
+                                            + Arrays.toString(m.getParameterTypes()) + ")")
+                                    .collect(Collectors.joining(", "))));
         }
         if (properMethod.isVarArgs()) {
             args = VarArgUtils.packVarArgs(args);
@@ -69,7 +79,8 @@ public class JavaMethod implements VmInvokable {
             }
             vm.eax.write(val);
         } catch (Exception ex) {
-            vm.exception.write(new VmRuntimeException(vm, ex.getCause() == null ? ex.toString() : ex.getCause().toString()));
+            vm.exception.write(
+                    new VmRuntimeException(vm, ex.getCause() == null ? ex.toString() : ex.getCause().toString()));
             OpImpl.restore_machine_state(vm, null, null);
         }
     }
