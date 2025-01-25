@@ -1,6 +1,8 @@
-val f = function(arg) {
-    println("in other routine " + arg);
+// Define a callback function that takes a parameter
+val callbackFunction = function(inputValue) {
+    println("Executing callback with value: " + inputValue);
 };
 
-go f(123);
-println("in main routine");
+// Execute the callback function with a test value
+go callbackFunction(123);
+println("Main routine execution completed");

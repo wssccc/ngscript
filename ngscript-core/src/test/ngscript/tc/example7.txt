@@ -1,13 +1,22 @@
-function Obj()
+/**
+ * Example demonstrating object creation and method access in NgScript
+ * This example shows how to create an object with a method that accesses
+ * a variable from the outer scope
+ */
+function ExampleObject()
 {
-	var c = "1";
-	var method = function ()
+	// Private variable within the object scope
+	var counter = "1";
+	
+	// Method that demonstrates access to the outer scope variable
+	var displayCounter = function()
 	{
-		println("in method");
-		println("c = " + c);
+		println("Executing displayCounter method");
+		println("Counter value = " + counter);
 	};
 }
 
-var b = new Obj();
-println("b.c = " + b.c);
-b.method();
+// Create a new instance of ExampleObject
+var instance = new ExampleObject();
+println("Accessing counter directly: " + instance.counter);
+instance.displayCounter();

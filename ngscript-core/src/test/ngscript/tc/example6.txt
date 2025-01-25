@@ -1,12 +1,15 @@
-val f2 = (x, y) => { x + y; };
+// Simple arrow function that adds two numbers
+val addNumbers = (x, y) => { x + y; };
 
-val f3 = (x) => {
+// Arrow function that increments a number by 1
+val incrementByOne = (x) => {
     return x + 1;
 };
 
-val f4 = (x ,y) => {
+// Arrow function that adds two numbers with explicit return
+val addTwoNumbers = (x, y) => {
     return x + y;
 };
 
-println("call an arrow func");
-println(f3(1));
+println("Testing arrow function execution");
+println(incrementByOne(1));

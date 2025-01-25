@@ -1,32 +1,30 @@
-// a coroutine function
-function f(a,b,c) {
-      println("first = " + a);
-      // call yield to switch to previous context
-      // with a return value
+// Coroutine demonstration with parameter passing
+function processData(firstParam, secondParam, thirdParam) {
+      println("Processing first parameter: " + firstParam);
+      // Yield control back to caller with intermediate result
       yield(1);
-      // coroutine will resume here
-      println("second = " + b);
-      println("third = " + c);
+      // Execution resumes here after first yield
+      println("Processing second parameter: " + secondParam);
+      println("Processing third parameter: " + thirdParam);
 }
 
-// start a coroutine
-var co = new Coroutine(f, "param 1", "param 2", "param 3");
-// push args, in the old-fashioned way
-// co.push("p1");
-// co.push("p2");
+// Initialize coroutine with parameters
+var dataProcessor = new Coroutine(processData, "param 1", "param 2", "param 3");
+// Alternative parameter passing method (commented out)
+// dataProcessor.push("p1");
+// dataProcessor.push("p2");
 
-println("coroutine status=" + co.status());
-// call resume to switch to coroutine
-// and get the return value
-println("resume 1 = " + co.resume());
-println("coroutine status=" + co.status());
-// the second resume has nothing returned
-println("resume 2 = " + co.resume());
-println("coroutine status=" + co.status());
-// don't resume a `returned` coroutine
+println("Coroutine status: " + dataProcessor.status());
+// Resume execution and capture return value
+println("First resume result: " + dataProcessor.resume());
+println("Coroutine status: " + dataProcessor.status());
+// Second resume has no return value
+println("Second resume result: " + dataProcessor.resume());
+println("Coroutine status: " + dataProcessor.status());
+// Attempting to resume a completed coroutine
 try {
-      println("resume 3:");
-      println(co.resume());
+      println("Attempting third resume:");
+      println(dataProcessor.resume());
 } catch(e) {
-      println("can't resume a returned coroutine");
+      println("Error: Cannot resume a completed coroutine");
 }

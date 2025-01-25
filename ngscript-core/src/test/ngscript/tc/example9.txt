@@ -1,25 +1,32 @@
-function coroutine1(other) {
-    println("1. enter coroutine 1");
-    println("2. co1 do sth 1");
-    other.resume();
-    println("5. co1 do sth 2");
-    other.resume();
-    println("8. leave coroutine 1");
+/**
+ * Example demonstrating coroutine interaction between two functions
+ * This shows how two coroutines can yield control to each other
+ */
+
+function producerCoroutine(consumer) {
+    println("[Producer] Starting execution");
+    println("[Producer] Processing first batch");
+    consumer.resume();
+    println("[Producer] Processing second batch");
+    consumer.resume();
+    println("[Producer] Execution completed");
 }
 
-function coroutine2(other) {
-    println("3. enter coroutine 2");
-    println("4. co2 do sth 1");
-    other.resume();
-    println("6. co2 do sth 2");
-    println("7. leave coroutine 2");
+function consumerCoroutine(producer) {
+    println("[Consumer] Starting execution");
+    println("[Consumer] Processing first batch");
+    producer.resume();
+    println("[Consumer] Processing second batch");
+    println("[Consumer] Execution completed");
 }
 
-var co1 = new Coroutine(coroutine1);
-var co2 = new Coroutine(coroutine2);
+// Create coroutine instances
+var producer = new Coroutine(producerCoroutine);
+var consumer = new Coroutine(consumerCoroutine);
 
-co1.invoke(co2);
-co2.invoke(co1);
+// Initialize coroutines with references to each other
+producer.invoke(consumer);
+consumer.invoke(producer);
 
-//co1.resume();
-println("done");
+// Main execution completed
+println("Program execution finished");

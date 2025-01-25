@@ -1,21 +1,25 @@
-function inner(yld){
-    println("5. enter inner function");
-    yld();
-    println("7. leave inner function");
+/**
+ * Demonstrates coroutine functionality with nested yield operations
+ */
+
+function processYieldOperation(yieldHandler) {
+    println("[Step 5] Entering yield processing function");
+    yieldHandler();
+    println("[Step 7] Exiting yield processing function");
 }
 
-function coroutine(a, b) {
-    println("2. enter coroutine");
-    println("3. param 1 = " + a);
-    println("4. param 2 = " + b);
-    var y = yield;
-    inner(y);
-    println("8. leave coroutine");
+function coroutineExample(param1, param2) {
+    println("[Step 2] Entering coroutine");
+    println("[Step 3] Parameter 1 = " + param1);
+    println("[Step 4] Parameter 2 = " + param2);
+    var yieldHandler = yield;
+    processYieldOperation(yieldHandler);
+    println("[Step 8] Exiting coroutine");
 }
 
-var co = new Coroutine(coroutine, "p1", "p2");
-println("1. resume 1");
-co.resume();
-println("6. resume 2");
-co.resume();
-println("9. done");
+var coroutineInstance = new Coroutine(coroutineExample, "value1", "value2");
+println("[Step 1] First resume call");
+coroutineInstance.resume();
+println("[Step 6] Second resume call");
+coroutineInstance.resume();
+println("[Step 9] Coroutine execution completed");

@@ -1,15 +1,18 @@
-function func() {
-    println("call func");
+/**
+ * Example demonstrating type checking and method references in NgScript
+ */
+function demonstrateFunction() {
+    println("Function called successfully");
 }
 
-// reference to class type
-println(typeof System.out);
-println(typeof 1);
-println(typeof "11");
-println(typeof func);
-println(typeof println);
+// Type checking examples
+println("Type of System.out: " + typeof System.out);
+println("Type of integer literal: " + typeof 1);
+println("Type of string literal: " + typeof "11");
+println("Type of function reference: " + typeof demonstrateFunction);
+println("Type of built-in function: " + typeof println);
 
-// method reference
-var p = System.out.println;
-p(1);
-p("abc");
+// Method reference demonstration
+var printMethod = System.out.println;
+printMethod(1);
+printMethod("abc");

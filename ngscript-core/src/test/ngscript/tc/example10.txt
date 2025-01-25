@@ -1,6 +1,6 @@
-// array literal
-var a = [];
-a[1] = 2;
-a[3] = 1;
+// Array initialization and manipulation example
+var numbers = [];
+numbers[1] = 2;
+numbers[3] = 1;
 
-println(a);
+println("Array contents: " + numbers);

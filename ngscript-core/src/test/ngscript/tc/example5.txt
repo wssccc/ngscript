@@ -1,20 +1,22 @@
-val immutable = 1;
+// Example demonstrating immutable variable behavior in NgScript
+val constantValue = 1;
 
 try {
-    immutable = 2;
+    constantValue = 2;
 } catch (e) {
-    println("can't change immutable");
+    println("Error: Cannot modify immutable variable 'constantValue'");
 }
 
-val immutable2;
+val delayedInitValue;
 
-// initialize once
-immutable2 = 1;
+// Initialize immutable variable after declaration
+delayedInitValue = 1;
 try {
-    immutable2 = 2;
+    delayedInitValue = 2;
 } catch (e) {
-    println("can't change immutable2");
+    println("Error: Cannot modify immutable variable 'delayedInitValue'");
 }
 
-println(immutable);
-println(immutable2);
+// Display final values
+println("Final value of constantValue: " + constantValue);
+println("Final value of delayedInitValue: " + delayedInitValue);

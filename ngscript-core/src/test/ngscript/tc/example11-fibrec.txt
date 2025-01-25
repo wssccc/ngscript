@@ -1,14 +1,21 @@
-//calc fib with recursive
-function fib_rec(n) {
-    if (n == 0) {
+/**
+ * Fibonacci Sequence Calculator
+ * This program demonstrates the calculation of Fibonacci numbers using recursion
+ */
+
+function calculateFibonacci(position) {
+    // Base cases for Fibonacci sequence
+    if (position == 0) {
         return 0;
     }
-    if (n == 1) {
+    if (position == 1) {
         return 1;
     }
-    if (n > 1) {
-        return fib_rec(n - 1) + fib_rec(n - 2);
+    // Recursive case: F(n) = F(n-1) + F(n-2)
+    if (position > 1) {
+        return calculateFibonacci(position - 1) + calculateFibonacci(position - 2);
     }
 }
 
-println(fib_rec(10));
+// Calculate and display the 10th Fibonacci number
+println("The 10th Fibonacci number is: " + calculateFibonacci(10));
