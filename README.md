@@ -4,190 +4,251 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=wssccc_ngscript&metric=sqale_rating)](https://sonarcloud.io/dashboard?id=wssccc_ngscript)
 [![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=wssccc_ngscript&metric=sqale_index)](https://sonarcloud.io/dashboard?id=wssccc_ngscript)
 
-## Introduction
-A Javascript-like scripting language for JVM, with coroutine.
+## Overview
 
-## Quick Start
-Clone project
+ngscript is a modern scripting language designed for the Java Virtual Machine (JVM) that combines JavaScript-like syntax with powerful coroutine support. It provides a familiar programming experience while leveraging the robust features of the JVM ecosystem.
 
-`git clone https://github.com/wssccc/ngscript.git`
+## Getting Started
 
-Run Rose-Render test
+### Prerequisites
 
- `./gradlew run -Dexec.mainClass=org.ngscript.examples.RoseRender`
+- Java Development Kit (JDK)
+- Maven
 
-## Language References
+### Installation
 
-### Variable
-Use `var` to explicitly define a variable 
+Clone the repository:
+
+```bash
+git clone https://github.com/wssccc/ngscript.git
+```
+
+### Running Tests
+
+Execute the conformance test suite:
+
+```bash
+mvn test -Dtest=org.ngscript.ConformanceTest -Dsurefire.failIfNoSpecifiedTests=false
+```
+
+### Running Examples
+
+Launch the Rose-Render example:
+
+```bash
+mvn exec:java -Dexec.mainClass=org.ngscript.examples.RoseRender
+```
+
+## Language Reference
+
+### Variables
+
+Variables in ngscript are explicitly declared using the `var` keyword.
 
 >**Examples**
 >
 >Define a variable
 >
->       var b;
+>       var counter;
 >
 >Define a variable and initialize with a value
 >
->       var a = 1;
+>       var total = 1;
 >
 >Inline definition
 >
->       for (var i = 0; i < 9; ++i) ...
+>       for (var index = 0; index < 9; ++index) ...
 
+### Functions
 
-### Function
-#### Named Function
+#### Named Functions
+
+Named functions are registered in the global scope and can be called from anywhere in the program.
+
 >**Examples**
 >
->        function func1 (param1, param2) {
->            println(param1 + "," + param2);
+>        function calculateSum(firstValue, secondValue) {
+>            println(firstValue + "," + secondValue);
 >        }
-        
+
 **Named functions were registered in global scope**.
 
-#### Lambda
+#### Lambda Expressions
+
+ngscript supports both traditional function expressions and arrow function syntax for concise lambda definitions.
+
 >**Examples**
 >
 >
 >       (function (){
->           println("hello");
+>           println("Hello, World!");
 >       })();
 >
 
->       var f = function(){
->           println("hello");
+>       var greetingFunction = function(){
+>           println("Hello, World!");
 >       };
 >
 
->       val f2 = (x, y) => { x + y; };
+>       val add = (x, y) => { x + y; };
 >
->       val f3 = (x) => {
->           return x + 1;
+>       val increment = (value) => {
+>           return value + 1;
 >       };
 >
->       val f4 = (x ,y) => {
+>       val sum = (x, y) => {
 >           return x + y;
 >       };
 >
->       println("call an arrow func");
->       println(f3(1));
+>       println("Calling an arrow function");
+>       println(increment(1));
 
-#### Java Method Reference
+#### Java Method References
 
->**Examples**
->
->       //native Java ArrayList
->       var array = new ArrayList();
->       //add something
->       array.add(1); array.add(2); array.add(3);
->       //reference to method of a Java object
->       var ref_get = array.get;
->       //call the reference to get the element of index 1
->       println(ref_get(1));
-
-### Go statement
+ngscript allows direct reference to Java methods, enabling seamless integration with Java libraries.
 
 >**Examples**
 >
->       val f = function(arg) {
->           println("in other routine " + arg);
+>       // Create a native Java ArrayList
+>       var numberList = new ArrayList();
+>       // Add elements to the list
+>       numberList.add(1); numberList.add(2); numberList.add(3);
+>       // Reference to method of a Java object
+>       var getElement = numberList.get;
+>       // Call the reference to get the element at index 1
+>       println(getElement(1));
+
+### Concurrency
+
+#### Go Statements
+
+The `go` statement enables concurrent execution of functions.
+
+>**Examples**
+>
+>       val concurrentTask = function(taskId) {
+>           println("Executing in concurrent routine " + taskId);
 >       };
 >
->       go f(123);
->       println("in main routine");
+>       go concurrentTask(123);
+>       println("Executing in main routine");
 >
 
-### Object
+### Object-Oriented Programming
 
-#### ngscript object
+#### ngscript Objects
+
+ngscript supports object-oriented programming with constructor functions and the `new` operator.
+
 >**Examples**
 >
 >Define a constructor function
 >
->       function One(name) {
->           this.hello = function(){
+>       function Person(name) {
+>           this.greet = function(){
 >               println("I'm " + name);
 >           };
 >       }
 >
 >Create an object with the `new` operator
 >
->       var newone = new One("wssccc");
->       newone.hello();
+>       var person = new Person("John");
+>       person.greet();
 >
 
-#### Java Object
+#### Java Object Integration
+
+Seamless integration with Java objects and collections.
+
 >**Examples**
 >
 >Create an ArrayList
 >
->       var arraylist = new ArrayList();
->       arraylist.add(1);
->       arraylist.add(2);
->       println(arraylist.toString());
->       arraylist.remove(0);
->       println(arraylist.toString());
+>       var numberList = new ArrayList();
+>       numberList.add(1);
+>       numberList.add(2);
+>       println(numberList.toString());
+>       numberList.remove(0);
+>       println(numberList.toString());
 >
 
-#### Import
-The same as `import` statement in Java
+### Module System
+
+#### Import Statements
+
+Similar to Java's import system, with automatic imports for common packages.
 
 **java.lang.\* and java.util.\* classes were imported by default.**
 
-### typeof
-Get string representation of the type of an object
+### Type System
+
+#### Typeof Operator
+
+Retrieve the string representation of an object's type.
+
 >**Examples**
 >
 >       println(typeof println);
->       var a = 1;
->       println(typeof a);
+>       var number = 1;
+>       println(typeof number);
 >       println(typeof println);
 
-### println
-Print a line.
+### Built-in Functions
 
-### eval
+#### Println
+
+Output a line to the console.
+
+#### Eval
+
+Evaluate a string as ngscript code.
+
 >
 >       println(eval("15+20"));
 >
 
 ### Error Handling
+
+Comprehensive try-catch mechanism for robust error management.
+
 >**Examples**
 >
 >       try {
->               println("will throw excepton");
->               throw "exception";
->       } catch (e) {
->               println(e.toString());
+>               println("About to throw an exception");
+>               throw "Custom exception message";
+>       } catch (error) {
+>               println(error.toString());
 >       }
 
-### Coroutine
+### Coroutines
+
+Advanced coroutine support for cooperative multitasking.
+
 >**Examples**
 >
->       function f(a,b) {
->               println("first = " + a);
->               // return 1 and switch to caller
+>       function processData(firstParam, secondParam) {
+>               println("Processing first parameter: " + firstParam);
+>               // Return 1 and switch to caller
 >               yield(1); 
->               // resume here
->               println("second = " + b);
+>               // Resume here
+>               println("Processing second parameter: " + secondParam);
 >       }
 >
->       // create coroutine
->       var co = new Coroutine(f, "p1", "p2"); 
+>       // Create coroutine
+>       var dataProcessor = new Coroutine(processData, "param1", "param2"); 
 >
->       println("coroutine status=" + co.status());
->       // call resume() to run
->       println("resume 1 = " + co.resume());
->       println("coroutine status=" + co.status());
->       // call resume() to run to the end of function f
->       println("resume 2 = " + co.resume());
->       println("coroutine status=" + co.status());
+>       println("Coroutine status: " + dataProcessor.status());
+>       // Call resume() to run
+>       println("Resume result 1: " + dataProcessor.resume());
+>       println("Coroutine status: " + dataProcessor.status());
+>       // Call resume() to run to the end of function processData
+>       println("Resume result 2: " + dataProcessor.resume());
+>       println("Coroutine status: " + dataProcessor.status());
 >
 >       try {
->               println("resume 3:");
->               println(co.resume());
->       } catch(e) {
->               println("could not resume, status=" + co.status());
+>               println("Attempting third resume:");
+>               println(dataProcessor.resume());
+>       } catch(error) {
+>               println("Could not resume, status: " + dataProcessor.status());
 >       }
 >
