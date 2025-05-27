@@ -1,6 +1,7 @@
 # ngscript
 
 [![Java CI with Maven](https://github.com/wssccc/ngscript/actions/workflows/maven.yml/badge.svg)](https://github.com/wssccc/ngscript/actions/workflows/maven.yml)
+[![CodeQL Advanced](https://github.com/wssccc/ngscript/actions/workflows/codeql.yml/badge.svg)](https://github.com/wssccc/ngscript/actions/workflows/codeql.yml)
 
 ## Overview
 
