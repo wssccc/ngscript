@@ -171,11 +171,11 @@ Advanced coroutine support for cooperative multitasking.
 
 ```javascript
 function processData(firstParam, secondParam) {
-        println("Processing first parameter: " + firstParam);
-        // Return 1 and switch to caller
-        yield(1); 
-        // Resume here
-        println("Processing second parameter: " + secondParam);
+    println("Processing first parameter: " + firstParam);
+    // Return 1 and switch to caller
+    yield(1);
+    // Resume here
+    println("Processing second parameter: " + secondParam);
 }
 
 // Create coroutine
@@ -190,10 +190,10 @@ println("Resume result 2: " + dataProcessor.resume());
 println("Coroutine status: " + dataProcessor.status());
 
 try {
-        println("Attempting third resume:");
-        println(dataProcessor.resume());
+    println("Attempting third resume:");
+    println(dataProcessor.resume());
 } catch(error) {
-        println("Could not resume, status: " + dataProcessor.status());
+    println("Could not resume, status: " + dataProcessor.status());
 }
 ```
 
@@ -205,10 +205,10 @@ Comprehensive try-catch mechanism for robust error management.
 
 ```javascript
 try {
-        println("About to throw an exception");
-        throw "Custom exception message";
+    println("About to throw an exception");
+    throw "Custom exception message";
 } catch (error) {
-        println(error.toString());
+    println(error.toString());
 }
 ```
 
