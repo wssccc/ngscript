@@ -30,10 +30,10 @@ public class Lexer {
             "import", "function", "new", "if", "return",
             "break", "continue", "while", "switch", "case",
             "default", "typeof", "try", "catch", "finally",
-            "go",
-            "throw", "for", "else", "val")));
+            "go", "throw", "for", "else", "val")));
 
-    SourceReader reader;
+    private final SourceReader reader;
+    private final StringBuilder stringBuilder;
 
     public static List<Token> scan(String string) throws LexerException {
         List<Token> tokens = new ArrayList<>();
@@ -48,7 +48,8 @@ public class Lexer {
     }
 
     private Lexer(String string) {
-        reader = new SourceReader(string);
+        this.reader = new SourceReader(string);
+        this.stringBuilder = new StringBuilder();
     }
 
     Token getToken() throws LexerException {
@@ -71,10 +72,11 @@ public class Lexer {
                     // Handle multiline comment
                     marker = reader.position + 1;
                     reader.forward(); // Skip the '*'
+                    int commentStartLine = reader.lineNumber;
                     while (true) {
                         char c = reader.read();
                         if (c == '\0') {
-                            throw new LexerException("unclosed multiline comment");
+                            throw new LexerException("unclosed multiline comment starting at line " + commentStartLine);
                         }
                         if (c == '*' && reader.peek() == '/') {
                             reader.forward(); // Skip the '/'
@@ -166,16 +168,24 @@ public class Lexer {
             case '"':
                 marker = reader.position;
                 while (true) {
-                    switch (reader.read()) {
+                    char c = reader.read();
+                    switch (c) {
                         case '\\':
-                            reader.forward();
+                            // Handle escape sequences
+                            char next = reader.read();
+                            switch (next) {
+                                case 'n': case 'r': case 't': case '\\': case '"': case '\'':
+                                    break;
+                                default:
+                                    throw new LexerException("invalid escape sequence: \\" + next);
+                            }
                             break;
                         case '\"':
                             return token("string", substr(marker, reader.position - 1));
                         case SourceReader.EOF:
-                            throw new LexerException("invalid string token. \r\n" + substr(marker, reader.position - 1));
+                            throw new LexerException("unclosed string literal");
                         default:
-                            //
+                            // Normal character
                     }
                 }
             case SourceReader.EOF:
@@ -196,15 +206,32 @@ public class Lexer {
                 if (isNumeric(chr)) {
                     String type = "integer";
                     marker = reader.position - 1;
+                    boolean hasExponent = false;
+                    boolean hasDecimalPoint = false;
                     while (true) {
                         chr = reader.peek();
                         if (chr == '.') {
+                            if (hasDecimalPoint) {
+                                throw new LexerException("invalid number format: multiple decimal points");
+                            }
                             reader.forward();
                             type = "double";
-                        } else if (chr == 'e') {
+                            hasDecimalPoint = true;
+                        } else if (chr == 'e' || chr == 'E') {
+                            if (hasExponent) {
+                                throw new LexerException("invalid number format: multiple exponents");
+                            }
                             reader.forward();
-                            reader.forward(); //skip a digit
+                            hasExponent = true;
                             type = "double";
+                            // Handle optional sign after exponent
+                            if (reader.peek() == '+' || reader.peek() == '-') {
+                                reader.forward();
+                            }
+                            // Must have at least one digit after exponent
+                            if (!isNumeric(reader.peek())) {
+                                throw new LexerException("invalid number format: missing digits after exponent");
+                            }
                         } else if (isNumeric(chr)) {
                             reader.forward();
                         } else {
@@ -241,7 +268,9 @@ public class Lexer {
     }
 
     String substr(int begin, int end) {
-        return new String(reader.chars, begin, end - begin);
+        stringBuilder.setLength(0);
+        stringBuilder.append(reader.chars, begin, end - begin);
+        return stringBuilder.toString();
     }
 
     private Token token(String type) {
