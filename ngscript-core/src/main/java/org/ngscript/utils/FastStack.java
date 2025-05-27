@@ -37,6 +37,9 @@ public class FastStack<T> {
     }
 
     public T peek(int offset) {
+        if (offset < 0 || offset >= size) {
+            throw new IndexOutOfBoundsException("Offset: " + offset + ", Size: " + size);
+        }
         return elements[size - 1 - offset];
     }
 
@@ -52,6 +55,9 @@ public class FastStack<T> {
     }
 
     public T pop() {
+        if (size == 0) {
+            throw new IllegalStateException("Stack is empty");
+        }
         return elements[--size];
     }
 
@@ -60,6 +66,9 @@ public class FastStack<T> {
     }
 
     public T get(int i) {
+        if (i < 0 || i >= size) {
+            throw new IndexOutOfBoundsException("Index: " + i + ", Size: " + size);
+        }
         return elements[i];
     }
 
@@ -72,6 +81,9 @@ public class FastStack<T> {
     }
 
     public List<T> last(int n) {
+        if (n < 0 || n > size) {
+            throw new IllegalArgumentException("Invalid number of elements: " + n);
+        }
         T[] subElements = (T[]) new Object[n];
         System.arraycopy(elements, size - n, subElements, 0, subElements.length);
         return new ArrayList<>(Arrays.asList(subElements));
@@ -89,6 +101,6 @@ public class FastStack<T> {
 
     @Override
     public String toString() {
-        return Arrays.toString(elements);
+        return Arrays.toString(Arrays.copyOf(elements, size));
     }
 }
