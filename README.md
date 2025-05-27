@@ -263,8 +263,8 @@ mvn exec:java -Dexec.mainClass=org.ngscript.examples.RoseRender
 
 ### Running Tests
 
-Execute the conformance test suite:
+Run the conformance test suite to verify ngscript behavior:
 
 ```bash
-mvn test -Dtest=org.ngscript.ConformanceTest -Dsurefire.failIfNoSpecifiedTests=false
+mvn test -Dsurefire.failIfNoSpecifiedTests=false -Dtest=org.ngscript.NgscriptSpecTest
 ```
