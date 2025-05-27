@@ -33,20 +33,23 @@ public class SingleTest {
     }
 
     static void test1Pass() throws Exception {
-        new Ngscript().eval(IOUtils.toString(new FileInputStream("ngscript-core/src/test/ngscript/tc/example9.txt"), StandardCharsets.UTF_8));
+        try (FileInputStream fis = new FileInputStream("ngscript-core/src/test/ngscript/tc/example9.txt")) {
+            new Ngscript().eval(IOUtils.toString(fis, StandardCharsets.UTF_8));
+        }
     }
 
     static void testInteractive() throws Exception {
-        Scanner sc = new Scanner(new FileInputStream("src/test/ngscript/tc/example1.txt"));
-        Configuration configuration = new Configuration();
-        configuration.setGenerateDebugInfo(true);
-        configuration.setInteractive(true);
-        Ngscript ngscript = new Ngscript(configuration);
-        while (sc.hasNextLine()) {
-            String line = sc.nextLine();
-            System.out.println("feed " + line);
-            ngscript.eval(line);
+        try (FileInputStream fis = new FileInputStream("ngscript-core/src/test/ngscript/tc/example1.txt");
+             Scanner sc = new Scanner(fis)) {
+            Configuration configuration = new Configuration();
+            configuration.setGenerateDebugInfo(true);
+            configuration.setInteractive(true);
+            Ngscript ngscript = new Ngscript(configuration);
+            while (sc.hasNextLine()) {
+                String line = sc.nextLine();
+                System.out.println("feed " + line);
+                ngscript.eval(line);
+            }
         }
-
     }
 }
