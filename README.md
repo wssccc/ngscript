@@ -1,8 +1,6 @@
 # ngscript
 
-[![CircleCI](https://circleci.com/gh/wssccc/ngscript/tree/master.svg?style=svg)](https://circleci.com/gh/wssccc/ngscript/tree/master)
-[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=wssccc_ngscript&metric=sqale_rating)](https://sonarcloud.io/dashboard?id=wssccc_ngscript)
-[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=wssccc_ngscript&metric=sqale_index)](https://sonarcloud.io/dashboard?id=wssccc_ngscript)
+[![Java CI with Maven](https://github.com/wssccc/ngscript/actions/workflows/maven.yml/badge.svg)](https://github.com/wssccc/ngscript/actions/workflows/maven.yml)
 
 ## Overview
 
