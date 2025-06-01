@@ -5,6 +5,7 @@
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"image": "mcr.microsoft.com/devcontainers/java:1-8-bullseye",
 
+	// The base java image only ships the JDK (via SDKMAN); Maven must be installed separately.
 	"features": {
 		"ghcr.io/devcontainers/features/java:1": {
 			"version": "8",
