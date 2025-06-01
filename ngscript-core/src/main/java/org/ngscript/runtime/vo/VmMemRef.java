@@ -42,7 +42,7 @@ public class VmMemRef {
 
     public void write(Object v) {
         if (immutable && value != null) {
-            throw new RuntimeException("immutable");
+            throw new RuntimeException("Cannot modify immutable reference");
         }
         this.value = v;
     }
@@ -53,7 +53,7 @@ public class VmMemRef {
 
     @Override
     public String toString() {
-        return "VmMemRef{" + "value=" + value + '}';
+        return String.format("VmMemRef[value=%s, immutable=%b]", value, immutable);
     }
 
 }
