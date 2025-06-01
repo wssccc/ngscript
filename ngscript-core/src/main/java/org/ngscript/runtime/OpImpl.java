@@ -16,15 +16,17 @@
 
 package org.ngscript.runtime;
 
-import org.ngscript.runtime.utils.TypeCheckUtils;
-import org.ngscript.runtime.utils.TypeOp;
-import org.ngscript.runtime.vo.*;
-
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import org.ngscript.runtime.interop.JavaMethod;
+import org.ngscript.runtime.value.FunctionDef;
+import org.ngscript.runtime.value.VmInvokable;
+import org.ngscript.runtime.value.VmMemRef;
+import org.ngscript.runtime.value.undefined;
 
 /**
  * @author wssccc

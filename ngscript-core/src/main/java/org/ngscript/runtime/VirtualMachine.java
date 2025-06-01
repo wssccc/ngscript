@@ -16,21 +16,21 @@
 
 package org.ngscript.runtime;
 
-import org.ngscript.compiler.Instruction;
-import org.ngscript.runtime.opcache.OpBinding;
-import org.ngscript.runtime.opcache.OpInvokable;
-import org.ngscript.runtime.opcache.OpMap;
-import org.ngscript.runtime.vo.FunctionDef;
-import org.ngscript.runtime.vo.VmInvokable;
-import org.ngscript.runtime.vo.VmMemRef;
-import org.ngscript.utils.FastStack;
-
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.ngscript.builtins.Builtins;
+import org.ngscript.compiler.Instruction;
+import org.ngscript.parseroid.util.FastStack;
+import org.ngscript.runtime.opcache.OpBinding;
+import org.ngscript.runtime.opcache.OpInvokable;
+import org.ngscript.runtime.opcache.OpMap;
+import org.ngscript.runtime.value.FunctionDef;
+import org.ngscript.runtime.value.VmMemRef;
 
 /**
  * @author wssccc
@@ -69,8 +69,7 @@ public class VirtualMachine {
         //init register
         setEip(0);
         env.write(new Environment(null));
-        initBuiltins(((Environment) env.read()).data);
-        //init_builtins(func);
+        Builtins.register(((Environment) env.read()).data, out);
     }
 
     public void printEax(boolean colorize) {
@@ -120,52 +119,6 @@ public class VirtualMachine {
                 labels.put(instruction.param, i);
             }
         }
-    }
-
-    void initBuiltins(Map<String, VmMemRef> map) {
-        map.put("println", new VmMemRef(new VmInvokable() {
-            @Override
-            public void invoke(VirtualMachine vm, Object[] args) {
-                for (Object var : args) {
-                    out.print(var);
-                }
-                out.println();
-                out.flush();
-            }
-        }));
-        map.put("print", new VmMemRef(new VmInvokable() {
-            @Override
-            public void invoke(VirtualMachine vm, Object[] args) {
-                for (Object var : args) {
-                    out.print(var);
-                }
-                out.flush();
-            }
-        }));
-        map.put("assert", new VmMemRef(new VmInvokable() {
-            @Override
-            public void invoke(VirtualMachine vm, Object[] args) {
-                for (Object var : args) {
-                    if (!OpUtils.testValue(var)) {
-                        throw new VmRuntimeException("Assertion failed");
-                    }
-                }
-            }
-        }));
-        map.put("Object", new VmMemRef(new VmInvokable() {
-            @Override
-            public void invoke(VirtualMachine vm, Object[] args) {
-                //prepare env
-                Environment env = new Environment((Environment) vm.env.read());
-                vm.env.write(env);
-            }
-        }));
-        map.put("Coroutine", new VmMemRef(Coroutine.class));
-        //init coroutine return-hook
-//        instructions.add(new Instruction("jmp", "coroutine_return_hook_exit"));
-//        instructions.add(new Instruction("coroutine_return"));
-//        labels.put("coroutine_return_hook", 1);
-//        labels.put("coroutine_return_hook_exit", instructions.size());
     }
 
     public void run() throws VmRuntimeException {

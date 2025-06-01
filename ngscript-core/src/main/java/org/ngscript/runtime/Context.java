@@ -17,7 +17,7 @@
 package org.ngscript.runtime;
 
 import org.ngscript.compiler.Instruction;
-import org.ngscript.utils.FastStack;
+import org.ngscript.parseroid.util.FastStack;
 
 /**
  * @author wssccc

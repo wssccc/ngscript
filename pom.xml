@@ -13,7 +13,9 @@
     <url>https://github.com/ngscript/ngscript</url>
 
     <modules>
+        <module>ngscript-parseroid</module>
         <module>ngscript-core</module>
+        <module>ngscript-shell</module>
         <module>ngscript-examples</module>
     </modules>
 
@@ -35,7 +37,17 @@
         <dependencies>
             <dependency>
                 <groupId>org.ngscript</groupId>
+                <artifactId>ngscript-parseroid</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ngscript</groupId>
                 <artifactId>ngscript-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ngscript</groupId>
+                <artifactId>ngscript-shell</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -93,6 +105,13 @@
                     <configuration>
                         <source>${maven.compiler.source}</source>
                         <target>${maven.compiler.target}</target>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
                     </configuration>
                 </plugin>
                 <plugin>

@@ -16,13 +16,13 @@
 
 package org.ngscript.runtime;
 
-import org.ngscript.runtime.vo.VmMemRef;
-import org.ngscript.runtime.vo.undefined;
+import org.ngscript.runtime.value.VmMemRef;
+import org.ngscript.runtime.value.undefined;
 
 /**
  * @author wssccc
  */
-class OpUtils {
+public class OpUtils {
 
     static Object[] get2OpParam(VirtualMachine vm) {
         Object[] objects = new Object[2];
@@ -69,7 +69,7 @@ class OpUtils {
         return obj1.toString().equals(obj2.toString());
     }
 
-    static boolean testValue(Object testObj) {
+    public static boolean testValue(Object testObj) {
         boolean val = false;
         if (testObj == null) {
             val = false;

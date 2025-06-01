@@ -28,6 +28,6 @@ jobs:
         distribution: 'temurin'
         cache: maven
     - name: Test with Maven
-      run: mvn test -Dsurefire.failIfNoSpecifiedTests=false -Dtest=org.ngscript.NgscriptSpecTest
+      run: mvn test
     - name: Package with Maven
       run: mvn package -DskipTests

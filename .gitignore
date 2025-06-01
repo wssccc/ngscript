@@ -119,4 +119,7 @@ dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
 
+# test262 suite (fetched by tools/fetch-test262.sh)
+test262/
+
 .vscode/

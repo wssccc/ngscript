@@ -7,6 +7,19 @@
 
 ngscript is a modern scripting language designed for the Java Virtual Machine (JVM) that combines JavaScript-like syntax with powerful coroutine support. It provides a familiar programming experience while leveraging the robust features of the JVM ecosystem.
 
+## Project Structure
+
+ngscript is a multi-module Maven project:
+
+| Module | Description |
+|--------|-------------|
+| `ngscript-parseroid` | Self-contained LALR parser generator framework |
+| `ngscript-core` | Engine core: lexer, parser, compiler, runtime, builtins |
+| `ngscript-shell` | Command line tool and interactive REPL |
+| `ngscript-examples` | Swing demo applications (built but not published) |
+
+The TC39 [test262](https://github.com/tc39/test262) conformance suite is not vendored in the repository; fetch it on demand with `tools/fetch-test262.sh` (resulting `test262/` directory is git-ignored).
+
 ## Quick Start
 
 ### Prerequisites
@@ -255,15 +268,70 @@ println(getElement(1));
 Launch the Rose-Render example:
 
 ```bash
-mvn exec:java -Dexec.mainClass=org.ngscript.examples.RoseRender
+mvn exec:java -Dexec.mainClass=org.ngscript.examples.RoseRender -pl ngscript-examples
 ```
 
 ## Development
 
 ### Running Tests
 
-Run the conformance test suite to verify ngscript behavior:
+Run all tests across modules:
 
 ```bash
-mvn test -Dsurefire.failIfNoSpecifiedTests=false -Dtest=org.ngscript.NgscriptSpecTest
+mvn test
 ```
+
+## Interactive Shell (REPL)
+
+ngscript provides an interactive shell with tab completion support.
+
+### Starting the REPL
+
+```bash
+mvn exec:java -Dexec.mainClass=org.ngscript.shell.Repl -pl ngscript-shell
+```
+
+Or after building:
+
+```bash
+java -cp ngscript-shell/target/classes:ngscript-shell/target/dependency/* org.ngscript.shell.Repl
+```
+
+### Shell Features
+
+- **Tab Completion**: Press `Tab` to complete keywords, variables, and object members
+- **Auto Completion**: Completion suggestions appear automatically as you type
+- **History**: Use up/down arrows to navigate previous commands
+- **Multi-line Input**: The shell automatically handles multi-line statements
+
+### Completion Types
+
+The shell supports the following completion types:
+
+| Type | Description | Example |
+|------|-------------|---------|
+| Keywords | Language keywords | `fun` → `function` |
+| Builtins | Built-in functions and objects | `prin` → `println`, `print` |
+| Variables | User-defined variables in scope | `myV` → `myVariable` |
+| Object Members | Properties and methods of objects | `obj.` → lists all properties |
+| Java Classes | Imported Java classes | `Arr` → `ArrayList`, `Arrays` |
+
+### Example Session
+
+```
+ngscript> var myVariable = 42;
+ngscript> myV<Tab>
+myVariable
+ngscript> myVariable
+42
+ngscript> new ArrayList().<Tab>
+add              addAll           clear            contains
+forEach          get              indexOf          isEmpty
+iterator         listIterator     remove           removeAll
+...
+ngscript> 
+```
+
+### Disabling Completion
+
+If needed, completion can be disabled by setting `completionEnabled` to `false` in the configuration.

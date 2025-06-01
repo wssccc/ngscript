@@ -16,16 +16,16 @@
 
 package org.ngscript.runtime;
 
-import org.ngscript.runtime.vo.FunctionDef;
-import org.ngscript.runtime.vo.JavaMethod;
-import org.ngscript.runtime.vo.VmMemRef;
-import org.ngscript.runtime.vo.undefined;
-import org.ngscript.utils.FastStack;
-
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import org.ngscript.parseroid.util.FastStack;
+import org.ngscript.runtime.interop.JavaMethod;
+import org.ngscript.runtime.value.FunctionDef;
+import org.ngscript.runtime.value.VmMemRef;
+import org.ngscript.runtime.value.undefined;
 
 /**
  * @author wssccc

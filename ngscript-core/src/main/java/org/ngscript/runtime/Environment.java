@@ -16,16 +16,16 @@
 
 package org.ngscript.runtime;
 
-import org.ngscript.runtime.vo.JavaFieldRef;
-import org.ngscript.runtime.vo.JavaMethod;
-import org.ngscript.runtime.vo.VmMemRef;
-import org.ngscript.runtime.vo.undefined;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.ngscript.runtime.interop.JavaFieldRef;
+import org.ngscript.runtime.interop.JavaMethod;
+import org.ngscript.runtime.value.VmMemRef;
+import org.ngscript.runtime.value.undefined;
 
 /**
  * @author wssccc

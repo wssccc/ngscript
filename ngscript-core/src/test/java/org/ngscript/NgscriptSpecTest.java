@@ -16,16 +16,22 @@
 
 package org.ngscript;
 
-import lombok.extern.slf4j.Slf4j;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.Scanner;
+
 import org.apache.commons.io.IOUtils;
 import org.junit.Before;
 import org.junit.Test;
-import static org.junit.Assert.*;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Scanner;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Test suite for ngscript that runs all test cases in both eval and interactive modes
@@ -34,13 +40,14 @@ import java.util.Scanner;
 @Slf4j
 public class NgscriptSpecTest {
     
-    private static final String TEST_CASES_DIR = "src/test/ngscript/tc";
+    private static final String TEST_CASES_DIR = "ngscript/tc";
     private File testCasesFolder;
     
     @Before
-    public void setUp() {
-        testCasesFolder = new File(TEST_CASES_DIR);
-        assertTrue("Test cases directory should exist", testCasesFolder.exists());
+    public void setUp() throws Exception {
+        URL url = getClass().getClassLoader().getResource(TEST_CASES_DIR);
+        assertNotNull("Test cases directory should exist on classpath", url);
+        testCasesFolder = new File(url.toURI());
         assertTrue("Test cases directory should be a directory", testCasesFolder.isDirectory());
     }
 
@@ -71,7 +78,7 @@ public class NgscriptSpecTest {
 
     private void testEval(File file) throws Exception {
         try {
-            String script = IOUtils.toString(new FileInputStream(file), StandardCharsets.UTF_8);
+            String script = IOUtils.toString(openResource(file.getName()), StandardCharsets.UTF_8);
             new Ngscript().eval(script);
             // Add specific assertions based on expected behavior
             assertTrue("Script should execute without errors", true);
@@ -81,7 +88,7 @@ public class NgscriptSpecTest {
     }
 
     private void testInteractive(File file) throws Exception {
-        try (Scanner sc = new Scanner(new FileInputStream(file))) {
+        try (Scanner sc = new Scanner(openResource(file.getName()))) {
             Configuration configuration = new Configuration();
             configuration.setInteractive(true);
             Ngscript ngscript = new Ngscript(configuration);
@@ -95,5 +102,11 @@ public class NgscriptSpecTest {
         } catch (Exception e) {
             fail("Failed to execute interactive script " + file.getName() + ": " + e.getMessage());
         }
+    }
+
+    private InputStream openResource(String name) throws IOException {
+        InputStream in = getClass().getClassLoader().getResourceAsStream(TEST_CASES_DIR + "/" + name);
+        assertNotNull("Test case should exist on classpath: " + name, in);
+        return in;
     }
 }

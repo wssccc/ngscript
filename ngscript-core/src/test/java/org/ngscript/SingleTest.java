@@ -16,30 +16,30 @@
 
 package org.ngscript;
 
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.IOUtils;
-
-import java.io.FileInputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
+
+import org.apache.commons.io.IOUtils;
+import org.junit.Test;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * @author wssccc
  */
 @Slf4j
 public class SingleTest {
-    public static void main(String[] args) throws Exception {
-        test1Pass();
-    }
 
-    static void test1Pass() throws Exception {
-        try (FileInputStream fis = new FileInputStream("ngscript-core/src/test/ngscript/tc/example9.txt")) {
+    @Test
+    public void test1Pass() throws Exception {
+        try (InputStream fis = getClass().getClassLoader().getResourceAsStream("ngscript/tc/example9.txt")) {
             new Ngscript().eval(IOUtils.toString(fis, StandardCharsets.UTF_8));
         }
     }
 
-    static void testInteractive() throws Exception {
-        try (FileInputStream fis = new FileInputStream("ngscript-core/src/test/ngscript/tc/example1.txt");
+    void testInteractive() throws Exception {
+        try (InputStream fis = getClass().getClassLoader().getResourceAsStream("ngscript/tc/example1.txt");
              Scanner sc = new Scanner(fis)) {
             Configuration configuration = new Configuration();
             configuration.setGenerateDebugInfo(true);
