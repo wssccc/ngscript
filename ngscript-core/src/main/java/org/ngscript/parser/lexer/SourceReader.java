@@ -67,6 +67,15 @@ public class SourceReader {
         return position < chars.length ? chars[position] : EOF;
     }
 
+    /**
+     * Peeks the character at {@code offset} positions ahead of the current
+     * position without consuming anything. Returns {@link #EOF} past the end.
+     */
+    public char peek(int offset) {
+        int p = position + offset;
+        return p < chars.length ? chars[p] : EOF;
+    }
+
     public boolean readNext(char c) {
         if (peek() == c) {
             forward();

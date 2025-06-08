@@ -1,0 +1,23 @@
+/**
+ * Object and array literals with nested access and mutation.
+ */
+var obj = {name: "widget", price: 9, tags: ["a", "b"]};
+assert(obj.name == "widget");
+assert(obj.price == 9);
+assert(obj.tags[0] == "a");
+assert(obj.tags[1] == "b");
+
+obj.price = 10;
+obj.tags[1] = "beta";
+assert(obj.price == 10);
+assert(obj.tags[1] == "beta");
+
+var matrix = [[1, 2], [3, 4]];
+assert(matrix[1][0] == 3);
+matrix[1][0] = 30;
+assert(matrix[1][0] == 30);
+
+var empty = {};
+var emptyArr = [];
+assert(empty);
+assert(emptyArr);

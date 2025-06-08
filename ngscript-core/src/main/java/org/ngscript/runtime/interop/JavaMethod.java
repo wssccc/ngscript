@@ -71,7 +71,7 @@ public class JavaMethod implements VmInvokable {
                                     .collect(Collectors.joining(", "))));
         }
         if (properMethod.isVarArgs()) {
-            args = VarArgUtils.packVarArgs(args);
+            args = VarArgUtils.packVarArgs(args, properMethod.getParameterTypes().length - 1);
         }
         try {
             Object val = properMethod.invoke(caller, args);

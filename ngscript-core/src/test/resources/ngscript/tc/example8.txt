@@ -2,13 +2,17 @@
  * Example class demonstrating basic object-oriented concepts
  */
 function ExampleClass(param1, param2, param3, param4) {
-	//this.property1 = 1;
-	//this.property2 = new array();
-	//this.property2[0] = 1;
-	//this.property2[1] = 2;
+	this.property1 = 1;
+	this.property2 = [];
+	this.property2[0] = 1;
+	this.property2[1] = 2;
 }
 
 var instance = new ExampleClass();
+
+assert(instance.property1 == 1);
+assert(instance.property2[0] == 1);
+assert(instance.property2[1] == 2);
 
 // Self-executing function demonstrating closure
 (function (x, y, z) {

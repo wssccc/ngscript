@@ -266,8 +266,8 @@ public class Compiler {
             }
         } else if (expr instanceof ArrayLiteral) {
             ArrayLiteral array = (ArrayLiteral) expr;
-            for (Expr item : array.items) {
-                compileExpr(item);
+            for (int i = array.items.size() - 1; i >= 0; i--) {
+                compileExpr(array.items.get(i));
                 assembler.emit("push_eax");
             }
             assembler.emit("array_new", array.items.size() + "");
@@ -473,7 +473,7 @@ public class Compiler {
         assembler.emit("label", catchLabel);
         assembler.emit("mov_eax_exception");
         assembler.emit("set", tryStmt.catchVar);
-        assembler.emit("clear", "%exception");
+        assembler.emit("clear_null", "%exception");
         compileBlock(tryStmt.catchBody);
         assembler.emit("push_eip");
         assembler.emit("jmp", finallyLabel);

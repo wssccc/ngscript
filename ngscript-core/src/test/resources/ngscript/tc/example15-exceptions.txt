@@ -1,0 +1,31 @@
+/**
+ * Exception handling: non-string throws, catch-and-continue, nested try/finally.
+ */
+function raiseObject() {
+    throw {code: 42, message: "custom error"};
+}
+
+try {
+    raiseObject();
+    assert(0);
+} catch (ex) {
+    assert(ex.code == 42);
+    assert(ex.message == "custom error");
+}
+
+try {
+    try {
+        throw "inner";
+    } catch (inner) {
+        assert(inner == "inner");
+    }
+    throw "outer";
+} catch (outer) {
+    assert(outer == "outer");
+} finally {
+    println("finally executed");
+}
+
+// execution continues after a caught exception
+var reached = 1;
+assert(reached == 1);

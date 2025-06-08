@@ -112,10 +112,10 @@ public class Lexer {
                 return token("lparen");
             case ')':
                 reader.skipBlanks();
-                if (reader.readNext('=')) {
-                    if (reader.readNext('>')) {
-                        return token("rparen_arrow_fn");
-                    }
+                if (reader.peek() == '=' && reader.peek(1) == '>') {
+                    reader.forward();
+                    reader.forward();
+                    return token("rparen_arrow_fn");
                 }
                 return token("rparen");
             case '{':

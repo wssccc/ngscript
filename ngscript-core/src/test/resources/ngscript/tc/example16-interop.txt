@@ -1,0 +1,13 @@
+/**
+ * Java interop: constructors, static methods, overloads, varargs.
+ */
+var s = new StringBuilder();
+s.append("a");
+s.append(1);
+assert(s.toString() == "a1");
+
+assert(Math.abs(-5) == 5);
+// overload resolution may pick the double variant; `==` compares via toString
+assert(Math.max(3, 7) == 7.0);
+assert(Integer.parseInt("42") == 42);
+assert(String.format("%d-%s", 7, "x") == "7-x");

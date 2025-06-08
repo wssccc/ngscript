@@ -21,13 +21,17 @@ package org.ngscript.runtime;
  */
 public class VarArgUtils {
 
-    public static Object[] packVarArgs(Object[] args) {
-        int nonVarsCount = args.length - 1;
-        Object[] newArgs = new Object[nonVarsCount + 1];
-        Object[] varArgs = new Object[args.length - nonVarsCount];
-        System.arraycopy(args, nonVarsCount, varArgs, 0, varArgs.length);
-        System.arraycopy(args, 0, newArgs, 0, newArgs.length);
-        newArgs[newArgs.length - 1] = varArgs;
+    /**
+     * Packs the trailing varargs arguments of {@code args} into a single
+     * {@code Object[]} slot. {@code fixedCount} is the number of leading
+     * arguments that map to the method's non-varargs parameters.
+     */
+    public static Object[] packVarArgs(Object[] args, int fixedCount) {
+        Object[] newArgs = new Object[fixedCount + 1];
+        Object[] varArgs = new Object[args.length - fixedCount];
+        System.arraycopy(args, fixedCount, varArgs, 0, varArgs.length);
+        System.arraycopy(args, 0, newArgs, 0, fixedCount);
+        newArgs[fixedCount] = varArgs;
         return newArgs;
     }
 }

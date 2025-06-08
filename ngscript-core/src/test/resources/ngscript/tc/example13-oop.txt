@@ -1,0 +1,33 @@
+/**
+ * OOP: script-level classes. The instance created by `new Foo()` is the
+ * constructor's active scope frame; methods are closures that capture
+ * constructor parameters/lexicals, while `this` refers to the active frame.
+ */
+function Person(name, age) {
+    this.name = name;
+    this.age = age;
+    this.greet = function() {
+        return "Hello, " + name;
+    };
+    this.isAdult = function() {
+        return age >= 18;
+    };
+}
+
+var alice = new Person("Alice", 30);
+var bob = new Person("Bob", 15);
+
+assert(alice.name == "Alice");
+assert(alice.age == 30);
+assert(alice.greet() == "Hello, Alice");
+assert(alice.isAdult() == 1);
+assert(bob.isAdult() == 0);
+
+// instance members are independent per instance
+bob.name = "Robert";
+assert(alice.name == "Alice");
+assert(bob.name == "Robert");
+
+// alias semantics: `this.name` and the constructor parameter share the same
+// slot in the instance frame, so member writes are visible to captured lexicals
+assert(bob.greet() == "Hello, Robert");
