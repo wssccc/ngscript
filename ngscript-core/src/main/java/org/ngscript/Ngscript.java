@@ -16,21 +16,23 @@
 
 package org.ngscript;
 
-import lombok.extern.slf4j.Slf4j;
+import java.io.PrintWriter;
+import java.util.Collections;
+import java.util.List;
+
 import org.ngscript.compiler.Compiler;
 import org.ngscript.compiler.CompilerException;
 import org.ngscript.compiler.Instruction;
+import org.ngscript.parser.NgParser;
+import org.ngscript.parser.ParserException;
+import org.ngscript.parser.Token;
+import org.ngscript.parser.ast.Program;
+import org.ngscript.parser.ast.Stmt;
 import org.ngscript.parser.lexer.Lexer;
 import org.ngscript.parser.lexer.LexerException;
-import org.ngscript.parser.NgLalrParser;
-import org.ngscript.parseroid.grammar.Symbol;
-import org.ngscript.parseroid.parser.AstNode;
-import org.ngscript.parseroid.parser.ParserException;
-import org.ngscript.parseroid.parser.Token;
 import org.ngscript.runtime.VirtualMachine;
 
-import java.io.PrintWriter;
-import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * @author wssccc
@@ -39,7 +41,7 @@ import java.util.List;
 public class Ngscript {
 
     Configuration configuration;
-    NgLalrParser parser;
+    NgParser parser;
     Compiler compiler;
     VirtualMachine vm = new VirtualMachine(new PrintWriter(System.out), new PrintWriter(System.err));
 
@@ -50,7 +52,8 @@ public class Ngscript {
     public Ngscript(Configuration configuration) {
         this.configuration = configuration;
         this.compiler = new Compiler(configuration);
-        this.parser = new NgLalrParser(configuration);
+        this.parser = new NgParser();
+        this.parser.setStatementListener(stmt -> compileAndRun(stmt, ""));
     }
 
     public Object eval(String code) throws ParserException, CompilerException {
@@ -60,26 +63,28 @@ public class Ngscript {
 
     public boolean feed(String code) throws CompilerException, LexerException, ParserException {
         List<Token> tokens = Lexer.scan(code);
-        if (!configuration.isInteractive()) {
-            tokens.add(new Token(Symbol.EOF.identifier));
+        if (configuration.isInteractive()) {
+            return parser.feedInteractive(tokens);
         }
-        Token[] ts = tokens.toArray(new Token[0]);
-        boolean compiled = parser.feed(ts);
-        if (compiled) {
-            AstNode ast = parser.getResult();
-            parser.reduce(ast);
-            NgLalrParser.removeNULL(ast);
-            if (configuration.isGenerateDebugInfo()) {
-                log.info(ast.toString());
-            }
-            //
-            List<Instruction> ins = compiler.compileCode(ast, code);
-            if (configuration.isGenerateDebugInfo()) {
-                log.info(ins.toString());
-            }
-            vm.loadInstructions(ins);
-            vm.run();
+        Program program = parser.parse(tokens);
+        compileAndRun(program, code);
+        return true;
+    }
+
+    private void compileAndRun(Stmt stmt, String sourceCode) throws CompilerException {
+        Program program = new Program(Collections.singletonList(stmt), stmt.line);
+        compileAndRun(program, sourceCode);
+    }
+
+    private void compileAndRun(Program program, String sourceCode) throws CompilerException {
+        if (configuration.isGenerateDebugInfo()) {
+            log.info(program.toString());
         }
-        return compiled;
+        List<Instruction> ins = compiler.compileCode(program, sourceCode);
+        if (configuration.isGenerateDebugInfo()) {
+            log.info(ins.toString());
+        }
+        vm.loadInstructions(ins);
+        vm.run();
     }
 }

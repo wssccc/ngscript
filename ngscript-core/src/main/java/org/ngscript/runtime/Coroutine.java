@@ -21,11 +21,11 @@ import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.ngscript.parseroid.util.FastStack;
 import org.ngscript.runtime.interop.JavaMethod;
 import org.ngscript.runtime.value.FunctionDef;
 import org.ngscript.runtime.value.VmMemRef;
 import org.ngscript.runtime.value.undefined;
+import org.ngscript.util.FastStack;
 
 /**
  * @author wssccc

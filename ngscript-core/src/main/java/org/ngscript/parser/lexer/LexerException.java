@@ -16,7 +16,7 @@
 
 package org.ngscript.parser.lexer;
 
-import org.ngscript.parseroid.parser.ParserException;
+import org.ngscript.parser.ParserException;
 
 /**
  * @author wssccc

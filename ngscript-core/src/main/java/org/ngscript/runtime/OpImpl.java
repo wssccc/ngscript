@@ -604,11 +604,13 @@ public class OpImpl {
         vm.stack.pop(); //params
     }
 
-    public static void go(VirtualMachine vm, String param, String param_extend) {
-        new Thread(() -> {
-            jmp(vm, param, param_extend);
-            vm.run();
-        }).start();
+    public static void go(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
+        // the go body shares the vm stack, so it must run synchronously on the current thread:
+        // save the current position, jump into the go body and run until it halts, then resume.
+        int savedEip = vm.getEip();
+        jmp(vm, param, param_extend);
+        vm.run();
+        vm.setEip(savedEip);
     }
 
     public static void halt(VirtualMachine vm, String param, String param_extend) {

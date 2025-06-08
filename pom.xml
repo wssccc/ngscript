@@ -13,7 +13,6 @@
     <url>https://github.com/ngscript/ngscript</url>
 
     <modules>
-        <module>ngscript-parseroid</module>
         <module>ngscript-core</module>
         <module>ngscript-shell</module>
         <module>ngscript-examples</module>
@@ -26,7 +25,6 @@
         <slf4j.version>2.0.9</slf4j.version>
         <commons-io.version>2.15.1</commons-io.version>
         <commons-lang3.version>3.14.0</commons-lang3.version>
-        <commons-codec.version>1.16.1</commons-codec.version>
         <javassist.version>3.29.2-GA</javassist.version>
         <jline.version>3.25.0</jline.version>
         <lombok.version>1.18.30</lombok.version>
@@ -35,11 +33,6 @@
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>org.ngscript</groupId>
-                <artifactId>ngscript-parseroid</artifactId>
-                <version>${project.version}</version>
-            </dependency>
             <dependency>
                 <groupId>org.ngscript</groupId>
                 <artifactId>ngscript-core</artifactId>

@@ -25,12 +25,12 @@ import java.util.Map;
 
 import org.ngscript.builtins.Builtins;
 import org.ngscript.compiler.Instruction;
-import org.ngscript.parseroid.util.FastStack;
 import org.ngscript.runtime.opcache.OpBinding;
 import org.ngscript.runtime.opcache.OpInvokable;
 import org.ngscript.runtime.opcache.OpMap;
 import org.ngscript.runtime.value.FunctionDef;
 import org.ngscript.runtime.value.VmMemRef;
+import org.ngscript.util.FastStack;
 
 /**
  * @author wssccc

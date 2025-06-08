@@ -16,19 +16,55 @@
 
 package org.ngscript.compiler;
 
-import org.ngscript.Configuration;
-import org.ngscript.parseroid.parser.AstNode;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
+import java.util.Scanner;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.*;
+import org.ngscript.Configuration;
+import org.ngscript.parser.ast.ArrayLiteral;
+import org.ngscript.parser.ast.AssignExpr;
+import org.ngscript.parser.ast.AstNode;
+import org.ngscript.parser.ast.BinaryExpr;
+import org.ngscript.parser.ast.Block;
+import org.ngscript.parser.ast.BreakStmt;
+import org.ngscript.parser.ast.CallExpr;
+import org.ngscript.parser.ast.CondExpr;
+import org.ngscript.parser.ast.ContinueStmt;
+import org.ngscript.parser.ast.Expr;
+import org.ngscript.parser.ast.ExprStmt;
+import org.ngscript.parser.ast.ForStmt;
+import org.ngscript.parser.ast.FunctionDecl;
+import org.ngscript.parser.ast.GoStmt;
+import org.ngscript.parser.ast.IdentExpr;
+import org.ngscript.parser.ast.IfStmt;
+import org.ngscript.parser.ast.ImportStmt;
+import org.ngscript.parser.ast.IndexExpr;
+import org.ngscript.parser.ast.Kvp;
+import org.ngscript.parser.ast.LambdaExpr;
+import org.ngscript.parser.ast.LiteralExpr;
+import org.ngscript.parser.ast.MemberExpr;
+import org.ngscript.parser.ast.NewExpr;
+import org.ngscript.parser.ast.ObjectLiteral;
+import org.ngscript.parser.ast.Params;
+import org.ngscript.parser.ast.Program;
+import org.ngscript.parser.ast.ReturnStmt;
+import org.ngscript.parser.ast.Stmt;
+import org.ngscript.parser.ast.SwitchCase;
+import org.ngscript.parser.ast.SwitchStmt;
+import org.ngscript.parser.ast.ThrowStmt;
+import org.ngscript.parser.ast.TryStmt;
+import org.ngscript.parser.ast.UnaryExpr;
+import org.ngscript.parser.ast.VarDeclExpr;
+import org.ngscript.parser.ast.WhileStmt;
 
 /**
+ * Compiles a typed {@link Program} AST into a list of {@link Instruction}s for the
+ * {@link org.ngscript.runtime.VirtualMachine}.
+ *
  * @author wssccc
  */
 public class Compiler {
-
-    private static final Set<String> BINARY_OP = new HashSet<>(Arrays.asList("bit_xor", "bit_or", "bit_and", "eq", "neq", "lt", "gt", "le", "ge", "veq", "vneq", "mul", "mod", "div", "add", "sub"));
 
     Configuration configuration;
 
@@ -40,16 +76,22 @@ public class Compiler {
     Deque<String> breakLabels = new ArrayDeque<>();
     Deque<String> finallyLabels = new ArrayDeque<>();
 
+    /**
+     * True while compiling the try or catch body of a try statement: break, continue and
+     * return inside those bodies must run the finally branch first.
+     */
+    boolean inHookedBlock;
+
     public Compiler(Configuration configuration) {
         this.configuration = configuration;
     }
 
-    public List<Instruction> compileCode(AstNode ast, String sourceCode) throws CompilerException {
+    public List<Instruction> compileCode(Program program, String sourceCode) throws CompilerException {
         assembler.instructions.clear();
-        try (Scanner sc = new Scanner(sourceCode)) {
+        try (Scanner sc = new Scanner(sourceCode == null ? "" : sourceCode)) {
             this.scanner = sc;
             printedLines = 0;
-            compile(ast);
+            compileProgram(program);
             if (configuration.isGenerateDebugInfo()) {
                 while (sc.hasNextLine()) {
                     assembler.emit("//", sc.nextLine(), "" + printedLines);
@@ -59,10 +101,10 @@ public class Compiler {
         return assembler.instructions;
     }
 
-    private void generateDebugInfo(AstNode ast) {
+    private void generateDebugInfo(AstNode node) {
         if (configuration.isGenerateDebugInfo()) {
-            if (printedLines != ast.token.line) {
-                while (printedLines < ast.token.line) {
+            if (printedLines != node.line) {
+                while (printedLines < node.line) {
                     String line = scanner.hasNextLine() ? scanner.nextLine() : "no line";
                     assembler.emit("//", line, "" + printedLines);
                     ++printedLines;
@@ -71,266 +113,70 @@ public class Compiler {
         }
     }
 
-    private void compile(AstNode ast) throws CompilerException {
-        if (ast == null) {
+    private void compileProgram(Program program) throws CompilerException {
+        for (Stmt stmt : program.statements) {
+            compileStmt(stmt);
+        }
+    }
+
+    private void compileBlock(Block block) throws CompilerException {
+        for (Stmt stmt : block.statements) {
+            compileStmt(stmt);
+        }
+    }
+
+    private void compileStmt(Stmt stmt) throws CompilerException {
+        if (stmt == null) {
             return;
         }
-        generateDebugInfo(ast);
-        try {
-            Method m = this.getClass().getDeclaredMethod("compile_" + ast.token.type, AstNode.class);
-            m.invoke(this, ast);
-        } catch (InvocationTargetException e) {
-            if (e.getCause() instanceof CompilerException) {
-                throw (CompilerException) e.getCause();
-            } else {
-                throw new RuntimeException(e);
-            }
-        } catch (NoSuchMethodException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void compile_program(AstNode ast) throws CompilerException {
-        for (AstNode content : ast.contents) {
-            compile(content);
-        }
-    }
-
-    private void compile_import_statement(AstNode ast) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 1; i < ast.contents.size(); i++) {
-            sb.append(ast.contents.get(i).token.value);
-        }
-        assembler.emit("import_", sb.toString());
-    }
-
-    private void compile_go_statement(AstNode ast) throws CompilerException {
-        String entryLabel = assembler.label("entry", ast);
-        String goLabel = assembler.label("go", ast);
-        assembler.emit("jmp", goLabel);
-        assembler.emit("label", entryLabel);
-
-        _compile_funcall(ast);
-        assembler.emit("pop_env");
-        assembler.emit("pop");//pop params
-        assembler.emit("pop");//pop function body
-
-        assembler.emit("halt");
-        assembler.emit("label", goLabel);
-        assembler.emit("go", entryLabel);
-    }
-
-    private void compile_expr(AstNode ast) throws CompilerException {
-        compile_expr(ast, false);
-    }
-
-    private void compile_expr(AstNode ast, boolean byref) throws CompilerException {
-        generateDebugInfo(ast);
-        String type = ast.token.type;
-        if (ast.token.type.equals("expr")) {
-            _compile_expr_opr(ast, byref);
-        } else if (ast.token.type.equals("NULL")) {
+        generateDebugInfo(stmt);
+        if (stmt instanceof ExprStmt) {
+            compileExpr(((ExprStmt) stmt).expr);
+        } else if (stmt instanceof FunctionDecl) {
+            compileFunctionDecl((FunctionDecl) stmt);
+        } else if (stmt instanceof IfStmt) {
+            compileIf((IfStmt) stmt);
+        } else if (stmt instanceof ForStmt) {
+            compileFor((ForStmt) stmt);
+        } else if (stmt instanceof WhileStmt) {
+            compileWhile((WhileStmt) stmt);
+        } else if (stmt instanceof SwitchStmt) {
+            compileSwitch((SwitchStmt) stmt);
+        } else if (stmt instanceof TryStmt) {
+            compileTry((TryStmt) stmt);
+        } else if (stmt instanceof ThrowStmt) {
+            compileThrow((ThrowStmt) stmt);
+        } else if (stmt instanceof ReturnStmt) {
+            compileReturn((ReturnStmt) stmt);
+        } else if (stmt instanceof BreakStmt) {
+            compileBreak();
+        } else if (stmt instanceof ContinueStmt) {
+            compileContinue();
+        } else if (stmt instanceof ImportStmt) {
+            assembler.emit("import_", ((ImportStmt) stmt).packagePath);
+        } else if (stmt instanceof GoStmt) {
+            compileGo((GoStmt) stmt);
         } else {
-            throw new CompilerException(this, "manual dispatch error " + ast);
+            throw new CompilerException(this, "Unknown statement " + stmt);
         }
     }
 
-    private void _compile_expr_opr(AstNode ast, boolean byref) throws CompilerException {
-        List<AstNode> child = ast.contents;
-        String header = child.get(0).token.type;
-        switch (header) {
-            case "assign":
-                compile_expr(child.get(1), true);
-                assembler.emit("push_eax");
-                compile_expr(child.get(2));
-                assembler.emit("assign");
-                break;
-            case "integer":
-            case "string":
-                assembler.emit(header, child.get(0).token.value);
-                break;
-            case "double":
-                assembler.emit("double_", child.get(0).token.value);
-                break;
-            case "dot":
-                compile_expr(child.get(1));
-                assembler.emit("push_eax");
-                assembler.emit("string", child.get(2).token.value);
-                assembler.emit("member_ref");
-                if (!byref) {
-                    assembler.emit("deref", "%eax");
-                }
-                break;
-            case "new":
-                _compile_funcall(ast);
-                assembler.emit("new_op");
-                break;
-            case "lambda":
-                compile_lambda(ast);
-                break;
-            case "funcall":
-                _compile_funcall(ast);
-                assembler.emit("pop_env");
-                assembler.emit("pop");//pop params
-                assembler.emit("pop");//pop function body
-                break;
-            case "inc":
-                compile_expr(child.get(1), true); //param1
-                assembler.emit("inc");
-                break;
-            case "post_inc":
-                compile_expr(child.get(1), true); //param1
-                assembler.emit("post_inc");
-                break;
-            case "dec":
-                compile_expr(child.get(1), true); //param1
-                assembler.emit("dec");
-                break;
-            case "post_dec":
-                compile_expr(child.get(1), true); //param1
-                assembler.emit("post_dec");
-                break;
-            case "undefined":
-                assembler.emit("undefined");
-                break;
-            case "ident":
-                if (!byref) {
-                    assembler.emit("deref", child.get(0).token.value);
-                } else {
-                    assembler.emit("mov_eax", child.get(0).token.value);
-                }
-                break;
-            case "var":
-                if (!child.get(1).token.type.equals("ident")) {
-                    throw new CompilerException(this, "var statement expect an ident");
-                }
-                assembler.emit("clear", "%eax");
-                assembler.emit("set", child.get(1).token.value);
-                if (!byref) {
-                    assembler.emit("deref", child.get(1).token.value);
-                } else {
-                    assembler.emit("mov_eax", child.get(1).token.value);
-                }
-                break;
-            case "val":
-                if (!child.get(1).token.type.equals("ident")) {
-                    throw new CompilerException(this, "val statement expect an ident");
-                }
-                assembler.emit("clear", "%eax");
-                assembler.emit("val", child.get(1).token.value);
-                if (!byref) {
-                    assembler.emit("deref", child.get(1).token.value);
-                } else {
-                    assembler.emit("mov_eax", child.get(1).token.value);
-                }
-                break;
-            case "array":
-                makeParam2(child);
-                assembler.emit("array_ref");
-                if (!byref) {
-                    assembler.emit("deref", "%eax");
-                }
-                break;
-            case "typeof":
-                compile_expr(child.get(1)); //param1
-                assembler.emit("typeof");
-                break;
-            case "null":
-                assembler.emit("clear_null", "%eax");
-                break;
-            case "true":
-                assembler.emit("bool", "true");
-                break;
-            case "false":
-                assembler.emit("bool", "false");
-                break;
-            case "neg":
-                compile_expr(child.get(1)); //param1
-                assembler.emit("neg");
-                break;
-            case "cond":
-                String falseLabel = assembler.label("falsePart", ast);
-                String exitLabel = assembler.label("exitPart", ast);
-
-                compile_expr(child.get(1));
-                assembler.emit("jz", falseLabel);
-                compile_expr(child.get(2));
-                assembler.emit("jmp", exitLabel);
-                assembler.emit("label", falseLabel);
-                compile_expr(child.get(3));
-                assembler.emit("label", exitLabel);
-                break;
-            case "or": {
-                String exit = assembler.label("exit_or", ast);
-                compile_expr(child.get(1));
-                assembler.emit("jnz", exit);
-                compile_expr(child.get(2));
-                assembler.emit("label", exit);
-                break;
-            }
-            case "and": {
-                String exit = assembler.label("exit_and", ast);
-                compile_expr(child.get(1));
-                assembler.emit("jz", exit);
-                compile_expr(child.get(2));
-                assembler.emit("label", exit);
-                break;
-            }
-            case "array_new":
-                for (int i = 0; i < child.get(1).contents.size(); i++) {
-                    compile_expr(child.get(1).contents.get(i));
-                    assembler.emit("push_eax");
-                }
-                assembler.emit("array_new", child.get(1).contents.size() + "");
-                break;
-            case "object_new":
-                for (int i = 0; i < child.get(1).contents.size(); i++) {
-                    assembler.emit("string", child.get(1).contents.get(i).contents.get(0).token.value);
-                    assembler.emit("push_eax");
-                    compile_expr(child.get(1).contents.get(i).contents.get(1));
-                    assembler.emit("push_eax");
-                }
-                assembler.emit("object_new", child.get(1).contents.size() + "");
-                break;
-            default:
-                if (BINARY_OP.contains(header)) {
-                    makeParam2(child);
-                    assembler.emit(header);
-                } else {
-                    throw new CompilerException(this, "Unknown expression " + child);
-                }
-
-        }
+    private void compileFunctionDecl(FunctionDecl decl) throws CompilerException {
+        String enter = _compile_function_body(decl.params, decl.body);
+        assembler.instructions.add(0, new Instruction("static_func", decl.name, enter));
     }
 
-    void makeParam2(List<AstNode> child) throws CompilerException {
-        compile_expr(child.get(1)); //param1
-        assembler.emit("push_eax");
-        compile_expr(child.get(2)); //param2
-    }
-
-    private void compile_function_decl(AstNode ast) throws CompilerException {
-        String enter = _compile_function_body(ast);
-        assembler.instructions.add(0, new Instruction("static_func", ast.contents.get(0).token.value, enter));
-    }
-
-    private String _compile_function_body(AstNode ast) throws CompilerException {
-        String exit = assembler.label("func_exit", ast);
-        String enter = assembler.label("func_enter", ast);
+    private String _compile_function_body(Params params, Block body) throws CompilerException {
+        String exit = assembler.label("func_exit", body);
+        String enter = assembler.label("func_enter", body);
         assembler.emit("jmp", exit);
         assembler.emit("label", enter);
 
-        AstNode params = ast.getNode("param_list");
-
-        List<AstNode> contents = params.contents;
-        for (int i = 0; i < contents.size(); i++) {
-            AstNode content = contents.get(i);
+        for (int i = 0; i < params.names.size(); i++) {
             assembler.emit("pickarg", i + "");
-            assembler.emit("set", content.token.value, "%eax");
+            assembler.emit("set", params.names.get(i), "%eax");
         }
-
-        compile(ast.getNode("statements"));
-        compile(ast.getNode("statement"));
+        compileBlock(body);
         //default return void
         assembler.emit("clear", "%eax");
         assembler.emit("ret");
@@ -338,122 +184,304 @@ public class Compiler {
         return enter;
     }
 
-    private void compile_lambda(AstNode ast) throws CompilerException {
-        String enter = _compile_function_body(ast);
-        assembler.emit("new_closure", enter);
+    private void compileExpr(Expr expr) throws CompilerException {
+        compileExpr(expr, false);
     }
 
-    private void compile_statements(AstNode ast) throws CompilerException {
-        compile_program(ast);
-    }
-
-    private void compile_statement(AstNode ast) throws CompilerException {
-        compile_program(ast);
-    }
-
-    void _compile_nullable_expr(AstNode ast) throws CompilerException {
-        if (ast.contents.size() == 1) {
-            if (ast.contents.get(0).token.type.equals("NULL")) {
-                assembler.emit("integer", "1");
-                return;
-            }
+    private void compileExpr(Expr expr, boolean byref) throws CompilerException {
+        if (expr == null) {
+            return;
         }
-        compile_expr(ast);
+        generateDebugInfo(expr);
+        if (expr instanceof LiteralExpr) {
+            compileLiteral((LiteralExpr) expr);
+        } else if (expr instanceof IdentExpr) {
+            IdentExpr ident = (IdentExpr) expr;
+            if (!byref) {
+                assembler.emit("deref", ident.name);
+            } else {
+                assembler.emit("mov_eax", ident.name);
+            }
+        } else if (expr instanceof VarDeclExpr) {
+            VarDeclExpr decl = (VarDeclExpr) expr;
+            assembler.emit("clear", "%eax");
+            if (decl.isVal) {
+                assembler.emit("val", decl.name);
+            } else {
+                assembler.emit("set", decl.name);
+            }
+            if (!byref) {
+                assembler.emit("deref", decl.name);
+            } else {
+                assembler.emit("mov_eax", decl.name);
+            }
+        } else if (expr instanceof AssignExpr) {
+            AssignExpr assign = (AssignExpr) expr;
+            compileExpr(assign.target, true);
+            assembler.emit("push_eax");
+            compileExpr(assign.value);
+            assembler.emit("assign");
+        } else if (expr instanceof UnaryExpr) {
+            compileUnary((UnaryExpr) expr);
+        } else if (expr instanceof BinaryExpr) {
+            compileBinary((BinaryExpr) expr);
+        } else if (expr instanceof CondExpr) {
+            CondExpr cond = (CondExpr) expr;
+            String falseLabel = assembler.label("falsePart", cond);
+            String exitLabel = assembler.label("exitPart", cond);
+            compileExpr(cond.condition);
+            assembler.emit("jz", falseLabel);
+            compileExpr(cond.thenExpr);
+            assembler.emit("jmp", exitLabel);
+            assembler.emit("label", falseLabel);
+            compileExpr(cond.elseExpr);
+            assembler.emit("label", exitLabel);
+        } else if (expr instanceof MemberExpr) {
+            MemberExpr member = (MemberExpr) expr;
+            compileExpr(member.object);
+            assembler.emit("push_eax");
+            assembler.emit("string", member.name);
+            assembler.emit("member_ref");
+            if (!byref) {
+                assembler.emit("deref", "%eax");
+            }
+        } else if (expr instanceof CallExpr) {
+            CallExpr call = (CallExpr) expr;
+            _compile_funcall(call.callee, call.args);
+            assembler.emit("pop_env");
+            assembler.emit("pop");//pop params
+            assembler.emit("pop");//pop function body
+        } else if (expr instanceof NewExpr) {
+            NewExpr newExpr = (NewExpr) expr;
+            _compile_funcall(newExpr.callee, newExpr.args);
+            assembler.emit("new_op");
+        } else if (expr instanceof IndexExpr) {
+            IndexExpr indexExpr = (IndexExpr) expr;
+            compileExpr(indexExpr.object);
+            assembler.emit("push_eax");
+            compileExpr(indexExpr.index);
+            assembler.emit("array_ref");
+            if (!byref) {
+                assembler.emit("deref", "%eax");
+            }
+        } else if (expr instanceof ArrayLiteral) {
+            ArrayLiteral array = (ArrayLiteral) expr;
+            for (Expr item : array.items) {
+                compileExpr(item);
+                assembler.emit("push_eax");
+            }
+            assembler.emit("array_new", array.items.size() + "");
+        } else if (expr instanceof ObjectLiteral) {
+            ObjectLiteral object = (ObjectLiteral) expr;
+            for (Kvp kvp : object.kvps) {
+                assembler.emit("string", kvp.name);
+                assembler.emit("push_eax");
+                compileExpr(kvp.value);
+                assembler.emit("push_eax");
+            }
+            assembler.emit("object_new", object.kvps.size() + "");
+        } else if (expr instanceof LambdaExpr) {
+            LambdaExpr lambda = (LambdaExpr) expr;
+            String enter = _compile_function_body(lambda.params, lambda.body);
+            assembler.emit("new_closure", enter);
+        } else {
+            throw new CompilerException(this, "Unknown expression " + expr);
+        }
     }
 
-    private void compile_for_block(AstNode ast) throws CompilerException {
-        String testLabel = assembler.label("test", ast);
-        String continueLabel = assembler.label("continue", ast);
-        String breakLabel = assembler.label("break", ast);
-        breakLabels.push(breakLabel);
-        continueLabels.push(continueLabel);
-        _compile_nullable_expr(ast.contents.get(0));
-        assembler.emit("label", testLabel);
-        _compile_nullable_expr(ast.contents.get(1));
-        assembler.emit("jz", breakLabel);
-        compile_statements(ast.contents.get(3));
-        assembler.emit("label", continueLabel);
-        _compile_nullable_expr(ast.contents.get(2));
-        assembler.emit("jmp", testLabel);
-        assembler.emit("label", breakLabel);
-        breakLabels.pop();
-        continueLabels.pop();
+    private void compileLiteral(LiteralExpr lit) {
+        switch (lit.kind) {
+            case INTEGER:
+                assembler.emit("integer", lit.value);
+                break;
+            case STRING:
+                assembler.emit("string", lit.value);
+                break;
+            case DOUBLE:
+                assembler.emit("double_", lit.value);
+                break;
+            case TRUE:
+                assembler.emit("bool", "true");
+                break;
+            case FALSE:
+                assembler.emit("bool", "false");
+                break;
+            case NULL:
+                assembler.emit("clear_null", "%eax");
+                break;
+            case UNDEFINED:
+                assembler.emit("undefined");
+                break;
+        }
     }
 
-    private void compile_while_block(AstNode ast) throws CompilerException {
-        String testLabel = assembler.label("test", ast);
-        String continueLabel = assembler.label("continue", ast);
-        String breakLabel = assembler.label("break", ast);
-        breakLabels.push(breakLabel);
-        continueLabels.push(continueLabel);
-
-        assembler.emit("label", testLabel);
-        compile_expr(ast.contents.get(0));
-        assembler.emit("jz", breakLabel);
-        compile_statements(ast.contents.get(1));
-        assembler.emit("label", continueLabel);
-        assembler.emit("jmp", testLabel);
-        assembler.emit("label", breakLabel);
-        breakLabels.pop();
-        continueLabels.pop();
+    private void compileUnary(UnaryExpr unary) throws CompilerException {
+        switch (unary.op) {
+            case INC:
+                compileExpr(unary.operand, true);
+                assembler.emit("inc");
+                break;
+            case POST_INC:
+                compileExpr(unary.operand, true);
+                assembler.emit("post_inc");
+                break;
+            case DEC:
+                compileExpr(unary.operand, true);
+                assembler.emit("dec");
+                break;
+            case POST_DEC:
+                compileExpr(unary.operand, true);
+                assembler.emit("post_dec");
+                break;
+            case TYPEOF:
+                compileExpr(unary.operand);
+                assembler.emit("typeof");
+                break;
+            case NEG:
+                compileExpr(unary.operand);
+                assembler.emit("neg");
+                break;
+            case NOT:
+                throw new CompilerException(this, "not operator is not supported");
+        }
     }
 
-    private void compile_switch_block(AstNode ast) throws CompilerException {
-        String breakLabel = assembler.label("break", ast);
-        breakLabels.push(breakLabel);
-        compile_expr(ast.contents.get(0));
+    private void compileBinary(BinaryExpr bin) throws CompilerException {
+        if (bin.op == BinaryExpr.Op.OR) {
+            String exit = assembler.label("exit_or", bin);
+            compileExpr(bin.left);
+            assembler.emit("jnz", exit);
+            compileExpr(bin.right);
+            assembler.emit("label", exit);
+            return;
+        }
+        if (bin.op == BinaryExpr.Op.AND) {
+            String exit = assembler.label("exit_and", bin);
+            compileExpr(bin.left);
+            assembler.emit("jz", exit);
+            compileExpr(bin.right);
+            assembler.emit("label", exit);
+            return;
+        }
+        compileExpr(bin.left);
         assembler.emit("push_eax");
+        compileExpr(bin.right);
+        assembler.emit(bin.op.name().toLowerCase());
+    }
 
-        String nextBody = null;
-        for (int i = 0; i < ast.contents.get(1).contents.size() - 1; i++) {
-            String nextLabel = assembler.label("case_" + i, ast);
+    private void _compile_nullable_expr(Expr expr) throws CompilerException {
+        if (expr == null) {
+            assembler.emit("integer", "1");
+            return;
+        }
+        compileExpr(expr);
+    }
 
-            compile_expr(ast.contents.get(1).contents.get(i).contents.get(0));
+    private void compileIf(IfStmt ifStmt) throws CompilerException {
+        if (ifStmt.elseBody == null) {
+            String exitLabel = assembler.label("exit", ifStmt);
+            compileExpr(ifStmt.condition);
+            assembler.emit("jz", exitLabel);
+            compileBlock(ifStmt.thenBody);
+            assembler.emit("label", exitLabel);
+        } else {
+            String exitLabel = assembler.label("exit", ifStmt);
+            String elseLabel = assembler.label("else", ifStmt);
+            compileExpr(ifStmt.condition);
+            assembler.emit("jz", elseLabel);
+            compileBlock(ifStmt.thenBody);
+            assembler.emit("jmp", exitLabel);
+            assembler.emit("label", elseLabel);
+            compileBlock(ifStmt.elseBody);
+            assembler.emit("label", exitLabel);
+        }
+    }
+
+    private void compileFor(ForStmt forStmt) throws CompilerException {
+        String testLabel = assembler.label("test", forStmt);
+        String continueLabel = assembler.label("continue", forStmt);
+        String breakLabel = assembler.label("break", forStmt);
+        breakLabels.push(breakLabel);
+        continueLabels.push(continueLabel);
+        _compile_nullable_expr(forStmt.init);
+        assembler.emit("label", testLabel);
+        _compile_nullable_expr(forStmt.test);
+        assembler.emit("jz", breakLabel);
+        compileBlock(forStmt.body);
+        assembler.emit("label", continueLabel);
+        _compile_nullable_expr(forStmt.step);
+        assembler.emit("jmp", testLabel);
+        assembler.emit("label", breakLabel);
+        breakLabels.pop();
+        continueLabels.pop();
+    }
+
+    private void compileWhile(WhileStmt whileStmt) throws CompilerException {
+        String testLabel = assembler.label("test", whileStmt);
+        String continueLabel = assembler.label("continue", whileStmt);
+        String breakLabel = assembler.label("break", whileStmt);
+        breakLabels.push(breakLabel);
+        continueLabels.push(continueLabel);
+        assembler.emit("label", testLabel);
+        compileExpr(whileStmt.condition);
+        assembler.emit("jz", breakLabel);
+        compileBlock(whileStmt.body);
+        assembler.emit("label", continueLabel);
+        assembler.emit("jmp", testLabel);
+        assembler.emit("label", breakLabel);
+        breakLabels.pop();
+        continueLabels.pop();
+    }
+
+    private void compileSwitch(SwitchStmt switchStmt) throws CompilerException {
+        String breakLabel = assembler.label("break", switchStmt);
+        breakLabels.push(breakLabel);
+        compileExpr(switchStmt.value);
+        assembler.emit("push_eax");
+        for (int i = 0; i < switchStmt.cases.size(); i++) {
+            SwitchCase c = switchStmt.cases.get(i);
+            String nextLabel = assembler.label("case_" + i, switchStmt);
+            compileExpr(c.value);
             assembler.emit("eq");
             assembler.emit("jz", nextLabel);
-            if (nextBody != null) {
-                assembler.emit("label", nextBody);
-            }
-            nextBody = assembler.label("body_" + i, ast);
-            compile_statements(ast.contents.get(1).contents.get(i).contents.get(1));
-            assembler.emit("jmp", nextBody);
+            compileBlock(c.body);
+            assembler.emit("jmp", breakLabel);
             assembler.emit("label", nextLabel);
         }
-        if (ast.contents.size() == 3) {
-            //has default block
-            if (nextBody != null) {
-                assembler.emit("label", nextBody);
-            }
-            compile_statements(ast.contents.get(2).contents.get(0));
+        if (switchStmt.defaultBody != null) {
+            compileBlock(switchStmt.defaultBody);
         }
         breakLabels.pop();
         assembler.emit("label", breakLabel);
     }
 
-    private void compile_try_block(AstNode ast) throws CompilerException {
-        String catchLabel = assembler.label("catch", ast);
-        String finallyLabel = assembler.label("finally", ast);
-        String exitLabel = assembler.label("exit", ast);
+    private void compileTry(TryStmt tryStmt) throws CompilerException {
+        String catchLabel = assembler.label("catch", tryStmt);
+        String finallyLabel = assembler.label("finally", tryStmt);
+        String exitLabel = assembler.label("exit", tryStmt);
         finallyLabels.push(finallyLabel);
+        boolean savedHooked = inHookedBlock;
+        inHookedBlock = true;
         assembler.emit("save_machine_state");
         assembler.emit("test", "%exception");
         assembler.emit("jnz", catchLabel);
-        compile_statements(ast.contents.get(0));
+        compileBlock(tryStmt.tryBody);
         assembler.emit("drop_machine_state");
         assembler.emit("push_eip");
         assembler.emit("jmp", finallyLabel);
         assembler.emit("jmp", exitLabel);
         assembler.emit("label", catchLabel);
         assembler.emit("mov_eax_exception");
-        assembler.emit("set", ast.contents.get(1).token.value);
+        assembler.emit("set", tryStmt.catchVar);
         assembler.emit("clear", "%exception");
-        compile_statements(ast.contents.get(2));
+        compileBlock(tryStmt.catchBody);
         assembler.emit("push_eip");
         assembler.emit("jmp", finallyLabel);
         assembler.emit("jmp", exitLabel);
         assembler.emit("label", finallyLabel);
-        if (ast.contents.size() == 4) {
-            compile_statements(ast.contents.get(3));
+        inHookedBlock = savedHooked;
+        if (tryStmt.finallyBody != null) {
+            compileBlock(tryStmt.finallyBody);
         }
         assembler.emit("clear_call_stack");
         assembler.emit("pop_eax");
@@ -462,69 +490,43 @@ public class Compiler {
         finallyLabels.pop();
     }
 
-    private void compile_throw_exception(AstNode ast) throws CompilerException {
-        compile_expr(ast.contents.get(0));
+    private void compileThrow(ThrowStmt stmt) throws CompilerException {
+        compileExpr(stmt.expr);
         assembler.emit("mov_exception_eax");
         assembler.emit("restore_machine_state");
     }
 
-    private void compile_if_block(AstNode ast) throws CompilerException {
-        String exitLabel = assembler.label("exit", ast);
-
-        compile_expr(ast.contents.get(0));
-        assembler.emit("jz", exitLabel);
-        compile_statements(ast.contents.get(1));
-
-        assembler.emit("label", exitLabel);
+    private void compileReturn(ReturnStmt stmt) throws CompilerException {
+        if (inHookedBlock) {
+            _compile_call_finally();
+        }
+        if (stmt.expr != null) {
+            compileExpr(stmt.expr);
+            assembler.emit("ret");
+        } else {
+            assembler.emit("clear", "%eax");
+            assembler.emit("ret");
+        }
     }
 
-    private void compile_if_else_block(AstNode ast) throws CompilerException {
-        String exitLabel = assembler.label("exit", ast);
-        String elseLabel = assembler.label("else", ast);
-        compile_expr(ast.contents.get(0));
-        assembler.emit("jz", elseLabel);
-        compile_statements(ast.contents.get(1));
-        assembler.emit("jmp", exitLabel);
-        assembler.emit("label", elseLabel);
-        compile_statements(ast.contents.get(2));
-        assembler.emit("label", exitLabel);
-    }
-
-    private void compile_break(AstNode ast) throws CompilerException {
+    private void compileBreak() throws CompilerException {
         if (breakLabels.isEmpty()) {
             throw new CompilerException(this, "break without loop");
+        }
+        if (inHookedBlock) {
+            _compile_call_finally();
         }
         assembler.emit("jmp", breakLabels.peek());
     }
 
-    private void compile_continue(AstNode ast) throws CompilerException {
+    private void compileContinue() throws CompilerException {
         if (breakLabels.isEmpty()) {
             throw new CompilerException(this, "continue without loop");
         }
+        if (inHookedBlock) {
+            _compile_call_finally();
+        }
         assembler.emit("jmp", continueLabels.peek());
-    }
-
-    private void compile_hooked_break(AstNode ast) throws CompilerException {
-        _compile_call_finally();
-        compile_break(ast);
-    }
-
-    private void compile_hooked_continue(AstNode ast) throws CompilerException {
-        _compile_call_finally();
-        compile_continue(ast);
-    }
-
-    private void compile_NULL(AstNode ast) {
-    }
-
-    private void compile_return_val(AstNode ast) throws CompilerException {
-        compile_expr(ast.contents.get(0));
-        assembler.emit("ret");
-    }
-
-    private void compile_return_void(AstNode ast) {
-        assembler.emit("clear", "%eax");
-        assembler.emit("ret");
     }
 
     private void _compile_call_finally() {
@@ -532,32 +534,30 @@ public class Compiler {
         assembler.emit("jmp", finallyLabels.peek());
     }
 
-    private void compile_hooked_return_val(AstNode ast) throws CompilerException {
-        _compile_call_finally();
-        compile_return_val(ast);
+    private void compileGo(GoStmt goStmt) throws CompilerException {
+        String entryLabel = assembler.label("entry", goStmt);
+        String goLabel = assembler.label("go", goStmt);
+        assembler.emit("jmp", goLabel);
+        assembler.emit("label", entryLabel);
+        _compile_funcall(goStmt.callee, goStmt.args);
+        assembler.emit("pop_env");
+        assembler.emit("pop");//pop params
+        assembler.emit("pop");//pop function body
+        assembler.emit("halt");
+        assembler.emit("label", goLabel);
+        assembler.emit("go", entryLabel);
     }
 
-    private void compile_hooked_return_void(AstNode ast) {
-        _compile_call_finally();
-        compile_return_void(ast);
-    }
-
-    private void _compile_funcall(AstNode ast) throws CompilerException {
+    private void _compile_funcall(Expr callee, List<Expr> args) throws CompilerException {
         //params
-        int paramCount = 0;
-        List<AstNode> contents = ast.contents.get(2).contents;
-        for (int i = contents.size() - 1; i >= 0; i--) {
-            AstNode content = contents.get(i);
-            if (!content.token.type.equals("NULL")) {
-                ++paramCount;
-                compile_expr(content);
-                assembler.emit("push_eax");
-            }
+        for (int i = args.size() - 1; i >= 0; i--) {
+            compileExpr(args.get(i));
+            assembler.emit("push_eax");
         }
-        assembler.emit("packargs", paramCount + "");
+        assembler.emit("packargs", args.size() + "");
         assembler.emit("push_eax");
         //function body
-        compile_expr(ast.contents.get(1));
+        compileExpr(callee);
         assembler.emit("push_eax");
 
         assembler.emit("push_env");

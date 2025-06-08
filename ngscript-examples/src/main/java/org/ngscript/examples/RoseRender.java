@@ -16,10 +16,11 @@
 
 package org.ngscript.examples;
 
+import java.nio.charset.StandardCharsets;
+
 import org.apache.commons.io.IOUtils;
 import org.ngscript.Ngscript;
-
-import java.nio.charset.StandardCharsets;
+import org.ngscript.examples.roserender.DrawWindow;
 
 /**
  * @author wssccc
@@ -27,9 +28,21 @@ import java.nio.charset.StandardCharsets;
 public class RoseRender {
 
     public static void main(String[] args) throws Exception {
+        String output = null;
+        for (int i = 0; i < args.length; i++) {
+            if ("--headless".equals(args[i])) {
+                // no window is created; the rendered buffer can be saved via --output
+                System.setProperty(DrawWindow.HEADLESS_PROPERTY, "true");
+            } else if ("--output".equals(args[i]) && i + 1 < args.length) {
+                output = args[++i];
+            }
+        }
         long time = System.currentTimeMillis();
         new Ngscript().eval(IOUtils.toString(Thread.currentThread().getContextClassLoader().getResourceAsStream("RoseRender.ngs"), StandardCharsets.UTF_8));
         System.out.println("Time elapsed " + (System.currentTimeMillis() - time) + " ms");
+        if (output != null) {
+            DrawWindow.saveLast(output);
+        }
     }
 
 }

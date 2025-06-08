@@ -16,9 +16,14 @@
 
 package org.ngscript.parser.lexer;
 
-import org.ngscript.parseroid.parser.Token;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-import java.util.*;
+import org.ngscript.parser.Token;
 
 /**
  * @author wssccc
@@ -150,7 +155,7 @@ public class Lexer {
             case '|':
                 return determine('|', "or", "bit_or");
             case '^':
-                return token("xor");
+                return token("bit_xor");
             case '&':
                 return determine('&', "and", "bit_and");
             case ':':

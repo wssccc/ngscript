@@ -16,9 +16,13 @@
 
 package org.ngscript.compiler;
 
-import org.ngscript.parseroid.parser.AstNode;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
 
-import java.util.*;
+import org.ngscript.parser.ast.AstNode;
 
 /**
  * @author wssccc
@@ -49,7 +53,7 @@ public class Assembler {
 
     public String label(String name, AstNode ast) {
         //TODO: use relocation
-        String labelName = ast.token.type + "_$" + ast.token.line + "_" + name;
+        String labelName = ast.getClass().getSimpleName() + "_$" + ast.line + "_" + name;
         int i;
         if (labels.containsKey(labelName)) {
             //search for distinct label
