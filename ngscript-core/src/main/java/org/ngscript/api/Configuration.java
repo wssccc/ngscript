@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.ngscript;
+package org.ngscript.api;
 
 import lombok.Data;
 

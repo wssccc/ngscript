@@ -24,8 +24,8 @@ import org.jline.reader.UserInterruptException;
 import org.jline.reader.impl.history.DefaultHistory;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
-import org.ngscript.Configuration;
-import org.ngscript.Ngscript;
+import org.ngscript.api.Configuration;
+import org.ngscript.api.NgScriptEngine;
 
 import java.io.IOException;
 
@@ -46,7 +46,7 @@ public class Repl {
                 .build();
         Configuration configuration = new Configuration();
         configuration.setInteractive(true);
-        Ngscript ngscript = new Ngscript(configuration);
+        NgScriptEngine ngscript = new NgScriptEngine(configuration);
         String prompt = "ngscript> ";
         boolean running = true;
         while (running) {

@@ -19,7 +19,7 @@ package org.ngscript.examples;
 import java.nio.charset.StandardCharsets;
 
 import org.apache.commons.io.IOUtils;
-import org.ngscript.Ngscript;
+import org.ngscript.api.NgScriptEngine;
 import org.ngscript.examples.roserender.DrawWindow;
 
 /**
@@ -38,7 +38,7 @@ public class RoseRender {
             }
         }
         long time = System.currentTimeMillis();
-        new Ngscript().eval(IOUtils.toString(Thread.currentThread().getContextClassLoader().getResourceAsStream("RoseRender.ngs"), StandardCharsets.UTF_8));
+        new NgScriptEngine().eval(IOUtils.toString(Thread.currentThread().getContextClassLoader().getResourceAsStream("RoseRender.ngs"), StandardCharsets.UTF_8));
         System.out.println("Time elapsed " + (System.currentTimeMillis() - time) + " ms");
         if (output != null) {
             DrawWindow.saveLast(output);

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.ngscript;
+package org.ngscript.api;
 
 import java.io.PrintWriter;
 import java.util.Collections;
@@ -38,18 +38,18 @@ import lombok.extern.slf4j.Slf4j;
  * @author wssccc
  */
 @Slf4j
-public class Ngscript {
+public class NgScriptEngine {
 
     Configuration configuration;
     NgParser parser;
     Compiler compiler;
     VirtualMachine vm = new VirtualMachine(new PrintWriter(System.out), new PrintWriter(System.err));
 
-    public Ngscript() {
+    public NgScriptEngine() {
         this(Configuration.DEFAULT);
     }
 
-    public Ngscript(Configuration configuration) {
+    public NgScriptEngine(Configuration configuration) {
         this.configuration = configuration;
         this.compiler = new Compiler(configuration);
         this.parser = new NgParser();

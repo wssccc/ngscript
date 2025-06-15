@@ -36,6 +36,8 @@ import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.ngscript.api.Configuration;
+import org.ngscript.api.NgScriptEngine;
 
 /**
  * Test suite for ngscript that runs every test case in {@code ngscript/tc}
@@ -86,7 +88,7 @@ public class NgscriptSpecTest {
     private void testEval(String name) throws Exception {
         try {
             String script = IOUtils.toString(openResource(name), StandardCharsets.UTF_8);
-            new Ngscript().eval(script);
+            new NgScriptEngine().eval(script);
             // Add specific assertions based on expected behavior
             assertTrue("Script should execute without errors", true);
         } catch (Exception e) {
@@ -101,7 +103,7 @@ public class NgscriptSpecTest {
         try (Scanner sc = new Scanner(script)) {
             Configuration configuration = new Configuration();
             configuration.setInteractive(true);
-            Ngscript ngscript = new Ngscript(configuration);
+            NgScriptEngine ngscript = new NgScriptEngine(configuration);
 
             while (sc.hasNextLine()) {
                 String line = sc.nextLine();

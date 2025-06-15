@@ -23,7 +23,7 @@ import java.util.Scanner;
 
 import org.ngscript.bytecode.Assembler;
 import org.ngscript.bytecode.Instruction;
-import org.ngscript.Configuration;
+import org.ngscript.api.Configuration;
 import org.ngscript.ast.ArrayLiteral;
 import org.ngscript.ast.AssignExpr;
 import org.ngscript.ast.AstNode;

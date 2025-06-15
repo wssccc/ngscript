@@ -22,6 +22,8 @@ import java.util.Scanner;
 
 import org.apache.commons.io.IOUtils;
 import org.junit.Test;
+import org.ngscript.api.Configuration;
+import org.ngscript.api.NgScriptEngine;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -34,7 +36,7 @@ public class SingleTest {
     @Test
     public void test1Pass() throws Exception {
         try (InputStream fis = getClass().getClassLoader().getResourceAsStream("ngscript/tc/example9.txt")) {
-            new Ngscript().eval(IOUtils.toString(fis, StandardCharsets.UTF_8));
+            new NgScriptEngine().eval(IOUtils.toString(fis, StandardCharsets.UTF_8));
         }
     }
 
@@ -44,7 +46,7 @@ public class SingleTest {
             Configuration configuration = new Configuration();
             configuration.setGenerateDebugInfo(true);
             configuration.setInteractive(true);
-            Ngscript ngscript = new Ngscript(configuration);
+            NgScriptEngine ngscript = new NgScriptEngine(configuration);
             while (sc.hasNextLine()) {
                 String line = sc.nextLine();
                 System.out.println("feed " + line);

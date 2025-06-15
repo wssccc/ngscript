@@ -123,3 +123,4 @@ buildNumber.properties
 test262/
 
 .vscode/
+temp/
