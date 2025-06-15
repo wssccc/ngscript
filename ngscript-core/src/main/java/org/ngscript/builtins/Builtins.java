@@ -20,78 +20,22 @@ import java.io.PrintWriter;
 import java.util.Map;
 
 import org.ngscript.runtime.Coroutine;
-import org.ngscript.runtime.Environment;
-import org.ngscript.runtime.OpUtils;
-import org.ngscript.runtime.VirtualMachine;
-import org.ngscript.runtime.VmRuntimeException;
-import org.ngscript.runtime.value.VmInvokable;
-import org.ngscript.runtime.value.VmMemRef;
+import org.ngscript.value.VmMemRef;
 
 /**
- * Registry of ngscript built-in functions and objects.
+ * Registry of ngscript built-in functions and objects. Individual built-ins
+ * live in their own per-domain classes (see {@link ConsoleBuiltins},
+ * {@link AssertBuiltins}, {@link ObjectBuiltins}); this class wires them into
+ * the global environment map.
  *
  * @author wssccc
  */
 public class Builtins {
 
     public static void register(Map<String, VmMemRef> map, PrintWriter out) {
-        map.put("println", new VmMemRef(new PrintLn(out)));
-        map.put("print", new VmMemRef(new Print(out)));
-        map.put("assert", new VmMemRef(new Assert()));
-        map.put("Object", new VmMemRef(new CreateEnv()));
+        ConsoleBuiltins.register(map, out);
+        AssertBuiltins.register(map);
+        ObjectBuiltins.register(map);
         map.put("Coroutine", new VmMemRef(Coroutine.class));
-    }
-
-    static class PrintLn implements VmInvokable {
-        private final PrintWriter out;
-
-        PrintLn(PrintWriter out) {
-            this.out = out;
-        }
-
-        @Override
-        public void invoke(VirtualMachine vm, Object[] args) {
-            for (Object var : args) {
-                out.print(var);
-            }
-            out.println();
-            out.flush();
-        }
-    }
-
-    static class Print implements VmInvokable {
-        private final PrintWriter out;
-
-        Print(PrintWriter out) {
-            this.out = out;
-        }
-
-        @Override
-        public void invoke(VirtualMachine vm, Object[] args) {
-            for (Object var : args) {
-                out.print(var);
-            }
-            out.flush();
-        }
-    }
-
-    static class Assert implements VmInvokable {
-        @Override
-        public void invoke(VirtualMachine vm, Object[] args) {
-            for (Object var : args) {
-                if (!OpUtils.testValue(var)) {
-                    throw new VmRuntimeException("Assertion failed");
-                }
-            }
-        }
-    }
-
-    static class CreateEnv implements VmInvokable {
-        @Override
-        public void invoke(VirtualMachine vm, Object[] args) {
-            //prepare env
-            Environment env = new Environment((Environment) vm.env.read());
-            vm.env.write(env);
-        }
     }
 }

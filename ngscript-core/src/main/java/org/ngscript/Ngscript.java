@@ -22,14 +22,14 @@ import java.util.List;
 
 import org.ngscript.compiler.Compiler;
 import org.ngscript.compiler.CompilerException;
-import org.ngscript.compiler.Instruction;
+import org.ngscript.bytecode.Instruction;
 import org.ngscript.parser.NgParser;
 import org.ngscript.parser.ParserException;
 import org.ngscript.parser.Token;
-import org.ngscript.parser.ast.Program;
-import org.ngscript.parser.ast.Stmt;
-import org.ngscript.parser.lexer.Lexer;
-import org.ngscript.parser.lexer.LexerException;
+import org.ngscript.ast.Program;
+import org.ngscript.ast.Stmt;
+import org.ngscript.lexer.Lexer;
+import org.ngscript.lexer.LexerException;
 import org.ngscript.runtime.VirtualMachine;
 
 import lombok.extern.slf4j.Slf4j;

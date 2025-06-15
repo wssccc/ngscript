@@ -21,10 +21,10 @@ import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.ngscript.runtime.interop.JavaMethod;
-import org.ngscript.runtime.value.FunctionDef;
-import org.ngscript.runtime.value.VmMemRef;
-import org.ngscript.runtime.value.undefined;
+import org.ngscript.interop.JavaMethod;
+import org.ngscript.value.FunctionDef;
+import org.ngscript.value.VmMemRef;
+import org.ngscript.value.Undefined;
 import org.ngscript.util.FastStack;
 
 /**
@@ -135,7 +135,7 @@ public final class Coroutine extends FunctionDef {
     }
 
     public Object yield() {
-        return yield(undefined.value);
+        return yield(Undefined.value);
     }
 
     public String status() {

@@ -22,11 +22,11 @@ import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.ngscript.runtime.interop.JavaMethod;
-import org.ngscript.runtime.value.FunctionDef;
-import org.ngscript.runtime.value.VmInvokable;
-import org.ngscript.runtime.value.VmMemRef;
-import org.ngscript.runtime.value.undefined;
+import org.ngscript.interop.JavaMethod;
+import org.ngscript.value.FunctionDef;
+import org.ngscript.value.VmInvokable;
+import org.ngscript.value.VmMemRef;
+import org.ngscript.value.Undefined;
 
 /**
  * @author wssccc
@@ -180,7 +180,7 @@ public class OpImpl {
     public static void typeof(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object obj = vm.eax.read();
         //common types
-        if (obj == undefined.value) {
+        if (obj == Undefined.value) {
             vm.eax.write("undefined");
             return;
         }
@@ -203,7 +203,7 @@ public class OpImpl {
         if (obj.getClass().isAnonymousClass()) {
             vm.eax.write(obj.getClass().getSuperclass().getName());
         } else {
-            if (undefined.class.getPackage().getName().equals(obj.getClass().getPackage().getName())) {
+            if (Undefined.class.getPackage().getName().equals(obj.getClass().getPackage().getName())) {
                 vm.eax.write(obj.getClass().getSimpleName());
             } else {
                 vm.eax.write(obj.getClass().getName());
@@ -355,7 +355,7 @@ public class OpImpl {
     }
 
     public static void undefined(VirtualMachine vm, String param, String param_extend) {
-        vm.eax.write(undefined.value);
+        vm.eax.write(Undefined.value);
     }
 
     public static void string(VirtualMachine vm, String param, String param_extend) {
@@ -374,7 +374,7 @@ public class OpImpl {
         if (offset < args.length) {
             vm.eax.write(args[offset]);
         } else {
-            vm.eax.write(undefined.value);
+            vm.eax.write(Undefined.value);
         }
     }
 
@@ -581,7 +581,7 @@ public class OpImpl {
 
     public static void clear(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         VmMemRef m = vm.lookup(param);
-        m.write(undefined.value);
+        m.write(Undefined.value);
     }
 
     public static void clear_null(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {

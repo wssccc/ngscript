@@ -16,7 +16,7 @@
 
 package org.ngscript.runtime;
 
-import org.ngscript.compiler.Instruction;
+import org.ngscript.bytecode.Instruction;
 import org.ngscript.util.FastStack;
 
 /**

@@ -16,7 +16,7 @@
 
 package org.ngscript.runtime.opcache;
 
-import org.ngscript.compiler.Instruction;
+import org.ngscript.bytecode.Instruction;
 import org.ngscript.runtime.VirtualMachine;
 import org.ngscript.runtime.VmRuntimeException;
 

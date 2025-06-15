@@ -17,7 +17,7 @@
 package org.ngscript.parser;
 
 /**
- * A lexical token produced by {@link org.ngscript.parser.lexer.Lexer} and consumed by the parser.
+ * A lexical token produced by {@link org.ngscript.lexer.Lexer} and consumed by the parser.
  *
  * @author wssccc
  */

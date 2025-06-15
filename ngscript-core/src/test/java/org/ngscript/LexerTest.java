@@ -22,8 +22,8 @@ import java.io.IOException;
 import java.util.List;
 
 import org.ngscript.parser.Token;
-import org.ngscript.parser.lexer.Lexer;
-import org.ngscript.parser.lexer.LexerException;
+import org.ngscript.lexer.Lexer;
+import org.ngscript.lexer.LexerException;
 
 /**
  * @author wssccc

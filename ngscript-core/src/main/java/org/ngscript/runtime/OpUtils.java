@@ -16,8 +16,8 @@
 
 package org.ngscript.runtime;
 
-import org.ngscript.runtime.value.VmMemRef;
-import org.ngscript.runtime.value.undefined;
+import org.ngscript.value.VmMemRef;
+import org.ngscript.value.Undefined;
 
 /**
  * @author wssccc
@@ -79,7 +79,7 @@ public class OpUtils {
             val = ((Integer) testObj) != 0;
         } else if (testObj instanceof Double) {
             val = Math.abs((Double) testObj) > Double.MIN_NORMAL;
-        } else if (testObj instanceof undefined) {
+        } else if (testObj instanceof Undefined) {
             val = false;
         } else {
             //is an object

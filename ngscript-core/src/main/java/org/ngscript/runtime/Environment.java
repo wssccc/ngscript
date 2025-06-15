@@ -22,10 +22,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.ngscript.runtime.interop.JavaFieldRef;
-import org.ngscript.runtime.interop.JavaMethod;
-import org.ngscript.runtime.value.VmMemRef;
-import org.ngscript.runtime.value.undefined;
+import org.ngscript.interop.JavaFieldRef;
+import org.ngscript.interop.JavaMethod;
+import org.ngscript.value.VmMemRef;
+import org.ngscript.value.Undefined;
 
 /**
  * @author wssccc
@@ -65,7 +65,7 @@ public class Environment {
     private VmMemRef lookupEnv(String member, VirtualMachine vm, boolean isMember) throws VmRuntimeException {
         if (isMember) {
             //throw new Runtime-Exception("no member " + varName + " found.");
-            VmMemRef mem = new VmMemRef(undefined.value);
+            VmMemRef mem = new VmMemRef(Undefined.value);
             data.put(member, mem);
             return mem;
         } else {
