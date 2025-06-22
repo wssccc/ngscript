@@ -32,6 +32,10 @@ public abstract class AstNode {
     }
 
     protected String toString(int indent) {
+        return nodeToString(indent);
+    }
+
+    private String nodeToString(int indent) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < indent; i++) {
             sb.append("  ");
@@ -41,7 +45,7 @@ public abstract class AstNode {
     }
 
     protected String childrenToString(int indent, Object... children) {
-        StringBuilder sb = new StringBuilder(toString(indent));
+        StringBuilder sb = new StringBuilder(nodeToString(indent));
         for (Object child : children) {
             sb.append("\n");
             if (child instanceof AstNode) {

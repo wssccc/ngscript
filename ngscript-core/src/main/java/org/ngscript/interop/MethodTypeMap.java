@@ -38,7 +38,9 @@ public class MethodTypeMap {
             return methods.get(0);
         } else {
             int typeHash = typeHash(types);
-            String key = methodName + "#" + typeHash;
+            // the key must be self-contained: declaring class + name + exact argument
+            // types, otherwise same-named methods on different classes share entries
+            String key = methods.get(0).getDeclaringClass().getName() + "#" + methodName + "#" + typeHash;
             if (map.containsKey(key)) {
                 return map.get(key);
             } else {

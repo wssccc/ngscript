@@ -177,6 +177,14 @@ public class OpImpl {
         OpImpl.set(vm, param, null);
     }
 
+    /**
+     * Script-visible value types whose {@code typeof} is reported as their
+     * simple class name. Foreign Java classes always report their fully
+     * qualified name.
+     */
+    private static final java.util.Set<Class<?>> TYPE_OF_SHORT_NAMES = new java.util.HashSet<>(Arrays.asList(
+            Undefined.class, FunctionDef.class, VmMemRef.class, VmInvokable.class));
+
     public static void typeof(VirtualMachine vm, String param, String param_extend) throws VmRuntimeException {
         Object obj = vm.eax.read();
         //common types
@@ -202,12 +210,10 @@ public class OpImpl {
         }
         if (obj.getClass().isAnonymousClass()) {
             vm.eax.write(obj.getClass().getSuperclass().getName());
+        } else if (TYPE_OF_SHORT_NAMES.contains(obj.getClass())) {
+            vm.eax.write(obj.getClass().getSimpleName());
         } else {
-            if (Undefined.class.getPackage().getName().equals(obj.getClass().getPackage().getName())) {
-                vm.eax.write(obj.getClass().getSimpleName());
-            } else {
-                vm.eax.write(obj.getClass().getName());
-            }
+            vm.eax.write(obj.getClass().getName());
         }
     }
 
