@@ -1,0 +1,4 @@
+Error: Cannot modify immutable variable 'constantValue'
+Error: Cannot modify immutable variable 'delayedInitValue'
+Final value of constantValue: 1
+Final value of delayedInitValue: 1

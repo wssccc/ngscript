@@ -1,0 +1,9 @@
+[Step 1] First resume call
+[Step 2] Entering coroutine
+[Step 3] Parameter 1 = value1
+[Step 4] Parameter 2 = value2
+[Step 5] Entering yield processing function
+[Step 6] Second resume call
+[Step 7] Exiting yield processing function
+[Step 8] Exiting coroutine
+[Step 9] Coroutine execution completed

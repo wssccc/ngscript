@@ -1,0 +1,7 @@
+Type of System.out: java.io.PrintStream
+Type of integer literal: number
+Type of string literal: string
+Type of function reference: FunctionDef
+Type of built-in function: org.ngscript.builtins.ConsoleBuiltins$PrintLn
+1.0
+abc
