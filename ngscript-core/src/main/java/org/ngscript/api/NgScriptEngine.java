@@ -56,9 +56,36 @@ public class NgScriptEngine {
         this.parser.setStatementListener(stmt -> compileAndRun(stmt, ""));
     }
 
-    public Object eval(String code) throws ParserException, CompilerException {
-        feed(code);
-        return vm.eax;
+    /**
+     * Compiles a script without executing it. The returned {@link Script}
+     * can be executed any number of times; each execution is isolated from
+     * the engine's environment.
+     *
+     * @param code the script source
+     * @return the compiled script
+     * @throws NgScriptException if the script cannot be parsed or compiled
+     */
+    public Script compile(String code) throws NgScriptException {
+        List<Token> tokens = Lexer.scan(code);
+        Program program = parser.parse(tokens);
+        List<Instruction> ins = compiler.compileCode(program, code);
+        return new CompiledScript(this, ins, code);
+    }
+
+    /**
+     * Compiles and executes a script, returning the value of its last
+     * expression. In interactive mode this feeds the code line by line.
+     *
+     * @param code the script source
+     * @return the result value (unwrapped), or {@code null}
+     * @throws NgScriptException if the script fails
+     */
+    public Object eval(String code) throws NgScriptException {
+        if (configuration.isInteractive()) {
+            feed(code);
+            return vm.eax.read();
+        }
+        return compile(code).execute();
     }
 
     public boolean feed(String code) throws CompilerException, LexerException, ParserException {

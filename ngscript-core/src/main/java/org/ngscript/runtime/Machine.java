@@ -60,6 +60,12 @@ public class Machine {
     private ThreadLocal<Integer> eip = ThreadLocal.withInitial(() -> 0);
     //
 
+    /**
+     * The environment as built at construction time (builtins registered);
+     * script executions create their own root scope on top of this baseline.
+     */
+    Environment initialEnv;
+
     PrintWriter out;
     PrintWriter err;
 
@@ -70,6 +76,50 @@ public class Machine {
         setEip(0);
         env.write(new Environment(null));
         Builtins.register(((Environment) env.read()).data, out);
+        initialEnv = (Environment) env.read();
+    }
+
+    /**
+     * The baseline environment with all builtins registered.
+     */
+    public Environment getInitialEnvironment() {
+        return initialEnv;
+    }
+
+    /**
+     * Binds a compiled instruction list to opcode implementations without
+     * merging it into the machine's current instruction array.
+     */
+    public OpBinding[] bindInstructions(List<Instruction> ins2) {
+        Map<String, OpInvokable> map = OpMap.INSTANCE.getMap();
+        ArrayList<OpBinding> ins = new ArrayList<>();
+        for (Instruction instruction : ins2) {
+            ins.add(new OpBinding(instruction, map.get(instruction.op)));
+        }
+        return ins.toArray(new OpBinding[0]);
+    }
+
+    /**
+     * Replaces the current instruction array with the given bound instructions
+     * and rebuilds the label table. Used for isolated script execution.
+     */
+    public void installInstructions(OpBinding[] bound) {
+        instructions = bound;
+        labels.clear();
+        updateLabels();
+    }
+
+    /**
+     * Resets execution registers and stacks in preparation for running a
+     * freshly installed instruction array from the start.
+     */
+    public void resetForExecution() {
+        hints = null;
+        setEip(0);
+        eax.write(null);
+        exception.write(null);
+        stack.clear();
+        callstack.clear();
     }
 
     public void printEax(boolean colorize) {
@@ -162,5 +212,74 @@ public class Machine {
 
     public void setEip(int eip) {
         this.eip.set(eip);
+    }
+
+    /**
+     * Captures the full machine state: instructions, labels, registers and
+     * stacks. Used to isolate script executions from the surrounding state.
+     */
+    public MachineState captureState() {
+        return new MachineState(this);
+    }
+
+    /**
+     * Restores a previously captured state, undoing any mutation performed
+     * by an isolated execution.
+     */
+    public void restoreState(MachineState state) {
+        state.applyTo(this);
+    }
+
+    /**
+     * An immutable snapshot of a {@link Machine}.
+     */
+    public static class MachineState {
+
+        final OpBinding[] instructions;
+        final Map<String, Integer> labels;
+        final Instruction hints;
+        final int eip;
+        final Object eax;
+        final Object exception;
+        final Object env;
+        final Object[] stack;
+        final Object[] callstack;
+
+        MachineState(Machine vm) {
+            this.instructions = vm.instructions;
+            this.labels = new HashMap<>(vm.labels);
+            this.hints = vm.hints;
+            this.eip = vm.getEip();
+            this.eax = vm.eax.read();
+            this.exception = vm.exception.read();
+            this.env = vm.env.read();
+            this.stack = new Object[vm.stack.size()];
+            for (int i = 0; i < this.stack.length; i++) {
+                this.stack[i] = vm.stack.get(i);
+            }
+            this.callstack = new Object[vm.callstack.size()];
+            for (int i = 0; i < this.callstack.length; i++) {
+                this.callstack[i] = vm.callstack.get(i);
+            }
+        }
+
+        void applyTo(Machine vm) {
+            vm.instructions = instructions;
+            vm.labels.clear();
+            vm.labels.putAll(labels);
+            vm.hints = hints;
+            vm.setEip(eip);
+            vm.eax.write(eax);
+            vm.exception.write(exception);
+            vm.env.write(env);
+            vm.stack.clear();
+            for (Object o : stack) {
+                vm.stack.push(o);
+            }
+            vm.callstack.clear();
+            for (Object o : callstack) {
+                vm.callstack.push((ScriptFunction) o);
+            }
+        }
     }
 }
