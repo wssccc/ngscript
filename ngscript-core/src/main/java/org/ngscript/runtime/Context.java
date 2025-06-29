@@ -32,11 +32,11 @@ public class Context {
     int callStackSize;
     FastStack<Object> stack;
 
-    public Context(VirtualMachine vm) {
+    public Context(Machine vm) {
         this.save(vm);
     }
 
-    public final void save(VirtualMachine vm) {
+    public final void save(Machine vm) {
         this.eax = vm.eax.read();
         this.env = (Environment) vm.env.read();
         this.eip = vm.getEip();
@@ -46,7 +46,7 @@ public class Context {
         this.stack = vm.stack;
     }
 
-    public final void restore(VirtualMachine vm) {
+    public final void restore(Machine vm) {
         vm.eax.write(eax);
         vm.env.write(env);
         vm.setEip(eip);

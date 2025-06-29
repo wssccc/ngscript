@@ -28,14 +28,14 @@ import org.ngscript.bytecode.Instruction;
 import org.ngscript.runtime.opcache.OpBinding;
 import org.ngscript.runtime.opcache.OpInvokable;
 import org.ngscript.runtime.opcache.OpMap;
-import org.ngscript.value.FunctionDef;
-import org.ngscript.value.VmMemRef;
+import org.ngscript.value.ScriptFunction;
+import org.ngscript.value.MemRef;
 import org.ngscript.util.FastStack;
 
 /**
  * @author wssccc
  */
-public class VirtualMachine {
+public class Machine {
 
     Map<String, Method> cpuMethodCache = new HashMap<>();
     //static data
@@ -49,21 +49,21 @@ public class VirtualMachine {
     //machine states
     Instruction hints;
     FastStack<Object> stack = new FastStack<>(32);
-    FastStack<FunctionDef> callstack = new FastStack<FunctionDef>(32);
+    FastStack<ScriptFunction> callstack = new FastStack<ScriptFunction>(32);
     //temp var for clear callStackSize op
     int callStackSize;
     //registers
-    public final VmMemRef eax = new VmMemRef();
-    public final VmMemRef exception = new VmMemRef();
+    public final MemRef eax = new MemRef();
+    public final MemRef exception = new MemRef();
 
-    public final VmMemRef env = new VmMemRef();
+    public final MemRef env = new MemRef();
     private ThreadLocal<Integer> eip = ThreadLocal.withInitial(() -> 0);
     //
 
     PrintWriter out;
     PrintWriter err;
 
-    public VirtualMachine(PrintWriter out, PrintWriter err) {
+    public Machine(PrintWriter out, PrintWriter err) {
         this.out = out;
         this.err = err;
         //init register
@@ -78,7 +78,7 @@ public class VirtualMachine {
         }
     }
 
-    public VmMemRef lookup(String member) throws VmRuntimeException {
+    public MemRef lookup(String member) throws NgScriptRuntimeException {
         return ((Environment) env.read()).lookup(member, this, false);
     }
 
@@ -121,7 +121,7 @@ public class VirtualMachine {
         }
     }
 
-    public void run() throws VmRuntimeException {
+    public void run() throws NgScriptRuntimeException {
         //initial
         exception.write(null);
         eax.write(null);
@@ -147,7 +147,7 @@ public class VirtualMachine {
                 try {
                     exception.write(ex);
                     OpImpl.restore_machine_state(this, null, null);
-                } catch (VmRuntimeException ex1) {
+                } catch (NgScriptRuntimeException ex1) {
                     err.println("VM Exception");
                     err.println(ex1);
                     throw ex1;

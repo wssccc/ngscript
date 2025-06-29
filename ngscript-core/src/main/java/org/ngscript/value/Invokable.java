@@ -16,22 +16,12 @@
 
 package org.ngscript.value;
 
-import org.ngscript.runtime.Environment;
-import org.ngscript.runtime.VirtualMachine;
+import org.ngscript.runtime.Machine;
 
 /**
  * @author wssccc
  */
-public class FunctionDef {
+public interface Invokable {
 
-    public String functionLabel;
-    public Environment environment;
-    public VirtualMachine vm;
-
-    public FunctionDef(String functionLabel, Environment environment, VirtualMachine vm) {
-        this.functionLabel = functionLabel;
-        this.environment = environment;
-        this.vm = vm;
-    }
-
+    void invoke(Machine vm, Object[] args) throws Exception;
 }

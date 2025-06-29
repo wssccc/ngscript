@@ -18,7 +18,7 @@ package org.ngscript.interop;
 
 import java.lang.reflect.Field;
 
-import org.ngscript.value.VmMemRef;
+import org.ngscript.value.MemRef;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -26,7 +26,7 @@ import lombok.extern.slf4j.Slf4j;
  * @author wssccc
  */
 @Slf4j
-public class JavaFieldRef extends VmMemRef {
+public class JavaFieldRef extends MemRef {
 
     private final Object obj;
     private final Field field;

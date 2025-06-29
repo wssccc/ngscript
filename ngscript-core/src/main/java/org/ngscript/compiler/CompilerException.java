@@ -16,16 +16,20 @@
 
 package org.ngscript.compiler;
 
+import org.ngscript.api.NgScriptException;
+import org.ngscript.api.Source;
+
 /**
  * @author wssccc
  */
-public class CompilerException extends Exception {
+public class CompilerException extends NgScriptException {
 
-    Compiler compiler;
+    public CompilerException(String message) {
+        super(message);
+    }
 
-    public CompilerException(Compiler compiler, String message) {
-        super(message + " at line " + compiler.printedLines);
-        this.compiler = compiler;
+    public CompilerException(String message, Source source) {
+        super(message, source);
     }
 
 }

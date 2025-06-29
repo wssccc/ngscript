@@ -16,14 +16,21 @@
 
 package org.ngscript.parser;
 
+import org.ngscript.api.NgScriptException;
+import org.ngscript.api.Source;
+
 /**
  * Thrown when the parser encounters a syntax error.
  *
  * @author wssccc
  */
-public class ParserException extends Exception {
+public class ParserException extends NgScriptException {
 
     public ParserException(String message) {
         super(message);
+    }
+
+    public ParserException(String message, Source source) {
+        super(message, source);
     }
 }

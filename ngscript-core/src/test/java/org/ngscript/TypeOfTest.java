@@ -43,7 +43,7 @@ public class TypeOfTest {
     @Test
     public void scriptFunctionReportsSimpleName() throws Exception {
         assertTypeOf("function f() { return 1; }\n"
-                + "assert(typeof f == \"FunctionDef\");");
+                + "assert(typeof f == \"ScriptFunction\");");
     }
 
     @Test

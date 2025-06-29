@@ -322,7 +322,8 @@ public class NgParser {
     private Token expect(String type) throws ParserException {
         Token t = next();
         if (t == null || !t.type.equals(type)) {
-            throw new ParserException("expecting " + type + " but got " + (t == null ? "end of input" : t));
+            throw new ParserException("expecting " + type + " but got " + (t == null ? "end of input" : t),
+                    t == null ? null : new org.ngscript.api.Source(null, t.line));
         }
         return t;
     }

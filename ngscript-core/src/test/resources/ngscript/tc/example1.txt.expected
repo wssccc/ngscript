@@ -1,5 +1,5 @@
 [1, 123]
 Element at index 1: 123
 Attempting to access invalid index...
-Exception caught: org.ngscript.runtime.VmRuntimeException: java.lang.IndexOutOfBoundsException: Index: 2, Size: 2
+Exception caught: org.ngscript.runtime.NgScriptRuntimeException: java.lang.IndexOutOfBoundsException: Index: 2, Size: 2
 Cleanup completed

@@ -21,21 +21,21 @@ import lombok.Getter;
 /**
  * @author wssccc
  */
-public class VmMemRef {
+public class MemRef {
 
     private Object value;
     @Getter
     private final boolean immutable;
 
-    public VmMemRef() {
+    public MemRef() {
         this(null, false);
     }
 
-    public VmMemRef(Object obj) {
+    public MemRef(Object obj) {
         this(obj, false);
     }
 
-    public VmMemRef(Object value, boolean immutable) {
+    public MemRef(Object value, boolean immutable) {
         this.value = value;
         this.immutable = immutable;
     }
@@ -53,7 +53,7 @@ public class VmMemRef {
 
     @Override
     public String toString() {
-        return String.format("VmMemRef[value=%s, immutable=%b]", value, immutable);
+        return String.format("MemRef[value=%s, immutable=%b]", value, immutable);
     }
 
 }

@@ -17,8 +17,8 @@
 package org.ngscript.runtime.opcache;
 
 import org.ngscript.bytecode.Instruction;
-import org.ngscript.runtime.VirtualMachine;
-import org.ngscript.runtime.VmRuntimeException;
+import org.ngscript.runtime.Machine;
+import org.ngscript.runtime.NgScriptRuntimeException;
 
 public class OpBinding extends Instruction {
 
@@ -29,7 +29,7 @@ public class OpBinding extends Instruction {
         this.opInvokable = opInvokable;
     }
 
-    public void invoke(VirtualMachine vm) throws VmRuntimeException {
+    public void invoke(Machine vm) throws NgScriptRuntimeException {
         opInvokable.invoke(vm, param, paramExt);
     }
 }

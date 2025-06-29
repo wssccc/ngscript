@@ -30,7 +30,7 @@ import org.ngscript.ast.Program;
 import org.ngscript.ast.Stmt;
 import org.ngscript.lexer.Lexer;
 import org.ngscript.lexer.LexerException;
-import org.ngscript.runtime.VirtualMachine;
+import org.ngscript.runtime.Machine;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -43,7 +43,7 @@ public class NgScriptEngine {
     Configuration configuration;
     NgParser parser;
     Compiler compiler;
-    VirtualMachine vm = new VirtualMachine(new PrintWriter(System.out), new PrintWriter(System.err));
+    Machine vm = new Machine(new PrintWriter(System.out), new PrintWriter(System.err));
 
     public NgScriptEngine() {
         this(Configuration.DEFAULT);

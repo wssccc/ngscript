@@ -16,7 +16,7 @@
 
 package org.ngscript.runtime;
 
-import org.ngscript.value.VmMemRef;
+import org.ngscript.value.MemRef;
 import org.ngscript.value.Undefined;
 
 /**
@@ -24,14 +24,14 @@ import org.ngscript.value.Undefined;
  */
 public class OpUtils {
 
-    static Object[] get2OpParam(VirtualMachine vm) {
+    static Object[] get2OpParam(Machine vm) {
         Object[] objects = new Object[2];
         objects[0] = vm.stack.pop();
         objects[1] = vm.eax.read();
         return objects;
     }
 
-    static double getNumber(VirtualMachine vm, Object obj) throws VmRuntimeException {
+    static double getNumber(Machine vm, Object obj) throws NgScriptRuntimeException {
         if (obj instanceof Integer) {
             return (Integer) obj;
         }
@@ -42,10 +42,10 @@ public class OpUtils {
             Long l = (Long) obj;
             return l.intValue();
         }
-        throw new VmRuntimeException(vm, "invalid type");
+        throw new NgScriptRuntimeException(vm, "invalid type");
     }
 
-    static int getInteger(VirtualMachine vm, Object obj) throws VmRuntimeException {
+    static int getInteger(Machine vm, Object obj) throws NgScriptRuntimeException {
         if (obj instanceof Integer) {
             return (Integer) obj;
         }
@@ -56,7 +56,7 @@ public class OpUtils {
             Long l = (Long) obj;
             return l.intValue();
         }
-        throw new VmRuntimeException(vm, "invalid type");
+        throw new NgScriptRuntimeException(vm, "invalid type");
     }
 
     static boolean testEq(Object obj1, Object obj2) {
@@ -88,8 +88,8 @@ public class OpUtils {
         return val;
     }
 
-    static void addEax(VirtualMachine vm, int num, boolean rewrite) {
-        VmMemRef addr = (VmMemRef) vm.eax.read();
+    static void addEax(Machine vm, int num, boolean rewrite) {
+        MemRef addr = (MemRef) vm.eax.read();
         Object val = addr.read();
         if (val instanceof Integer) {
             addr.write(((Integer) val) + num);

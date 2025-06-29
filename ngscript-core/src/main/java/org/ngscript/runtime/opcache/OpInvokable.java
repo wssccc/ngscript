@@ -16,10 +16,10 @@
 
 package org.ngscript.runtime.opcache;
 
-import org.ngscript.runtime.VirtualMachine;
-import org.ngscript.runtime.VmRuntimeException;
+import org.ngscript.runtime.Machine;
+import org.ngscript.runtime.NgScriptRuntimeException;
 
 public interface OpInvokable {
 
-    void invoke(VirtualMachine vm, String param, String paramEx) throws VmRuntimeException;
+    void invoke(Machine vm, String param, String paramEx) throws NgScriptRuntimeException;
 }

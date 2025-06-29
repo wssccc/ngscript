@@ -22,7 +22,7 @@ import javassist.CtNewConstructor;
 import javassist.CtNewMethod;
 import org.apache.commons.lang3.StringUtils;
 import org.ngscript.runtime.OpImpl;
-import org.ngscript.runtime.VirtualMachine;
+import org.ngscript.runtime.Machine;
 
 import java.lang.reflect.Method;
 import java.util.Collections;
@@ -46,12 +46,12 @@ public class OpMap {
 
     public void init() {
         map = new HashMap<>();
-        classPool.importPackage(VirtualMachine.class.getPackage().getName());
+        classPool.importPackage(Machine.class.getPackage().getName());
         Class clazz = OpImpl.class;
         Method[] methods = clazz.getMethods();
         for (Method m : methods) {
             Class[] cls = m.getParameterTypes();
-            if (cls.length > 0 && cls[0] == VirtualMachine.class) {
+            if (cls.length > 0 && cls[0] == Machine.class) {
                 try {
                     map.put(m.getName(), toInstruction(m.getName(), "", ""));
                     map.put(m.getName() + "_pe", toInstruction(m.getName(), "_pe", "runtime.stack.push(runtime.eax.read());"));
@@ -67,7 +67,9 @@ public class OpMap {
         CtClass mCtc = classPool.makeClass(OpInvokable.class.getName() + StringUtils.capitalize(inst + appendInst));
         mCtc.addInterface(classPool.get(OpInvokable.class.getName()));
         mCtc.addConstructor(CtNewConstructor.defaultConstructor(mCtc));
-        mCtc.addMethod(CtNewMethod.make("public void invoke(VirtualMachine runtime, String param, String param_extend) throws VmRuntimeException { OpImpl." + inst + "(runtime,param,param_extend);" + appendCode + "}", mCtc));
+        // generated sources use fully qualified names so host classes can live
+        // in any package without extra importPackage declarations
+        mCtc.addMethod(CtNewMethod.make("public void invoke(org.ngscript.runtime.Machine runtime, String param, String param_extend) throws org.ngscript.runtime.NgScriptRuntimeException { org.ngscript.runtime.OpImpl." + inst + "(runtime,param,param_extend);" + appendCode + "}", mCtc));
         Class pc = mCtc.toClass();
         OpInvokable bytecodeProxy = (OpInvokable) pc.newInstance();
         return bytecodeProxy;

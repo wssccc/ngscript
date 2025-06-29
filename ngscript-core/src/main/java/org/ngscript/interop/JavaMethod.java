@@ -23,14 +23,14 @@ import java.util.stream.Collectors;
 
 import org.ngscript.runtime.OpImpl;
 import org.ngscript.runtime.VarArgUtils;
-import org.ngscript.runtime.VirtualMachine;
-import org.ngscript.runtime.VmRuntimeException;
-import org.ngscript.value.VmInvokable;
+import org.ngscript.runtime.Machine;
+import org.ngscript.runtime.NgScriptRuntimeException;
+import org.ngscript.value.Invokable;
 
 /**
  * @author wssccc
  */
-public class JavaMethod implements VmInvokable {
+public class JavaMethod implements Invokable {
 
     public Object caller;
     public ArrayList<Method> methods;
@@ -55,12 +55,12 @@ public class JavaMethod implements VmInvokable {
     }
 
     @Override
-    public void invoke(VirtualMachine vm, Object[] args) throws Exception {
+    public void invoke(Machine vm, Object[] args) throws Exception {
         Class[] types = vm.getParamTypes(2);
         Method properMethod = MethodTypeMap.INSTANCE.getProperMethod(methodName, methods, types);
         properMethod.setAccessible(true);
         if (properMethod == null) {
-            throw new VmRuntimeException(vm,
+            throw new NgScriptRuntimeException(vm,
                     String.format("No matching method found for %s#%s with parameter types %s. Available methods: %s",
                             methods.get(0).getDeclaringClass().getSimpleName(),
                             methods.get(0).getName(),
@@ -81,7 +81,7 @@ public class JavaMethod implements VmInvokable {
             vm.eax.write(val);
         } catch (Exception ex) {
             vm.exception.write(
-                    new VmRuntimeException(vm, ex.getCause() == null ? ex.toString() : ex.getCause().toString()));
+                    new NgScriptRuntimeException(vm, ex.getCause() == null ? ex.toString() : ex.getCause().toString()));
             OpImpl.restore_machine_state(vm, null, null);
         }
     }

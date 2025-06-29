@@ -19,9 +19,9 @@ package org.ngscript.builtins;
 import java.io.PrintWriter;
 import java.util.Map;
 
-import org.ngscript.runtime.VirtualMachine;
-import org.ngscript.value.VmInvokable;
-import org.ngscript.value.VmMemRef;
+import org.ngscript.runtime.Machine;
+import org.ngscript.value.Invokable;
+import org.ngscript.value.MemRef;
 
 /**
  * Built-in console functions: {@code println} and {@code print}.
@@ -30,12 +30,12 @@ import org.ngscript.value.VmMemRef;
  */
 public class ConsoleBuiltins {
 
-    static void register(Map<String, VmMemRef> map, PrintWriter out) {
-        map.put("println", new VmMemRef(new PrintLn(out)));
-        map.put("print", new VmMemRef(new Print(out)));
+    static void register(Map<String, MemRef> map, PrintWriter out) {
+        map.put("println", new MemRef(new PrintLn(out)));
+        map.put("print", new MemRef(new Print(out)));
     }
 
-    static class PrintLn implements VmInvokable {
+    static class PrintLn implements Invokable {
         private final PrintWriter out;
 
         PrintLn(PrintWriter out) {
@@ -43,7 +43,7 @@ public class ConsoleBuiltins {
         }
 
         @Override
-        public void invoke(VirtualMachine vm, Object[] args) {
+        public void invoke(Machine vm, Object[] args) {
             for (Object var : args) {
                 out.print(var);
             }
@@ -52,7 +52,7 @@ public class ConsoleBuiltins {
         }
     }
 
-    static class Print implements VmInvokable {
+    static class Print implements Invokable {
         private final PrintWriter out;
 
         Print(PrintWriter out) {
@@ -60,7 +60,7 @@ public class ConsoleBuiltins {
         }
 
         @Override
-        public void invoke(VirtualMachine vm, Object[] args) {
+        public void invoke(Machine vm, Object[] args) {
             for (Object var : args) {
                 out.print(var);
             }

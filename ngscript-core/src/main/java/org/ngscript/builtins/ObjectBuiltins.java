@@ -19,9 +19,9 @@ package org.ngscript.builtins;
 import java.util.Map;
 
 import org.ngscript.runtime.Environment;
-import org.ngscript.runtime.VirtualMachine;
-import org.ngscript.value.VmInvokable;
-import org.ngscript.value.VmMemRef;
+import org.ngscript.runtime.Machine;
+import org.ngscript.value.Invokable;
+import org.ngscript.value.MemRef;
 
 /**
  * Built-in {@code Object} factory: creates a fresh object scope.
@@ -30,13 +30,13 @@ import org.ngscript.value.VmMemRef;
  */
 public class ObjectBuiltins {
 
-    static void register(Map<String, VmMemRef> map) {
-        map.put("Object", new VmMemRef(new CreateEnv()));
+    static void register(Map<String, MemRef> map) {
+        map.put("Object", new MemRef(new CreateEnv()));
     }
 
-    static class CreateEnv implements VmInvokable {
+    static class CreateEnv implements Invokable {
         @Override
-        public void invoke(VirtualMachine vm, Object[] args) {
+        public void invoke(Machine vm, Object[] args) {
             //prepare env
             Environment env = new Environment((Environment) vm.env.read());
             vm.env.write(env);

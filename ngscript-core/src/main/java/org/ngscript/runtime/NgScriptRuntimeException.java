@@ -16,27 +16,46 @@
 
 package org.ngscript.runtime;
 
+import org.ngscript.api.NgScriptException;
+import org.ngscript.api.Source;
+
 /**
+ * Unchecked exception thrown by the virtual machine at runtime.
+ *
  * @author wssccc
  */
-public class VmRuntimeException extends RuntimeException {
+public class NgScriptRuntimeException extends NgScriptException {
 
-    VirtualMachine vm;
-
-    public VmRuntimeException(String message) {
+    public NgScriptRuntimeException(String message) {
         super(message);
     }
 
-    public VmRuntimeException(Throwable cause) {
+    public NgScriptRuntimeException(Throwable cause) {
         super(cause);
     }
 
-    public VmRuntimeException(VirtualMachine vm, String message) {
-        super(genInfoString(vm, message));
-        this.vm = vm;
+    public NgScriptRuntimeException(Machine vm, String message) {
+        super(genInfoString(vm, message), sourceFromHints(vm));
     }
 
-    static String genInfoString(VirtualMachine vm, String message) {
+    @Override
+    public String getMessage() {
+        // the VM diagnostic text already embeds position information
+        return getRawMessage();
+    }
+
+    static Source sourceFromHints(Machine vm) {
+        try {
+            if (vm.hints != null) {
+                return new Source(null, Integer.parseInt(vm.hints.paramExt));
+            }
+        } catch (NumberFormatException ignored) {
+            // hints may not carry a numeric line
+        }
+        return null;
+    }
+
+    static String genInfoString(Machine vm, String message) {
         try {
             return "\r\n========== VM ERROR ==========\r\n" +
                     message +

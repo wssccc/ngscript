@@ -62,7 +62,7 @@ import org.ngscript.ast.WhileStmt;
 
 /**
  * Compiles a typed {@link Program} AST into a list of {@link Instruction}s for the
- * {@link org.ngscript.runtime.VirtualMachine}.
+ * {@link org.ngscript.runtime.Machine}.
  *
  * @author wssccc
  */
@@ -73,6 +73,8 @@ public class Compiler {
     Assembler assembler = new Assembler();
     Scanner scanner;
     int printedLines;
+
+    String sourceCode;
 
     Deque<String> continueLabels = new ArrayDeque<>();
     Deque<String> breakLabels = new ArrayDeque<>();
@@ -90,6 +92,7 @@ public class Compiler {
 
     public List<Instruction> compileCode(Program program, String sourceCode) throws CompilerException {
         assembler.instructions.clear();
+        this.sourceCode = sourceCode;
         try (Scanner sc = new Scanner(sourceCode == null ? "" : sourceCode)) {
             this.scanner = sc;
             printedLines = 0;
@@ -113,6 +116,10 @@ public class Compiler {
                 }
             }
         }
+    }
+
+    private CompilerException compileError(String message) {
+        return new CompilerException(message, new org.ngscript.api.Source(sourceCode, printedLines));
     }
 
     private void compileProgram(Program program) throws CompilerException {
@@ -159,7 +166,7 @@ public class Compiler {
         } else if (stmt instanceof GoStmt) {
             compileGo((GoStmt) stmt);
         } else {
-            throw new CompilerException(this, "Unknown statement " + stmt);
+            throw compileError("Unknown statement " + stmt);
         }
     }
 
@@ -287,7 +294,7 @@ public class Compiler {
             String enter = _compile_function_body(lambda.params, lambda.body);
             assembler.emit("new_closure", enter);
         } else {
-            throw new CompilerException(this, "Unknown expression " + expr);
+            throw compileError("Unknown expression " + expr);
         }
     }
 
@@ -344,7 +351,7 @@ public class Compiler {
                 assembler.emit("neg");
                 break;
             case NOT:
-                throw new CompilerException(this, "not operator is not supported");
+                throw compileError("not operator is not supported");
         }
     }
 
@@ -513,7 +520,7 @@ public class Compiler {
 
     private void compileBreak() throws CompilerException {
         if (breakLabels.isEmpty()) {
-            throw new CompilerException(this, "break without loop");
+            throw compileError("break without loop");
         }
         if (inHookedBlock) {
             _compile_call_finally();
@@ -523,7 +530,7 @@ public class Compiler {
 
     private void compileContinue() throws CompilerException {
         if (breakLabels.isEmpty()) {
-            throw new CompilerException(this, "continue without loop");
+            throw compileError("continue without loop");
         }
         if (inHookedBlock) {
             _compile_call_finally();

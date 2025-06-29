@@ -22,15 +22,15 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.ngscript.interop.JavaMethod;
-import org.ngscript.value.FunctionDef;
-import org.ngscript.value.VmMemRef;
+import org.ngscript.value.ScriptFunction;
+import org.ngscript.value.MemRef;
 import org.ngscript.value.Undefined;
 import org.ngscript.util.FastStack;
 
 /**
  * @author wssccc
  */
-public final class Coroutine extends FunctionDef {
+public final class Coroutine extends ScriptFunction {
 
     public static final String STATUS_RUNNING = "running";
     public static final String STATUS_SUSPENDED = "suspended";
@@ -40,12 +40,12 @@ public final class Coroutine extends FunctionDef {
     Context context;
     private boolean running = false;
 
-    public Coroutine(FunctionDef closure) {
+    public Coroutine(ScriptFunction closure) {
         super(closure.functionLabel, new Environment(closure.environment), closure.vm);
         setupCoroutine(closure);
     }
 
-    public Coroutine(FunctionDef closure, Object... args) {
+    public Coroutine(ScriptFunction closure, Object... args) {
         super(closure.functionLabel, new Environment(closure.environment), closure.vm);
         //setup params
         this.args = args;
@@ -56,7 +56,7 @@ public final class Coroutine extends FunctionDef {
         args = obj;
     }
 
-    final void setupCoroutine(FunctionDef ref) {
+    final void setupCoroutine(ScriptFunction ref) {
         context = new Context(vm);
         context.stack = new FastStack<>(32);
 
@@ -75,23 +75,23 @@ public final class Coroutine extends FunctionDef {
 
         //gen stubs for coroutine
         try {
-            environment.data.put("resume", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("resume"))));
+            environment.data.put("resume", new MemRef(new JavaMethod(this, this.getClass().getMethod("resume"))));
             ArrayList<Method> yields = new ArrayList<Method>();
             yields.add(this.getClass().getMethod("yield", Object.class));
             yields.add(this.getClass().getMethod("yield"));
 
-            environment.data.put("yield", new VmMemRef(new JavaMethod(this, yields)));
-            environment.data.put("status", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("status"))));
-            environment.data.put("invoke", new VmMemRef(new JavaMethod(this, this.getClass().getMethod("invoke", Object[].class))));
+            environment.data.put("yield", new MemRef(new JavaMethod(this, yields)));
+            environment.data.put("status", new MemRef(new JavaMethod(this, this.getClass().getMethod("status"))));
+            environment.data.put("invoke", new MemRef(new JavaMethod(this, this.getClass().getMethod("invoke", Object[].class))));
         } catch (NoSuchMethodException | SecurityException ex) {
             Logger.getLogger(Coroutine.class.getName()).log(Level.SEVERE, null, ex);
         }
 
     }
 
-    public void resume() throws VmRuntimeException {
+    public void resume() throws NgScriptRuntimeException {
         if (!STATUS_SUSPENDED.equals(this.status())) {
-            throw new VmRuntimeException(this.vm, "coroutine is not suspended");
+            throw new NgScriptRuntimeException(this.vm, "coroutine is not suspended");
         }
         running = true;
         Environment outerEnv = (Environment) vm.stack.peek();

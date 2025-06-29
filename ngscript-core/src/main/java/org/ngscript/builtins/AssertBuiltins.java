@@ -19,10 +19,10 @@ package org.ngscript.builtins;
 import java.util.Map;
 
 import org.ngscript.runtime.OpUtils;
-import org.ngscript.runtime.VirtualMachine;
-import org.ngscript.runtime.VmRuntimeException;
-import org.ngscript.value.VmInvokable;
-import org.ngscript.value.VmMemRef;
+import org.ngscript.runtime.Machine;
+import org.ngscript.runtime.NgScriptRuntimeException;
+import org.ngscript.value.Invokable;
+import org.ngscript.value.MemRef;
 
 /**
  * Built-in {@code assert} function.
@@ -31,16 +31,16 @@ import org.ngscript.value.VmMemRef;
  */
 public class AssertBuiltins {
 
-    static void register(Map<String, VmMemRef> map) {
-        map.put("assert", new VmMemRef(new Assert()));
+    static void register(Map<String, MemRef> map) {
+        map.put("assert", new MemRef(new Assert()));
     }
 
-    static class Assert implements VmInvokable {
+    static class Assert implements Invokable {
         @Override
-        public void invoke(VirtualMachine vm, Object[] args) {
+        public void invoke(Machine vm, Object[] args) {
             for (Object var : args) {
                 if (!OpUtils.testValue(var)) {
-                    throw new VmRuntimeException("Assertion failed");
+                    throw new NgScriptRuntimeException("Assertion failed");
                 }
             }
         }

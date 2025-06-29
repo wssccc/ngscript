@@ -20,7 +20,7 @@ import java.io.PrintWriter;
 import java.util.Map;
 
 import org.ngscript.runtime.Coroutine;
-import org.ngscript.value.VmMemRef;
+import org.ngscript.value.MemRef;
 
 /**
  * Registry of ngscript built-in functions and objects. Individual built-ins
@@ -32,10 +32,10 @@ import org.ngscript.value.VmMemRef;
  */
 public class Builtins {
 
-    public static void register(Map<String, VmMemRef> map, PrintWriter out) {
+    public static void register(Map<String, MemRef> map, PrintWriter out) {
         ConsoleBuiltins.register(map, out);
         AssertBuiltins.register(map);
         ObjectBuiltins.register(map);
-        map.put("Coroutine", new VmMemRef(Coroutine.class));
+        map.put("Coroutine", new MemRef(Coroutine.class));
     }
 }

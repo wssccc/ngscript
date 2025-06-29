@@ -16,6 +16,7 @@
 
 package org.ngscript.lexer;
 
+import org.ngscript.api.Source;
 import org.ngscript.parser.ParserException;
 
 /**
@@ -25,6 +26,10 @@ public class LexerException extends ParserException {
 
     public LexerException(String message) {
         super(message);
+    }
+
+    public LexerException(String message, Source source) {
+        super(message, source);
     }
 
 }

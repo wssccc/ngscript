@@ -24,7 +24,7 @@ import java.util.Map;
 
 import org.ngscript.interop.JavaFieldRef;
 import org.ngscript.interop.JavaMethod;
-import org.ngscript.value.VmMemRef;
+import org.ngscript.value.MemRef;
 import org.ngscript.value.Undefined;
 
 /**
@@ -32,14 +32,14 @@ import org.ngscript.value.Undefined;
  */
 public class Environment {
 
-    Map<String, VmMemRef> data = new HashMap<>();
+    Map<String, MemRef> data = new HashMap<>();
     Environment parent;
 
     public Environment(Environment parent) {
         this.parent = parent;
     }
 
-    public VmMemRef lookup(String member, VirtualMachine vm, boolean isMember) throws VmRuntimeException {
+    public MemRef lookup(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {
         //registers
         switch (member) {
             case "this":
@@ -51,7 +51,7 @@ public class Environment {
             case "%exception":
                 return vm.exception;
             default:
-                VmMemRef ref = data.get(member);
+                MemRef ref = data.get(member);
                 if (ref != null) {
                     return ref;
                 } else {
@@ -62,10 +62,10 @@ public class Environment {
         }
     }
 
-    private VmMemRef lookupEnv(String member, VirtualMachine vm, boolean isMember) throws VmRuntimeException {
+    private MemRef lookupEnv(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {
         if (isMember) {
             //throw new Runtime-Exception("no member " + varName + " found.");
-            VmMemRef mem = new VmMemRef(Undefined.value);
+            MemRef mem = new MemRef(Undefined.value);
             data.put(member, mem);
             return mem;
         } else {
@@ -82,21 +82,21 @@ public class Environment {
             //try java.util
             try {
                 Class cls = Class.forName("java.util." + member);
-                return new VmMemRef(cls);
+                return new MemRef(cls);
             } catch (ClassNotFoundException ignored) {
                 //ignored
             }
             //try java.lang
             try {
                 Class cls = Class.forName("java.lang." + member);
-                return new VmMemRef(cls);
+                return new MemRef(cls);
             } catch (ClassNotFoundException ignored) {
                 //ignored
             }
             //try java.io
             try {
                 Class cls = Class.forName("java.io." + member);
-                return new VmMemRef(cls);
+                return new MemRef(cls);
             } catch (ClassNotFoundException ignored) {
                 //ignored
             }
@@ -105,7 +105,7 @@ public class Environment {
             if (vm.imported.containsKey(member)) {
                 try {
                     Class cls = Class.forName(vm.imported.get(member));
-                    return new VmMemRef(cls);
+                    return new MemRef(cls);
                 } catch (ClassNotFoundException ignored) {
                     //ignored
                 }
@@ -114,15 +114,15 @@ public class Environment {
             //try java.lang
             try {
                 Class cls = Class.forName("java.lang." + member);
-                return new VmMemRef(cls);
+                return new MemRef(cls);
             } catch (ClassNotFoundException ignored) {
                 //ignored
             }
-            throw new VmRuntimeException(vm, member + " is not declared");
+            throw new NgScriptRuntimeException(vm, member + " is not declared");
         }
     }
 
-    public static Object lookupNative(Object nativeObj, String member, VirtualMachine vm) {
+    public static Object lookupNative(Object nativeObj, String member, Machine vm) {
         if (nativeObj instanceof Class) {
             //try obj as a class ref
             Object obj = _lookupNative(nativeObj, (Class) nativeObj, member, vm);
@@ -135,7 +135,7 @@ public class Environment {
 
     }
 
-    public static Object _lookupNative(Object nativeObj, Class cls, String member, VirtualMachine vm) {
+    public static Object _lookupNative(Object nativeObj, Class cls, String member, Machine vm) {
         //try field
         try {
             Field field = cls.getField(member);
@@ -153,9 +153,9 @@ public class Environment {
             }
         }
         if (!ms.isEmpty()) {
-            return new VmMemRef(new JavaMethod(nativeObj, ms));
+            return new MemRef(new JavaMethod(nativeObj, ms));
         }
-        //throw new VmRuntimeException(runtime, "" + nativeObj + " does not have a member " + member);
+        //throw new NgScriptRuntimeException(runtime, "" + nativeObj + " does not have a member " + member);
         return null;
     }
 }
