@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
-import org.ngscript.runtime.OpImpl;
+import org.ngscript.runtime.OpCall;
 import org.ngscript.runtime.VarArgUtils;
 import org.ngscript.runtime.Machine;
 import org.ngscript.runtime.NgScriptRuntimeException;
@@ -82,7 +82,7 @@ public class JavaMethod implements Invokable {
         } catch (Exception ex) {
             vm.exception.write(
                     new NgScriptRuntimeException(vm, ex.getCause() == null ? ex.toString() : ex.getCause().toString()));
-            OpImpl.restore_machine_state(vm, null, null);
+            OpCall.restore_machine_state(vm, null, null);
         }
     }
 }

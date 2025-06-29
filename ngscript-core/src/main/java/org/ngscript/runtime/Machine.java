@@ -196,7 +196,7 @@ public class Machine {
             } catch (Exception ex) {
                 try {
                     exception.write(ex);
-                    OpImpl.restore_machine_state(this, null, null);
+                    OpCall.restore_machine_state(this, null, null);
                 } catch (NgScriptRuntimeException ex1) {
                     err.println("VM Exception");
                     err.println(ex1);
