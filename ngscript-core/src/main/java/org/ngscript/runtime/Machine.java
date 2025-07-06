@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.ngscript.builtins.Builtins;
 import org.ngscript.bytecode.Instruction;
 import org.ngscript.runtime.opcache.OpBinding;
 import org.ngscript.runtime.opcache.OpInvokable;
@@ -64,7 +63,7 @@ public class Machine {
      * The environment as built at construction time (builtins registered);
      * script executions create their own root scope on top of this baseline.
      */
-    Environment initialEnv;
+    NgsObject initialEnv;
 
     PrintWriter out;
     PrintWriter err;
@@ -74,15 +73,15 @@ public class Machine {
         this.err = err;
         //init register
         setEip(0);
-        env.write(new Environment(null));
-        Builtins.register(((Environment) env.read()).data, out);
-        initialEnv = (Environment) env.read();
+        env.write(new NgsObject(null));
+        ((NgsObject) env.read()).registerBuiltins(out);
+        initialEnv = (NgsObject) env.read();
     }
 
     /**
      * The baseline environment with all builtins registered.
      */
-    public Environment getInitialEnvironment() {
+    public NgsObject getInitialEnvironment() {
         return initialEnv;
     }
 
@@ -129,7 +128,7 @@ public class Machine {
     }
 
     public MemRef lookup(String member) throws NgScriptRuntimeException {
-        return ((Environment) env.read()).lookup(member, this, false);
+        return ((NgsObject) env.read()).lookup(member, this, false);
     }
 
     public Class[] getParamTypes(int offset) {

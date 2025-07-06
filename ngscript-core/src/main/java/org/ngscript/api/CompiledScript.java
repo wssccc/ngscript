@@ -19,7 +19,7 @@ package org.ngscript.api;
 import java.util.List;
 
 import org.ngscript.bytecode.Instruction;
-import org.ngscript.runtime.Environment;
+import org.ngscript.runtime.NgsObject;
 import org.ngscript.runtime.Machine;
 import org.ngscript.runtime.opcache.OpBinding;
 
@@ -53,7 +53,7 @@ public class CompiledScript implements Script {
         Machine.MachineState state = machine.captureState();
         try {
             machine.installInstructions(boundInstructions);
-            machine.env.write(new Environment(machine.getInitialEnvironment()));
+            machine.env.write(new NgsObject(machine.getInitialEnvironment()));
             machine.resetForExecution();
             machine.run();
             return machine.eax.read();

@@ -16,7 +16,7 @@
 
 package org.ngscript.value;
 
-import org.ngscript.runtime.Environment;
+import org.ngscript.runtime.NgsObject;
 import org.ngscript.runtime.Machine;
 
 /**
@@ -25,10 +25,10 @@ import org.ngscript.runtime.Machine;
 public class ScriptFunction {
 
     public String functionLabel;
-    public Environment environment;
+    public NgsObject environment;
     public Machine vm;
 
-    public ScriptFunction(String functionLabel, Environment environment, Machine vm) {
+    public ScriptFunction(String functionLabel, NgsObject environment, Machine vm) {
         this.functionLabel = functionLabel;
         this.environment = environment;
         this.vm = vm;

@@ -16,29 +16,41 @@
 
 package org.ngscript.runtime;
 
+import java.io.PrintWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.ngscript.builtins.Builtins;
 import org.ngscript.interop.JavaFieldRef;
 import org.ngscript.interop.JavaMethod;
 import org.ngscript.value.MemRef;
 import org.ngscript.value.Undefined;
 
 /**
+ * A script object and lexical scope: a chainable map of member references.
+ * Function and constructor frames are NgsObjects as well, so the instance
+ * created by {@code new} is the constructor's active frame itself (invariant
+ * preserved by {@code new_op}).
+ *
  * @author wssccc
  */
-public class Environment {
+public class NgsObject implements Scope {
 
-    Map<String, MemRef> data = new HashMap<>();
-    Environment parent;
+    private Map<String, MemRef> data = new HashMap<>();
+    private NgsObject parent;
 
-    public Environment(Environment parent) {
+    public NgsObject(NgsObject parent) {
         this.parent = parent;
     }
 
+    /**
+     * Looks up a member: registers, own data, the parent chain, then Java
+     * class fallbacks. With {@code isMember=true} an unset member is created
+     * as an undefined reference.
+     */
     public MemRef lookup(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {
         //registers
         switch (member) {
@@ -64,13 +76,12 @@ public class Environment {
 
     private MemRef lookupEnv(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {
         if (isMember) {
-            //throw new Runtime-Exception("no member " + varName + " found.");
             MemRef mem = new MemRef(Undefined.value);
             data.put(member, mem);
             return mem;
         } else {
             //find in env link
-            Environment env = parent;
+            NgsObject env = parent;
             //
             while (env != null) {
                 if (env.data.containsKey(member)) {
@@ -101,7 +112,6 @@ public class Environment {
                 //ignored
             }
             //imports
-            //try import
             if (vm.imported.containsKey(member)) {
                 try {
                     Class cls = Class.forName(vm.imported.get(member));
@@ -120,6 +130,47 @@ public class Environment {
             }
             throw new NgScriptRuntimeException(vm, member + " is not declared");
         }
+    }
+
+    /** Returns the value of a member, or {@code null} if unset. */
+    public Object get(String member) {
+        MemRef ref = data.get(member);
+        return ref == null ? null : ref.read();
+    }
+
+    /**
+     * Returns the raw reference stored for a member, or {@code null} if
+     * unset. Unlike {@link #get} this does not unwrap the reference.
+     */
+    public MemRef getRef(String member) {
+        return data.get(member);
+    }
+
+    /** Sets a member to a fresh reference holding the given value. */
+    public void set(String member, Object value) {
+        data.put(member, new MemRef(value));
+    }
+
+    /** Creates a member reference without a value. */
+    public void define(String member) {
+        data.put(member, new MemRef(null, true));
+    }
+
+    /** Returns the member names of this scope (not the parent chain). */
+    public java.util.Set<String> keys() {
+        return data.keySet();
+    }
+
+    public NgsObject getParent() {
+        return parent;
+    }
+
+    /**
+     * Registers all built-in functions and objects into this scope, as done
+     * for the machine's baseline environment at construction time.
+     */
+    public void registerBuiltins(PrintWriter out) {
+        Builtins.register(data, out);
     }
 
     public static Object lookupNative(Object nativeObj, String member, Machine vm) {
@@ -145,17 +196,15 @@ public class Environment {
         //try method
 
         Method[] methods = cls.getMethods();
-
-        ArrayList<Method> ms = new ArrayList<Method>();
-        for (Method m : methods) {
-            if (m.getName().equals(member)) {
-                ms.add(m);
+        ArrayList<Method> ms = new ArrayList<>();
+        for (Method method : methods) {
+            if (method.getName().equals(member)) {
+                ms.add(method);
             }
         }
         if (!ms.isEmpty()) {
             return new MemRef(new JavaMethod(nativeObj, ms));
         }
-        //throw new NgScriptRuntimeException(runtime, "" + nativeObj + " does not have a member " + member);
         return null;
     }
 }

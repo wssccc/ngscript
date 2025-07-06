@@ -102,7 +102,7 @@ public class OpControlFlowTest extends OpTestBase {
 
     @Test
     public void retPopsReturnAddressAndFrame() {
-        ScriptFunction frame = new ScriptFunction("L1", (Environment) vm.env.read(), vm);
+        ScriptFunction frame = new ScriptFunction("L1", (NgsObject) vm.env.read(), vm);
         runOps(() -> {
                     vm.callstack.push(frame);
                     // return address: the integer 42 instruction (index 1)
@@ -117,8 +117,8 @@ public class OpControlFlowTest extends OpTestBase {
 
     @Test
     public void clearCallStackTruncatesToSavedSize() {
-        ScriptFunction f1 = new ScriptFunction("L1", (Environment) vm.env.read(), vm);
-        ScriptFunction f2 = new ScriptFunction("L2", (Environment) vm.env.read(), vm);
+        ScriptFunction f1 = new ScriptFunction("L1", (NgsObject) vm.env.read(), vm);
+        ScriptFunction f2 = new ScriptFunction("L2", (NgsObject) vm.env.read(), vm);
         runOps(() -> {
                     vm.callstack.push(f1);
                     vm.callstack.push(f2);

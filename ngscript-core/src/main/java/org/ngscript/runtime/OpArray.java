@@ -29,19 +29,19 @@ public class OpArray {
 
     public static void array_new(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         int length = Integer.parseInt(param);
-        Environment list = new Environment((Environment) vm.env.read());
+        NgsArray list = new NgsArray((NgsObject) vm.env.read());
 
         for (int i = 0; i < length; i++) {
             Object object = vm.stack.pop();
-            list.data.put("" + i, new MemRef(object));
+            list.set("" + i, object);
         }
         vm.eax.write(list);
     }
 
     public static void array_ref(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        if (objs[0] instanceof Environment) {
-            Environment env = (Environment) objs[0];
+        if (objs[0] instanceof NgsObject) {
+            NgsObject env = (NgsObject) objs[0];
             String member = "" + objs[1];
             MemRef ref = env.lookup(member, vm, true);
             vm.eax.write(ref);

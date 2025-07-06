@@ -34,7 +34,7 @@ import org.ngscript.value.ScriptFunction;
 public class OpCall {
 
     public static void new_closure(Machine vm, String param, String param_extend) {
-        ScriptFunction closure = new ScriptFunction(param, (Environment) vm.env.read(), vm);
+        ScriptFunction closure = new ScriptFunction(param, (NgsObject) vm.env.read(), vm);
         vm.eax.write(closure);
     }
 
@@ -52,7 +52,7 @@ public class OpCall {
             ScriptFunction c = (ScriptFunction) callee;
             vm.callstack.push(c);
             //prepare env
-            Environment env = new Environment((Environment) c.environment);
+            NgsObject env = new NgsObject((NgsObject) c.environment);
             vm.env.write(env);
             int nip = vm.labels.get(c.functionLabel);
             vm.stack.push(vm.getEip());

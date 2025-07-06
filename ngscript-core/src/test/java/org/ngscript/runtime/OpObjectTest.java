@@ -44,15 +44,15 @@ public class OpObjectTest extends OpTestBase {
                 },
                 new Instruction("object_new", "2", null),
                 new Instruction("halt", "", ""));
-        Environment obj = (Environment) vm.eax.read();
-        assertEquals(1, obj.data.get("a").read());
-        assertEquals(2, obj.data.get("b").read());
+        NgsObject obj = (NgsObject) vm.eax.read();
+        assertEquals(1, obj.get("a"));
+        assertEquals(2, obj.get("b"));
     }
 
     @Test
     public void memberRefOnEnvironment() {
-        Environment env = new Environment(null);
-        env.data.put("x", new MemRef(9));
+        NgsObject env = new NgsObject(null);
+        env.set("x", 9);
         runOps(() -> vm.stack.push(env),
                 new Instruction("string", "x", null),
                 new Instruction("member_ref", null, null),
@@ -91,7 +91,7 @@ public class OpObjectTest extends OpTestBase {
 
     @Test
     public void testDefinedVariable() {
-        runOps(() -> frame().data.put("x", new MemRef(1)),
+        runOps(() -> frame().set("x", 1),
                 new Instruction("test", "x", null),
                 new Instruction("halt", "", ""));
         assertEquals(1, vm.eax.read());
@@ -99,24 +99,24 @@ public class OpObjectTest extends OpTestBase {
 
     @Test
     public void clearSetsUndefined() {
-        runOps(() -> frame().data.put("x", new MemRef(1)),
+        runOps(() -> frame().set("x", 1),
                 new Instruction("clear", "x", null),
                 new Instruction("halt", "", ""));
-        assertEquals(Undefined.value, frame().data.get("x").read());
+        assertEquals(Undefined.value, frame().get("x"));
     }
 
     @Test
     public void clearNullSetsNull() {
-        runOps(() -> frame().data.put("x", new MemRef(1)),
+        runOps(() -> frame().set("x", 1),
                 new Instruction("clear_null", "x", null),
                 new Instruction("halt", "", ""));
-        assertNull(frame().data.get("x").read());
+        assertNull(frame().get("x"));
     }
 
     @Test
     public void newOpScriptConstructorReturnsActiveFrame() {
-        Environment instance = new Environment(null);
-        Environment oldEnv = new Environment(null);
+        NgsObject instance = new NgsObject(null);
+        NgsObject oldEnv = new NgsObject(null);
         runOps(() -> {
                     vm.env.write(instance);
                     // stack order (top first): params, constructor, caller env
@@ -132,7 +132,7 @@ public class OpObjectTest extends OpTestBase {
 
     @Test
     public void newOpNativeConstructorPopsInstance() {
-        Environment oldEnv = new Environment(null);
+        NgsObject oldEnv = new NgsObject(null);
         Object nativeInstance = new Object();
         runOps(() -> {
                     vm.env.write(null);
@@ -148,7 +148,7 @@ public class OpObjectTest extends OpTestBase {
         assertSame(oldEnv, vm.env.read());
     }
 
-    private Environment frame() {
-        return (Environment) vm.env.read();
+    private NgsObject frame() {
+        return (NgsObject) vm.env.read();
     }
 }

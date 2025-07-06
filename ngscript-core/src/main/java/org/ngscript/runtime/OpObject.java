@@ -32,13 +32,12 @@ import org.ngscript.value.Undefined;
 public class OpObject {
 
     public static void object_new(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
-        Environment sh = new Environment((Environment) vm.env.read());
+        NgsObject sh = new NgsObject((NgsObject) vm.env.read());
         int size = Integer.parseInt(param);
         for (int i = 0; i < size; i++) {
             Object v = vm.stack.pop();
             String k = (String) vm.stack.pop();
-            MemRef vref = new MemRef(v);
-            sh.data.put(k, vref);
+            sh.set(k, v);
         }
         vm.eax.write(sh);
     }
@@ -46,14 +45,14 @@ public class OpObject {
     public static void member_ref(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
         String member = (String) objs[1];
-        if (objs[0] instanceof Environment) {
-            Environment env = (Environment) objs[0];
+        if (objs[0] instanceof NgsObject) {
+            NgsObject env = (NgsObject) objs[0];
             MemRef ref = env.lookup(member, vm, true);
             vm.eax.write(ref);
             return;
         }
         //member of native
-        Object ref = Environment.lookupNative(objs[0], member, vm);
+        Object ref = NgsObject.lookupNative(objs[0], member, vm);
 
         if (ref != null) {
             vm.eax.write(ref);
@@ -73,7 +72,8 @@ public class OpObject {
      * qualified name.
      */
     private static final java.util.Set<Class<?>> TYPE_OF_SHORT_NAMES = new java.util.HashSet<>(Arrays.asList(
-            Undefined.class, ScriptFunction.class, MemRef.class, Invokable.class));
+            Undefined.class, ScriptFunction.class, MemRef.class, Invokable.class,
+            NgsObject.class, NgsArray.class));
 
     public static void typeof(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object obj = vm.eax.read();
@@ -133,7 +133,7 @@ public class OpObject {
             //native object
             newObject = vm.stack.pop();
         }
-        Environment oldEnv = (Environment) vm.stack.pop();
+        NgsObject oldEnv = (NgsObject) vm.stack.pop();
         Object cons = vm.stack.pop();
 
         vm.eax.write(newObject);

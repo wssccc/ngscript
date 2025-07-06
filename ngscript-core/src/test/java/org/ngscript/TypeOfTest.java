@@ -47,10 +47,10 @@ public class TypeOfTest {
     }
 
     @Test
-    public void objectInstanceKeepsQualifiedNameUntilObjectSplit() throws Exception {
-        // NgsObject/NgsArray split (proposal b) will change this to "NgsObject"
+    public void objectInstanceReportsNgsObject() throws Exception {
+        // NgsObject split (proposal b): typeof(new Foo()) is now "NgsObject"
         assertTypeOf("function Foo() { this.x = 1; }\n"
-                + "assert(typeof new Foo() == \"org.ngscript.runtime.Environment\");");
+                + "assert(typeof new Foo() == \"NgsObject\");");
     }
 
     @Test

@@ -25,7 +25,7 @@ import org.ngscript.util.FastStack;
 public class Context {
 
     Object eax;
-    Environment env;
+    NgsObject env;
     int eip;
     Instruction hints;
     int stackSize;
@@ -38,7 +38,7 @@ public class Context {
 
     public final void save(Machine vm) {
         this.eax = vm.eax.read();
-        this.env = (Environment) vm.env.read();
+        this.env = (NgsObject) vm.env.read();
         this.eip = vm.getEip();
         this.hints = vm.hints;
         this.stackSize = vm.stack.size();

@@ -32,7 +32,7 @@ public class OpMoveTest extends OpTestBase {
 
     @Test
     public void derefReadsValue() {
-        runOps(() -> frame().data.put("x", new MemRef(5)),
+        runOps(() -> frame().set("x", 5),
                 new Instruction("deref", "x", null),
                 new Instruction("halt", "", ""));
         assertEquals(5, vm.eax.read());
@@ -40,7 +40,7 @@ public class OpMoveTest extends OpTestBase {
 
     @Test
     public void derefEaxUnwrapsMemRef() {
-        runOps(() -> frame().data.put("x", new MemRef(5)),
+        runOps(() -> frame().set("x", 5),
                 new Instruction("mov_eax", "x", null),
                 new Instruction("deref", "%eax", null),
                 new Instruction("halt", "", ""));
@@ -49,7 +49,7 @@ public class OpMoveTest extends OpTestBase {
 
     @Test
     public void movEaxWritesReference() {
-        runOps(() -> frame().data.put("x", new MemRef(5)),
+        runOps(() -> frame().set("x", 5),
                 new Instruction("mov_eax", "x", null),
                 new Instruction("halt", "", ""));
         MemRef ref = (MemRef) vm.eax.read();
@@ -76,37 +76,36 @@ public class OpMoveTest extends OpTestBase {
     @Test
     public void movValueCopy() {
         runOps(() -> {
-                    frame().data.put("x", new MemRef(1));
-                    frame().data.put("y", new MemRef(2));
+                    frame().set("x", 1);
+                    frame().set("y", 2);
                 },
                 new Instruction("mov", "x", "[y]"),
                 new Instruction("halt", "", ""));
-        assertEquals(2, frame().data.get("x").read());
+        assertEquals(2, frame().get("x"));
     }
 
     @Test
     public void movRefCopySharesReference() {
-        MemRef y = new MemRef(2);
         runOps(() -> {
-                    frame().data.put("x", new MemRef(1));
-                    frame().data.put("y", y);
+                    frame().set("x", 1);
+                    frame().set("y", 2);
                 },
                 new Instruction("mov", "x", "y"),
                 new Instruction("halt", "", ""));
-        MemRef xRef = (MemRef) frame().data.get("x").read();
-        assertSame(y, xRef);
+        // the ref copy writes the source MemRef object into the target reference
+        assertSame(frame().getRef("y"), frame().getRef("x").read());
     }
 
     @Test
     public void movFromEaxRegister() {
-        runOps(() -> frame().data.put("x", new MemRef(1)),
+        runOps(() -> frame().set("x", 1),
                 new Instruction("integer", "42", null),
                 new Instruction("mov", "x", "%eax"),
                 new Instruction("halt", "", ""));
-        assertEquals(42, frame().data.get("x").read());
+        assertEquals(42, frame().get("x"));
     }
 
-    private Environment frame() {
-        return (Environment) vm.env.read();
+    private NgsObject frame() {
+        return (NgsObject) vm.env.read();
     }
 }

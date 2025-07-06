@@ -40,17 +40,17 @@ public class OpArrayTest extends OpTestBase {
                 },
                 new Instruction("array_new", "3", null),
                 new Instruction("halt", "", ""));
-        Environment array = (Environment) vm.eax.read();
-        assertEquals(1, array.data.get("0").read());
-        assertEquals(2, array.data.get("1").read());
-        assertEquals(3, array.data.get("2").read());
+        NgsObject array = (NgsObject) vm.eax.read();
+        assertEquals(1, array.get("0"));
+        assertEquals(2, array.get("1"));
+        assertEquals(3, array.get("2"));
     }
 
     @Test
     public void arrayRefByIndex() {
-        Environment array = new Environment(null);
-        array.data.put("0", new MemRef(10));
-        array.data.put("1", new MemRef(20));
+        NgsObject array = new NgsObject(null);
+        array.set("0", 10);
+        array.set("1", 20);
         runOps(() -> vm.stack.push(array),
                 new Instruction("integer", "1", null),
                 new Instruction("array_ref", null, null),

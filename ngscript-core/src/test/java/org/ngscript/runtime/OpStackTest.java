@@ -62,7 +62,7 @@ public class OpStackTest extends OpTestBase {
 
     @Test
     public void popEnv() {
-        Environment other = new Environment(null);
+        NgsObject other = new NgsObject(null);
         runOps(() -> vm.stack.push(other),
                 new Instruction("pop_env", null, null),
                 new Instruction("halt", "", ""));

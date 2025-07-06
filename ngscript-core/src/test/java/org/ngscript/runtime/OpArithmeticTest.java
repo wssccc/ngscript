@@ -20,7 +20,6 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 import org.ngscript.bytecode.Instruction;
-import org.ngscript.value.MemRef;
 
 /**
  * Instruction-level tests for the arithmetic opcodes.
@@ -162,7 +161,7 @@ public class OpArithmeticTest extends OpTestBase {
     }
 
     private void incDecTest(String op, int expected) {
-        runOps(() -> frame().data.put("x", new MemRef(5)),
+        runOps(() -> frame().set("x", 5),
                 new Instruction("mov_eax", "x", null),
                 new Instruction(op, null, null),
                 new Instruction("halt", "", ""));
@@ -181,7 +180,7 @@ public class OpArithmeticTest extends OpTestBase {
 
     @Test
     public void incDouble() {
-        runOps(() -> frame().data.put("x", new MemRef(1.5)),
+        runOps(() -> frame().set("x", 1.5),
                 new Instruction("mov_eax", "x", null),
                 new Instruction("inc", null, null),
                 new Instruction("halt", "", ""));
@@ -190,27 +189,25 @@ public class OpArithmeticTest extends OpTestBase {
 
     @Test
     public void postIncReturnsOldValueAndIncrementsRef() {
-        MemRef ref = new MemRef(5);
-        runOps(() -> frame().data.put("x", ref),
+        runOps(() -> frame().set("x", 5),
                 new Instruction("mov_eax", "x", null),
                 new Instruction("post_inc", null, null),
                 new Instruction("halt", "", ""));
         assertEquals(5, vm.eax.read());
-        assertEquals(6, ref.read());
+        assertEquals(6, frame().get("x"));
     }
 
     @Test
     public void postDecReturnsOldValueAndDecrementsRef() {
-        MemRef ref = new MemRef(5);
-        runOps(() -> frame().data.put("x", ref),
+        runOps(() -> frame().set("x", 5),
                 new Instruction("mov_eax", "x", null),
                 new Instruction("post_dec", null, null),
                 new Instruction("halt", "", ""));
         assertEquals(5, vm.eax.read());
-        assertEquals(4, ref.read());
+        assertEquals(4, frame().get("x"));
     }
 
-    private Environment frame() {
-        return (Environment) vm.env.read();
+    private NgsObject frame() {
+        return (NgsObject) vm.env.read();
     }
 }

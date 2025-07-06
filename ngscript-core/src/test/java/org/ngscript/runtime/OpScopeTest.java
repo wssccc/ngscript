@@ -35,13 +35,13 @@ public class OpScopeTest extends OpTestBase {
         runOps(new Instruction("integer", "5", null),
                 new Instruction("set", "x", null),
                 new Instruction("halt", "", ""));
-        assertEquals(5, frame().data.get("x").read());
+        assertEquals(5, frame().get("x"));
     }
 
     @Test
     public void valCreatesNullReference() {
         runOp("val", "x", null);
-        assertNull(frame().data.get("x").read());
+        assertNull(frame().get("x"));
     }
 
     @Test
@@ -55,7 +55,7 @@ public class OpScopeTest extends OpTestBase {
         assertEquals(7, vm.eax.read());
     }
 
-    private Environment frame() {
-        return (Environment) vm.env.read();
+    private NgsObject frame() {
+        return (NgsObject) vm.env.read();
     }
 }

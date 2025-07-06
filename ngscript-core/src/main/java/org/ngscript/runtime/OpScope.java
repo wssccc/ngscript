@@ -26,11 +26,11 @@ import org.ngscript.value.MemRef;
 public class OpScope {
 
     public static void set(Machine vm, String param, String param_extend) {
-        ((Environment) vm.env.read()).data.put(param, new MemRef(vm.eax.read()));
+        ((NgsObject) vm.env.read()).set(param, vm.eax.read());
     }
 
     public static void val(Machine vm, String param, String param_extend) {
-        ((Environment) vm.env.read()).data.put(param, new MemRef(null, true));
+        ((NgsObject) vm.env.read()).define(param);
     }
 
     public static void assign(Machine vm, String param, String param_extend) {

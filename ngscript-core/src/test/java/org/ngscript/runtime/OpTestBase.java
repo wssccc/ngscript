@@ -60,7 +60,7 @@ public abstract class OpTestBase {
             list.add(i);
         }
         vm.installInstructions(vm.bindInstructions(list));
-        vm.env.write(new Environment(vm.getInitialEnvironment()));
+        vm.env.write(new NgsObject(vm.getInitialEnvironment()));
         vm.resetForExecution();
         if (preRun != null) {
             preRun.run();

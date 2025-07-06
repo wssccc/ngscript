@@ -47,13 +47,13 @@ public class OpCallTest extends OpTestBase {
 
     @Test
     public void callScriptFunction() {
-        ScriptFunction fn = new ScriptFunction("L10", (Environment) vm.env.read(), vm);
+        ScriptFunction fn = new ScriptFunction("L10", (NgsObject) vm.env.read(), vm);
         Object[] args = new Object[0];
         runOps(() -> {
                     // stack order (bottom first): args, callee, caller env
                     vm.stack.push(args);
                     vm.stack.push(fn);
-                    vm.stack.push(new Environment(null));
+                    vm.stack.push(new NgsObject(null));
                 },
                 new Instruction("call", "", null),
                 new Instruction("halt", "", ""),

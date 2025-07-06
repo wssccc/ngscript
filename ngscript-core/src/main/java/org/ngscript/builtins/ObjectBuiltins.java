@@ -18,7 +18,7 @@ package org.ngscript.builtins;
 
 import java.util.Map;
 
-import org.ngscript.runtime.Environment;
+import org.ngscript.runtime.NgsObject;
 import org.ngscript.runtime.Machine;
 import org.ngscript.value.Invokable;
 import org.ngscript.value.MemRef;
@@ -38,7 +38,7 @@ public class ObjectBuiltins {
         @Override
         public void invoke(Machine vm, Object[] args) {
             //prepare env
-            Environment env = new Environment((Environment) vm.env.read());
+            NgsObject env = new NgsObject((NgsObject) vm.env.read());
             vm.env.write(env);
         }
     }

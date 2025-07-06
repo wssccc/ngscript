@@ -4,7 +4,7 @@ First resume result: 1
 Coroutine status: suspended
 Processing second parameter: param 2
 Processing third parameter: param 3
-Second resume result: org.ngscript.interop.JavaMethod@1ef7fe8e
+Second resume result: org.ngscript.interop.JavaMethod@d70c109
 Coroutine status: running
 Attempting third resume:
 Error: Cannot resume a completed coroutine
