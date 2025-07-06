@@ -16,6 +16,7 @@
         <module>ngscript-core</module>
         <module>ngscript-shell</module>
         <module>ngscript-examples</module>
+        <module>ngscript-parseroid</module>
     </modules>
 
     <properties>
