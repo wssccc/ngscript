@@ -42,6 +42,16 @@ public class OpUtils {
             Long l = (Long) obj;
             return l.intValue();
         }
+        if (obj instanceof Boolean) {
+            return ((Boolean) obj) ? 1 : 0;
+        }
+        if (obj instanceof String) {
+            try {
+                return Double.parseDouble(((String) obj).trim());
+            } catch (NumberFormatException e) {
+                return Double.NaN;
+            }
+        }
         throw new NgScriptRuntimeException(vm, "invalid type");
     }
 

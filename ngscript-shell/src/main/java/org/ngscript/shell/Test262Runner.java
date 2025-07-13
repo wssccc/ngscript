@@ -1,0 +1,254 @@
+/*
+ * Copyright 2021 wssccc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.ngscript.shell;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.ngscript.parser.NgParser;
+import org.ngscript.parser.ParserException;
+
+/**
+ * A minimal test262 runner. Currently supports a parse-only mode that checks
+ * whether each test file is accepted (or rejected, for negative SyntaxError
+ * tests) by the parser, plus excludelist.xml filtering and a plain text
+ * report. Execution of tests arrives with the semantics phase.
+ *
+ * <p>Usage: {@code java org.ngscript.shell.Test262Runner [--dir test262-root]
+ * [--parse] [--report file] [--fail-below percent] [--feature X] ...}
+ */
+public class Test262Runner {
+
+    private static final Pattern FRONTMATTER = Pattern.compile("(?s)^/\\*---\\r?\\n(.*?)\\r?\\n---\\*/\\r?\\n?(.*)$");
+    private static final Pattern FLAGS = Pattern.compile("flags: \\[(.*?)\\]");
+    private static final Pattern NEGATIVE = Pattern.compile("negative:\\s*\\r?\\n\\s*phase: (\\w+)\\s*\\r?\\n\\s*type: (\\S+)");
+    private static final Pattern FEATURES = Pattern.compile("features: \\[(.*?)\\]");
+    private static final Pattern ES5ID = Pattern.compile("es5id: (\\S+)");
+    private static final Pattern EXCLUDE_ID = Pattern.compile("<test id=\"([^\"]+)\"");
+
+    private final NgParser parser = new NgParser();
+    private final Set<String> excludelist = new HashSet<>();
+    private final List<String> enabledFeatures = new ArrayList<>();
+
+    private int total;
+    private int passed;
+    private int failed;
+    private int excluded;
+    private int es5Total;
+    private int es5Passed;
+    private final List<String> failures = new ArrayList<>();
+
+    public static void main(String[] args) throws Exception {
+        String dir = "test262";
+        String report = null;
+        Double failBelow = null;
+        List<String> features = new ArrayList<>();
+        boolean parseMode = true;
+        for (int i = 0; i < args.length; i++) {
+            switch (args[i]) {
+                case "--dir":
+                    dir = args[++i];
+                    break;
+                case "--report":
+                    report = args[++i];
+                    break;
+                case "--fail-below":
+                    failBelow = Double.parseDouble(args[++i]);
+                    break;
+                case "--feature":
+                    features.add(args[++i]);
+                    break;
+                case "--no-parse":
+                    parseMode = false;
+                    break;
+                default:
+                    System.err.println("unknown argument " + args[i]);
+                    System.exit(2);
+            }
+        }
+        Test262Runner runner = new Test262Runner();
+        runner.enabledFeatures.addAll(features);
+        runner.loadExcludelist(new File(dir, "excludelist.xml"));
+        File root = new File(dir);
+        if (parseMode) {
+            // test262 keeps the conformance suites under test/ (the src/
+            // directory holds the in-progress migration)
+            for (String sub : new String[]{"test/language", "test/built-ins"}) {
+                File subDir = new File(root, sub);
+                if (subDir.isDirectory()) {
+                    runner.scan(subDir, sub);
+                }
+            }
+        }
+        runner.printReport();
+        if (report != null) {
+            Files.write(new File(report).toPath(), runner.reportText().getBytes(StandardCharsets.UTF_8));
+        }
+        double rate = runner.total == 0 ? 0 : 100.0 * runner.passed / runner.total;
+        if (failBelow != null && rate < failBelow) {
+            System.err.println("pass rate " + rate + "% is below threshold " + failBelow + "%");
+            System.exit(1);
+        }
+    }
+
+    private void loadExcludelist(File file) throws IOException {
+        if (file.isFile()) {
+            String xml = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+            Matcher m = EXCLUDE_ID.matcher(xml);
+            while (m.find()) {
+                excludelist.add(m.group(1));
+            }
+        }
+    }
+
+    private void scan(File dir, String relPath) throws IOException {
+        File[] files = dir.listFiles();
+        if (files == null) {
+            return;
+        }
+        java.util.Arrays.sort(files, java.util.Comparator.comparing(File::getName));
+        for (File f : files) {
+            if (f.isDirectory()) {
+                scan(f, relPath + "/" + f.getName());
+            } else if (f.getName().endsWith(".js")) {
+                runCase(f, relPath + "/" + f.getName());
+            }
+        }
+    }
+
+    private void runCase(File file, String id) throws IOException {
+        ++total;
+        if (excludelist.contains(id)) {
+            ++excluded;
+            return;
+        }
+        String source = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+        String body = source;
+        Set<String> flags = new HashSet<>();
+        String negativePhase = null;
+        String negativeType = null;
+        Set<String> features = new HashSet<>();
+        boolean es5 = false;
+        // frontmatter is a /*--- ... ---*/ block; copyright comments may precede it
+        int fmStart = source.indexOf("/*---");
+        if (fmStart >= 0) {
+            int fmEnd = source.indexOf("---*/", fmStart);
+            if (fmEnd > fmStart) {
+                String meta = source.substring(fmStart + 5, fmEnd);
+                body = source.substring(fmEnd + 5);
+                es5 = ES5ID.matcher(meta).find();
+                Matcher fl = FLAGS.matcher(meta);
+                if (fl.find()) {
+                    for (String f : fl.group(1).split(",")) {
+                        flags.add(f.trim());
+                    }
+                }
+                Matcher ng = NEGATIVE.matcher(meta);
+                if (ng.find()) {
+                    negativePhase = ng.group(1);
+                    negativeType = ng.group(2);
+                }
+                Matcher ft = FEATURES.matcher(meta);
+                if (ft.find()) {
+                    for (String f : ft.group(1).split(",")) {
+                        features.add(f.trim());
+                    }
+                }
+            }
+        }
+        if (flags.contains("module")) {
+            ++excluded;
+            return; // ES modules are deferred
+        }
+        if (flags.contains("raw")) {
+            ++excluded;
+            return; // raw tests are not adapted to the harness
+        }
+        if (!enabledFeatures.isEmpty()) {
+            for (String f : features) {
+                if (!enabledFeatures.contains(f)) {
+                    ++excluded;
+                    return;
+                }
+            }
+        }
+        // parse-only judgement
+        boolean parseOk = parse(body);
+        boolean expectedFail = "parse".equals(negativePhase) || "early".equals(negativePhase);
+        boolean ok = parseOk != expectedFail;
+        if (ok) {
+            ++passed;
+        } else {
+            fail(file, id, expectedFail ? "expected " + negativePhase + " " + negativeType + " but parse succeeded"
+                    : "parse failed");
+        }
+        if (es5) {
+            ++es5Total;
+            if (ok) {
+                ++es5Passed;
+            }
+        }
+    }
+
+    private boolean parse(String source) {
+        try {
+            parser.parse(source);
+            return true;
+        } catch (ParserException e) {
+            return false;
+        } catch (RuntimeException e) {
+            // internal errors (e.g. stack overflow) count as failures
+            return false;
+        }
+    }
+
+    private void fail(File file, String id, String reason) {
+        ++failed;
+        failures.add(id + "  " + reason);
+    }
+
+    private void printReport() {
+        System.out.println(reportText());
+    }
+
+    private String reportText() {
+        double rate = total == 0 ? 0 : 100.0 * passed / (passed + failed);
+        double es5Rate = es5Total == 0 ? 0 : 100.0 * es5Passed / es5Total;
+        StringBuilder sb = new StringBuilder();
+        sb.append("test262 parse-only report\n");
+        sb.append("total=").append(total).append(" passed=").append(passed)
+                .append(" failed=").append(failed).append(" excluded=").append(excluded)
+                .append(" pass-rate=").append(String.format("%.2f%%", rate)).append('\n');
+        sb.append("es5id cases: total=").append(es5Total).append(" passed=").append(es5Passed)
+                .append(" rate=").append(String.format("%.2f%%", es5Rate)).append('\n');
+        if (!failures.isEmpty()) {
+            sb.append("failures:\n");
+            for (String f : failures) {
+                sb.append("  ").append(f).append('\n');
+            }
+        }
+        return sb.toString();
+    }
+}

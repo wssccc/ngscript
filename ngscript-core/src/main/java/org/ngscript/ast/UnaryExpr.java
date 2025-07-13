@@ -23,7 +23,7 @@ package org.ngscript.ast;
  */
 public class UnaryExpr extends Expr {
 
-    public enum Op { NEG, NOT, TYPEOF, INC, DEC, POST_INC, POST_DEC }
+    public enum Op { NEG, PLUS, NOT, BIT_NOT, TYPEOF, DELETE, VOID, INC, DEC, POST_INC, POST_DEC }
 
     public final Op op;
     public final Expr operand;

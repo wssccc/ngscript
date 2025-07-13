@@ -24,10 +24,19 @@ package org.ngscript.ast;
  */
 public class LambdaExpr extends Expr {
 
+    public final String name;
     public final Params params;
     public final Block body;
 
     public LambdaExpr(Params params, Block body, int line) {
+        this(null, params, body, line);
+    }
+
+    /**
+     * @param name the optional name of a named function expression, or null
+     */
+    public LambdaExpr(String name, Params params, Block body, int line) {
+        this.name = name;
         this.params = params;
         this.body = body;
         this.line = line;

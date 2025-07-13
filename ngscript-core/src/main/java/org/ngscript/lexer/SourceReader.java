@@ -29,7 +29,17 @@ public class SourceReader {
     char[] chars;
 
     public SourceReader(String str) {
+        this(str, 1);
+    }
+
+    /**
+     * Creates a reader whose first character is considered to be at
+     * {@code startLine} (used by interactive mode so that automatic
+     * semicolon insertion can detect line breaks across input batches).
+     */
+    public SourceReader(String str, int startLine) {
         this.chars = str.toCharArray();
+        this.lineNumber = startLine;
     }
 
     public boolean eof() {
@@ -37,7 +47,8 @@ public class SourceReader {
     }
 
     public void forward() {
-        if (chars[position] == '\n') {
+        char c = chars[position];
+        if (c == '\n' || c == '\r' || c == '\u2028' || c == '\u2029') {
             ++lineNumber;
         }
         ++position;
@@ -52,10 +63,12 @@ public class SourceReader {
     }
 
     public void skipBlanks() {
-        //skip blanks
+        //skip blanks (ECMAScript WhiteSpace + LineTerminator)
         while (true) {
             char c = peek();
-            if ((c == ' ' || c == '\t' || c == '\r' || c == '\n') && !eof()) {
+            if ((c == ' ' || c == '\t' || c == '\u000B' || c == '\u000C'
+                    || c == '\u00A0' || c == '\r' || c == '\n' || c == '\u2028'
+                    || c == '\u2029' || c == '\uFEFF') && !eof()) {
                 forward();
             } else {
                 break;

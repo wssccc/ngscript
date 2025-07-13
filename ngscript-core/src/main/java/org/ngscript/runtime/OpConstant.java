@@ -42,12 +42,8 @@ public class OpConstant {
     }
 
     public static void string(Machine vm, String param, String param_extend) {
-        String str = param;
-        if (str.startsWith("\"") && str.endsWith("\"")) {
-            //quote string
-            str = str.substring(1, str.length() - 1);
-        }
-        str = str.replace("\\n", "\n");
-        vm.eax.write(str);
+        // The lexer already decodes escape sequences and strips quotes;
+        // the value is written as-is.
+        vm.eax.write(param);
     }
 }

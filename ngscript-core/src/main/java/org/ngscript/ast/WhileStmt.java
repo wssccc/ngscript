@@ -24,9 +24,9 @@ package org.ngscript.ast;
 public class WhileStmt extends Stmt {
 
     public final Expr condition;
-    public final Block body;
+    public final Stmt body;
 
-    public WhileStmt(Expr condition, Block body, int line) {
+    public WhileStmt(Expr condition, Stmt body, int line) {
         this.condition = condition;
         this.body = body;
         this.line = line;

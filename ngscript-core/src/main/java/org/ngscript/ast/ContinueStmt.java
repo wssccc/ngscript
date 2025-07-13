@@ -23,7 +23,22 @@ package org.ngscript.ast;
  */
 public class ContinueStmt extends Stmt {
 
+    /**
+     * The optional label of a labelled continue, or null for an unlabelled one.
+     */
+    public final String label;
+
     public ContinueStmt(int line) {
+        this(null, line);
+    }
+
+    public ContinueStmt(String label, int line) {
+        this.label = label;
         this.line = line;
+    }
+
+    @Override
+    protected String toString(int indent) {
+        return super.toString(indent) + (label == null ? "" : " label=" + label);
     }
 }

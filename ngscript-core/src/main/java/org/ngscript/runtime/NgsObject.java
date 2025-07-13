@@ -27,6 +27,7 @@ import org.ngscript.builtins.Builtins;
 import org.ngscript.interop.JavaFieldRef;
 import org.ngscript.interop.JavaMethod;
 import org.ngscript.value.MemRef;
+import org.ngscript.value.ScriptFunction;
 import org.ngscript.value.Undefined;
 
 /**
@@ -42,8 +43,53 @@ public class NgsObject implements Scope {
     private Map<String, MemRef> data = new HashMap<>();
     private NgsObject parent;
 
+    /**
+     * The constructor function that created this object via {@code new},
+     * used by the minimal instanceof support. Null for plain objects.
+     */
+    private ScriptFunction constructor;
+
     public NgsObject(NgsObject parent) {
         this.parent = parent;
+    }
+
+    public ScriptFunction getConstructor() {
+        return constructor;
+    }
+
+    public void setConstructor(ScriptFunction constructor) {
+        this.constructor = constructor;
+    }
+
+    /**
+     * Whether this object was created by the given constructor.
+     */
+    public boolean isInstanceOf(ScriptFunction ctor) {
+        if (constructor == ctor) {
+            return true;
+        }
+        NgsObject p = parent;
+        while (p != null) {
+            if (p.constructor == ctor) {
+                return true;
+            }
+            p = p.parent;
+        }
+        return false;
+    }
+
+    /**
+     * Removes an own property; returns false when it did not exist.
+     */
+    public boolean remove(String key) {
+        return data.remove(key) != null;
+    }
+
+    /**
+     * Whether an own property exists.
+     */
+    public boolean has(String key) {
+        return data.containsKey(key);
     }
 
     /**

@@ -16,6 +16,8 @@
 
 package org.ngscript.runtime;
 
+import org.ngscript.value.Undefined;
+
 /**
  * Arithmetic opcodes: unary/binary numeric operators, comparisons and
  * increment/decrement.
@@ -112,6 +114,44 @@ public class OpArithmetic {
     public static void bit_xor(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
         vm.eax.write(OpUtils.getInteger(vm, objs[0]) ^ OpUtils.getInteger(vm, objs[1]));
+    }
+
+    public static void shl(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        vm.eax.write(OpUtils.getInteger(vm, objs[0]) << (OpUtils.getInteger(vm, objs[1]) & 31));
+    }
+
+    public static void shr(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        vm.eax.write(OpUtils.getInteger(vm, objs[0]) >> (OpUtils.getInteger(vm, objs[1]) & 31));
+    }
+
+    public static void ushr(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        vm.eax.write(OpUtils.getInteger(vm, objs[0]) >>> (OpUtils.getInteger(vm, objs[1]) & 31));
+    }
+
+    public static void exp(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        vm.eax.write(Math.pow(OpUtils.getNumber(vm, objs[0]), OpUtils.getNumber(vm, objs[1])));
+    }
+
+    public static void unary_plus(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        vm.eax.write(OpUtils.getNumber(vm, vm.eax.read()));
+    }
+
+    public static void bit_not(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        vm.eax.write(~OpUtils.getInteger(vm, vm.eax.read()));
+    }
+
+    public static void nullish(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        Object left = objs[0];
+        if (left == null || left == Undefined.value) {
+            vm.eax.write(objs[1]);
+        } else {
+            vm.eax.write(left);
+        }
     }
 
     public static void sub(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {

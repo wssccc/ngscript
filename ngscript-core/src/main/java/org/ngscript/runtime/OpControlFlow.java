@@ -16,6 +16,8 @@
 
 package org.ngscript.runtime;
 
+import org.ngscript.value.Undefined;
+
 /**
  * Control-flow opcodes: jumps, labels, the go body, halt, return and call
  * stack cleanup.
@@ -53,6 +55,22 @@ public class OpControlFlow {
     public static void jnz(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object testObj = vm.eax.read();
         if (OpUtils.testValue(testObj)) {
+            if (vm.labels.containsKey(param)) {
+                int nip = vm.labels.get(param);
+                vm.setEip(nip);
+            } else {
+                throw new NgScriptRuntimeException(vm, "jump to no where");
+            }
+        }
+    }
+
+    /**
+     * Jumps when the current value is neither null nor undefined (nullish
+     * check, used by {@code ??=}).
+     */
+    public static void jnn(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object testObj = vm.eax.read();
+        if (testObj != null && testObj != Undefined.value) {
             if (vm.labels.containsKey(param)) {
                 int nip = vm.labels.get(param);
                 vm.setEip(nip);

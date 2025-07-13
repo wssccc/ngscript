@@ -20,6 +20,7 @@ import java.util.Arrays;
 
 import org.ngscript.value.Invokable;
 import org.ngscript.value.MemRef;
+import org.ngscript.value.RegExpValue;
 import org.ngscript.value.ScriptFunction;
 import org.ngscript.value.Undefined;
 
@@ -73,7 +74,100 @@ public class OpObject {
      */
     private static final java.util.Set<Class<?>> TYPE_OF_SHORT_NAMES = new java.util.HashSet<>(Arrays.asList(
             Undefined.class, ScriptFunction.class, MemRef.class, Invokable.class,
-            NgsObject.class, NgsArray.class));
+            NgsObject.class, NgsArray.class, RegExpValue.class));
+
+    public static void regex_new(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        vm.eax.write(new RegExpValue(param, param_extend));
+    }
+
+    public static void delete_op(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        Object obj = objs[0];
+        String key = objs[1].toString();
+        if (obj instanceof NgsObject) {
+            vm.eax.write(((NgsObject) obj).remove(key) ? 1 : 0);
+        } else if (obj instanceof NgsArray) {
+            vm.eax.write(((NgsArray) obj).remove(key) ? 1 : 0);
+        } else {
+            vm.eax.write(1); // deleting a property of a host object: treat as success
+        }
+    }
+
+    public static void void_op(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        vm.eax.write(Undefined.value);
+    }
+
+    public static void in(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        Object obj = objs[1];
+        String key = objs[0].toString();
+        if (obj instanceof NgsObject) {
+            vm.eax.write(((NgsObject) obj).has(key) ? 1 : 0);
+        } else if (obj instanceof String) {
+            try {
+                int idx = Integer.parseInt(key);
+                vm.eax.write(idx >= 0 && idx < ((String) obj).length() ? 1 : 0);
+            } catch (NumberFormatException e) {
+                vm.eax.write(0);
+            }
+        } else {
+            vm.eax.write(0);
+        }
+    }
+
+    public static void instanceof_op(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        Object obj = objs[0];
+        Object ctor = objs[1];
+        if (ctor instanceof ScriptFunction) {
+            if (obj instanceof NgsObject) {
+                vm.eax.write(((NgsObject) obj).isInstanceOf((ScriptFunction) ctor) ? 1 : 0);
+            } else {
+                vm.eax.write(0);
+            }
+        } else {
+            throw new NgScriptRuntimeException(vm, "right-hand side of instanceof is not callable");
+        }
+    }
+
+    /**
+     * Prepares a for-in loop: converts the current value to an array of keys
+     * and pushes it with the loop index on the stack.
+     */
+    public static void forin_init(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object obj = vm.eax.read();
+        String[] keys;
+        if (obj instanceof NgsObject) {
+            java.util.Set<String> set = ((NgsObject) obj).keys();
+            keys = set.toArray(new String[0]);
+        } else if (obj instanceof String) {
+            String s = (String) obj;
+            keys = new String[s.length()];
+            for (int i = 0; i < s.length(); i++) {
+                keys[i] = i + "";
+            }
+        } else {
+            keys = new String[0];
+        }
+        vm.stack.push(keys);
+        vm.stack.push(0);
+    }
+
+    /**
+     * Advances a for-in loop: yields the next key in eax, or a falsy value
+     * (0) when the iteration is done (and pops the iteration state).
+     */
+    public static void forin_next(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        int i = (Integer) vm.stack.pop();
+        String[] keys = (String[]) vm.stack.peek(0);
+        if (i < keys.length) {
+            vm.stack.push(i + 1);
+            vm.eax.write(keys[i]);
+        } else {
+            vm.stack.pop();
+            vm.eax.write(0);
+        }
+    }
 
     public static void typeof(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object obj = vm.eax.read();
@@ -135,6 +229,9 @@ public class OpObject {
         }
         NgsObject oldEnv = (NgsObject) vm.stack.pop();
         Object cons = vm.stack.pop();
+        if (newObject instanceof NgsObject && cons instanceof ScriptFunction) {
+            ((NgsObject) newObject).setConstructor((ScriptFunction) cons);
+        }
 
         vm.eax.write(newObject);
         vm.env.write(oldEnv);

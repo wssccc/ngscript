@@ -25,10 +25,11 @@ package org.ngscript.ast;
 public class BinaryExpr extends Expr {
 
     public enum Op {
-        ADD, SUB, MUL, DIV, MOD,
-        OR, AND,
+        ADD, SUB, MUL, DIV, MOD, EXP,
+        OR, AND, NULLISH,
         EQ, NEQ, VEQ, VNEQ,
-        LT, GT, LE, GE,
+        LT, GT, LE, GE, INSTANCEOF, IN,
+        SHL, SHR, USHR,
         BIT_OR, BIT_XOR, BIT_AND
     }
 

@@ -66,14 +66,9 @@ public class OpConstantTest extends OpTestBase {
     }
 
     @Test
-    public void stringQuotedStripsQuotes() {
-        runOp("string", "\"hello\"", null);
-        assertEquals("hello", vm.eax.read());
-    }
-
-    @Test
-    public void stringEscapesNewline() {
-        runOp("string", "a\\nb", null);
+    public void stringValueWrittenAsIs() {
+        // escape decoding happens in the lexer, the opcode writes the value verbatim
+        runOp("string", "a\nb", null);
         assertEquals("a\nb", vm.eax.read());
     }
 }

@@ -66,8 +66,7 @@ public class NgScriptEngine {
      * @throws NgScriptException if the script cannot be parsed or compiled
      */
     public Script compile(String code) throws NgScriptException {
-        List<Token> tokens = Lexer.scan(code);
-        Program program = parser.parse(tokens);
+        Program program = parser.parse(code);
         List<Instruction> ins = compiler.compileCode(program, code);
         return new CompiledScript(this, ins, code);
     }
@@ -88,12 +87,19 @@ public class NgScriptEngine {
         return compile(code).execute();
     }
 
+    /**
+     * Line number of the first line of the next interactive input batch;
+     * lets ASI detect line breaks across REPL lines.
+     */
+    private int fedLineStart = 1;
+
     public boolean feed(String code) throws CompilerException, LexerException, ParserException {
-        List<Token> tokens = Lexer.scan(code);
         if (configuration.isInteractive()) {
+            List<Token> tokens = Lexer.scan(code, fedLineStart);
+            fedLineStart += (int) code.chars().filter(c -> c == '\n').count() + (code.isEmpty() ? 0 : 1);
             return parser.feedInteractive(tokens);
         }
-        Program program = parser.parse(tokens);
+        Program program = parser.parse(code);
         compileAndRun(program, code);
         return true;
     }

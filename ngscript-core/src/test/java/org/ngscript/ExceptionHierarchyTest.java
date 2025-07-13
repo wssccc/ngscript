@@ -52,7 +52,8 @@ public class ExceptionHierarchyTest {
     @Test
     public void compileErrorIsNgScriptException() {
         try {
-            new NgScriptEngine().eval("break;");
+            // with parses fine but is not compiled yet
+            new NgScriptEngine().eval("with (o) { x = 1; }");
             fail("expected CompilerException");
         } catch (NgScriptException e) {
             assertTrue("should be a CompilerException", e instanceof CompilerException);

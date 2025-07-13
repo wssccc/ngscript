@@ -16,10 +16,13 @@
 
 package org.ngscript.parser;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -30,12 +33,16 @@ import org.ngscript.ast.ArrayLiteral;
 import org.ngscript.ast.AssignExpr;
 import org.ngscript.ast.BinaryExpr;
 import org.ngscript.ast.Block;
+import org.ngscript.ast.BlockStmt;
 import org.ngscript.ast.BreakStmt;
 import org.ngscript.ast.CallExpr;
+import org.ngscript.ast.CommaExpr;
 import org.ngscript.ast.CondExpr;
 import org.ngscript.ast.ContinueStmt;
+import org.ngscript.ast.DoWhileStmt;
 import org.ngscript.ast.Expr;
 import org.ngscript.ast.ExprStmt;
+import org.ngscript.ast.ForInStmt;
 import org.ngscript.ast.ForStmt;
 import org.ngscript.ast.FunctionDecl;
 import org.ngscript.ast.GoStmt;
@@ -44,6 +51,7 @@ import org.ngscript.ast.IfStmt;
 import org.ngscript.ast.ImportStmt;
 import org.ngscript.ast.IndexExpr;
 import org.ngscript.ast.Kvp;
+import org.ngscript.ast.LabeledStmt;
 import org.ngscript.ast.LambdaExpr;
 import org.ngscript.ast.LiteralExpr;
 import org.ngscript.ast.MemberExpr;
@@ -51,6 +59,7 @@ import org.ngscript.ast.NewExpr;
 import org.ngscript.ast.ObjectLiteral;
 import org.ngscript.ast.Params;
 import org.ngscript.ast.Program;
+import org.ngscript.ast.RegExpLiteral;
 import org.ngscript.ast.ReturnStmt;
 import org.ngscript.ast.Stmt;
 import org.ngscript.ast.SwitchCase;
@@ -60,7 +69,9 @@ import org.ngscript.ast.TryStmt;
 import org.ngscript.ast.UnaryExpr;
 import org.ngscript.ast.VarDeclExpr;
 import org.ngscript.ast.WhileStmt;
+import org.ngscript.ast.WithStmt;
 import org.ngscript.compiler.CompilerException;
+import org.ngscript.lexer.Lexer;
 
 /**
  * A hand-written recursive descent parser for the ngscript language.
@@ -127,7 +138,18 @@ public class NgParser {
         BINARY_OP_BY_TOKEN.put("mul", BinaryExpr.Op.MUL);
         BINARY_OP_BY_TOKEN.put("div", BinaryExpr.Op.DIV);
         BINARY_OP_BY_TOKEN.put("mod", BinaryExpr.Op.MOD);
+        BINARY_OP_BY_TOKEN.put("exp", BinaryExpr.Op.EXP);
+        BINARY_OP_BY_TOKEN.put("shl", BinaryExpr.Op.SHL);
+        BINARY_OP_BY_TOKEN.put("shr", BinaryExpr.Op.SHR);
+        BINARY_OP_BY_TOKEN.put("ushr", BinaryExpr.Op.USHR);
+        BINARY_OP_BY_TOKEN.put("nullish", BinaryExpr.Op.NULLISH);
     }
+
+    private static final java.util.Set<String> ASSIGN_OPS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    "assign", "asgn_add", "asgn_sub", "asgn_mul", "asgn_div", "asgn_mod", "asgn_exp",
+                    "asgn_shl", "asgn_shr", "asgn_ushr", "asgn_bit_and", "asgn_bit_or", "asgn_bit_xor",
+                    "asgn_and", "asgn_or", "asgn_nullish")));
 
     //----------------------------------------------------------------------
     // batch mode state
@@ -135,6 +157,33 @@ public class NgParser {
 
     private List<Token> tokens;
     private int index;
+
+    /**
+     * Line of the most recently consumed token; used by automatic semicolon
+     * insertion to detect line terminators.
+     */
+    private int lastTokenLine = 1;
+
+    /**
+     * Number of enclosing loops (while/for/do) and switches; used for the
+     * early-error check that break/continue appear in a valid context.
+     */
+    private int loopDepth;
+    private int switchDepth;
+
+    /**
+     * Depth of enclosing function bodies; a return statement outside a
+     * function is an early error.
+     */
+    private int functionDepth;
+
+    /**
+     * Lexer-driven mode state: when {@link #parse(String)} is used the lexer
+     * produces tokens lazily so it can apply the ECMAScript regex/division
+     * lexical goal rule based on the previous token.
+     */
+    private Lexer lexer;
+    private final List<Token> lexerBuf = new ArrayList<>();
 
     //----------------------------------------------------------------------
     // streaming mode state
@@ -161,7 +210,32 @@ public class NgParser {
      * @throws ParserException on syntax errors, including unexpected end of input
      */
     public Program parse(List<Token> tokens) throws ParserException {
+        this.lexer = null;
         this.tokens = tokens;
+        this.index = 0;
+        List<Stmt> stmts = new ArrayList<>();
+        while (peek() != null) {
+            Stmt stmt = parseStatement();
+            if (stmt != null) {
+                stmts.add(stmt);
+            }
+        }
+        return new Program(stmts, 1);
+    }
+
+    /**
+     * Parses source code into a program, letting the lexer apply the
+     * ECMAScript regex/division lexical goal rule. This is the entry point
+     * used by the engine for batch compilation.
+     *
+     * @param code the source code
+     * @return the parsed program
+     * @throws ParserException on syntax errors
+     */
+    public Program parse(String code) throws ParserException {
+        this.lexer = new Lexer(code);
+        this.lexerBuf.clear();
+        this.tokens = null;
         this.index = 0;
         List<Stmt> stmts = new ArrayList<>();
         while (peek() != null) {
@@ -282,6 +356,16 @@ public class NgParser {
     }
 
     private Token peekN(int n) {
+        if (lexer != null) {
+            while (lexerBuf.size() < n) {
+                Token t = lexer.nextToken();
+                if (t != null && t.type.equals("comment")) {
+                    continue;
+                }
+                lexerBuf.add(t);
+            }
+            return lexerBuf.get(n - 1);
+        }
         if (isStreaming()) {
             while (pending.size() < n) {
                 try {
@@ -306,7 +390,12 @@ public class NgParser {
 
     private Token next() {
         Token t = peek();
-        if (isStreaming()) {
+        if (t != null) {
+            lastTokenLine = t.line;
+        }
+        if (lexer != null) {
+            lexerBuf.remove(0);
+        } else if (isStreaming()) {
             pending.removeFirst();
         } else {
             ++index;
@@ -326,6 +415,47 @@ public class NgParser {
                     t == null ? null : new org.ngscript.api.Source(null, t.line));
         }
         return t;
+    }
+
+    /**
+     * Consumes a semicolon, or applies the ECMAScript automatic semicolon
+     * insertion rules when one is missing: a semicolon is inserted at the end
+     * of input, before a closing brace, or before a token that starts on a
+     * later line than the previous token.
+     */
+    private void consumeSemicolon() throws ParserException {
+        if (peekIs("semicolon")) {
+            next();
+            return;
+        }
+        Token t = peek();
+        if (t == null) {
+            return; // end of input
+        }
+        if (t.type.equals("rcurly")) {
+            return; // before a closing brace
+        }
+        if (t.line > lastTokenLine) {
+            return; // line terminator before the offending token
+        }
+        throw new ParserException("expecting semicolon but got " + t,
+                new org.ngscript.api.Source(null, t.line));
+    }
+
+    /**
+     * True when the next token is on a later line than {@code refLine}, is a
+     * closing brace, or the input has ended; used by restricted productions
+     * (return/break/continue/throw) to decide whether a semicolon is implied.
+     */
+    private boolean atLineBreakAfter(int refLine) {
+        Token t = peek();
+        if (t == null) {
+            return true;
+        }
+        if (t.type.equals("rcurly")) {
+            return true;
+        }
+        return t.line > refLine;
     }
 
     //----------------------------------------------------------------------
@@ -355,34 +485,91 @@ public class NgParser {
                 return parseFor();
             case "while":
                 return parseWhile();
+            case "do":
+                return parseDo();
             case "switch":
                 return parseSwitch();
+            case "with": {
+                next();
+                expect("lparen");
+                Expr object = parseExpr();
+                expect("rparen");
+                Stmt body = parseStatementOrBlock();
+                return new WithStmt(object, body, t.line);
+            }
+            case "debugger":
+                // a no-op statement in ES
+                next();
+                consumeSemicolon();
+                return null;
             case "try":
                 return parseTry();
+            case "lcurly":
+                // a bare block used as a statement
+                next();
+                return new BlockStmt(parseBlockRest(), t.line);
             case "throw": {
                 next();
+                if (atLineBreakAfter(t.line)) {
+                    throw new ParserException("unexpected line break after throw",
+                            new org.ngscript.api.Source(null, t.line));
+                }
                 Expr expr = parseExpr();
-                expect("semicolon");
+                consumeSemicolon();
                 return new ThrowStmt(expr, t.line);
             }
             case "return": {
                 next();
+                if (functionDepth == 0) {
+                    throw new ParserException("Illegal return statement",
+                            new org.ngscript.api.Source(null, t.line));
+                }
                 if (peekIs("semicolon")) {
                     next();
                     return new ReturnStmt(null, t.line);
                 }
+                if (atLineBreakAfter(t.line)) {
+                    // restricted production: return followed by a line terminator
+                    return new ReturnStmt(null, t.line);
+                }
                 Expr expr = parseExpr();
-                expect("semicolon");
+                consumeSemicolon();
                 return new ReturnStmt(expr, t.line);
             }
             case "break": {
                 next();
-                expect("semicolon");
+                if (peekIs("ident") && !atLineBreakAfter(t.line)) {
+                    Token label = next();
+                    consumeSemicolon();
+                    if (!currentLabels.contains(label.value)) {
+                        throw new ParserException("Undefined label '" + label.value + "'",
+                                new org.ngscript.api.Source(null, t.line));
+                    }
+                    return new BreakStmt(label.value, t.line);
+                }
+                consumeSemicolon();
+                if (loopDepth == 0 && switchDepth == 0 && currentLabels.isEmpty()) {
+                    throw new ParserException("Illegal break statement",
+                            new org.ngscript.api.Source(null, t.line));
+                }
                 return new BreakStmt(t.line);
             }
             case "continue": {
                 next();
-                expect("semicolon");
+                if (peekIs("ident") && !atLineBreakAfter(t.line)) {
+                    Token label = next();
+                    consumeSemicolon();
+                    if (!currentLabels.contains(label.value)) {
+                        throw new ParserException("Undefined label '" + label.value + "'",
+                                new org.ngscript.api.Source(null, t.line));
+                    }
+                    return new ContinueStmt(label.value, t.line);
+                }
+                consumeSemicolon();
+                if (loopDepth == 0 && currentLabels.isEmpty()) {
+                    throw new ParserException("Illegal continue statement",
+                            new org.ngscript.api.Source(null, t.line));
+                }
                 return new ContinueStmt(t.line);
             }
             case "import":
@@ -390,9 +577,65 @@ public class NgParser {
             case "go":
                 return parseGo();
             default:
+                // a label statement: ident followed by a colon
+                if (t.type.equals("ident")) {
+                    Token second = peekN(2);
+                    if (second != null && second.type.equals("colon")) {
+                        next();
+                        next();
+                        currentLabels.push(t.value);
+                        try {
+                            Stmt inner = parseStatement();
+                            return new LabeledStmt(t.value, inner, t.line);
+                        } finally {
+                            currentLabels.pop();
+                        }
+                    }
+                }
                 return parseExprStmt();
         }
     }
+
+    /**
+     * Parses a statement or a block, used for the bodies of if/while/for/do
+     * which may be a single statement (ES: if (x) doThing();).
+     */
+    private Stmt parseStatementOrBlock() throws ParserException {
+        if (peekIs("lcurly")) {
+            Token lcurly = next();
+            return new BlockStmt(parseBlockRest(), lcurly.line);
+        }
+        return parseStatement();
+    }
+
+    /**
+     * Parses the statements of a block, assuming the opening brace has been
+     * consumed, and consumes the closing brace.
+     */
+    private Block parseBlockRest() throws ParserException {
+        List<Stmt> stmts = new ArrayList<>();
+        while (true) {
+            Token t = peek();
+            if (t == null) {
+                throw new ParserException("unexpected end of input, expecting }");
+            }
+            if (t.type.equals("rcurly")) {
+                next();
+                break;
+            }
+            Stmt stmt = parseStatement();
+            if (stmt != null) {
+                stmts.add(stmt);
+            }
+        }
+        return new Block(stmts, 0);
+    }
+
+    /**
+     * Labels declared in enclosing labelled statements, for the break/continue
+     * early-error check (a bare break inside a labelled block is illegal).
+     */
+    private final Deque<String> currentLabels = new ArrayDeque<>();
 
     private Stmt parseFunctionDecl() throws ParserException {
         Token fn = next();
@@ -400,8 +643,13 @@ public class NgParser {
         expect("lparen");
         Params params = parseParamList();
         expect("rparen");
-        Block body = parseBlock();
-        return new FunctionDecl(name.value, params, body, fn.line);
+        ++functionDepth;
+        try {
+            Block body = parseBlock();
+            return new FunctionDecl(name.value, params, body, fn.line);
+        } finally {
+            --functionDepth;
+        }
     }
 
     private Stmt parseIf() throws ParserException {
@@ -409,11 +657,11 @@ public class NgParser {
         expect("lparen");
         Expr condition = parseExpr();
         expect("rparen");
-        Block thenBody = parseBlock();
-        Block elseBody = null;
+        Stmt thenBody = parseStatementOrBlock();
+        Stmt elseBody = null;
         if (peekIs("else")) {
             next();
-            elseBody = parseBlock();
+            elseBody = parseStatementOrBlock();
         }
         return new IfStmt(condition, thenBody, elseBody, t.line);
     }
@@ -421,14 +669,55 @@ public class NgParser {
     private Stmt parseFor() throws ParserException {
         Token t = next();
         expect("lparen");
+        // for-in forms: for (var x in obj) and for (x in obj)
+        Token first = peek();
+        if (first != null && first.type.equals("var")) {
+            Token second = peekN(2);
+            Token third = peekN(3);
+            if (second != null && second.type.equals("ident") && third != null && third.type.equals("in")) {
+                next();
+                next();
+                next();
+                Expr object = parseExpr();
+                expect("rparen");
+                ++loopDepth;
+                try {
+                    return new ForInStmt(new VarDeclExpr(second.value, false, second.line), object,
+                            parseStatementOrBlock(), t.line);
+                } finally {
+                    --loopDepth;
+                }
+            }
+        } else if (first != null && first.type.equals("ident")) {
+            Token second = peekN(2);
+            if (second != null && second.type.equals("in")) {
+                next();
+                next();
+                Expr object = parseExpr();
+                expect("rparen");
+                ++loopDepth;
+                try {
+                    return new ForInStmt(new IdentExpr(first.value, first.line), object,
+                            parseStatementOrBlock(), t.line);
+                } finally {
+                    --loopDepth;
+                }
+            }
+        }
+        // C-style for
         Expr init = parseNullableExpr();
         expect("semicolon");
         Expr test = parseNullableExpr();
         expect("semicolon");
         Expr step = parseNullableExpr();
         expect("rparen");
-        Block body = parseBlock();
-        return new ForStmt(init, test, step, body, t.line);
+        ++loopDepth;
+        try {
+            Stmt body = parseStatementOrBlock();
+            return new ForStmt(init, test, step, body, t.line);
+        } finally {
+            --loopDepth;
+        }
     }
 
     private Stmt parseWhile() throws ParserException {
@@ -436,8 +725,29 @@ public class NgParser {
         expect("lparen");
         Expr condition = parseExpr();
         expect("rparen");
-        Block body = parseBlock();
-        return new WhileStmt(condition, body, t.line);
+        ++loopDepth;
+        try {
+            Stmt body = parseStatementOrBlock();
+            return new WhileStmt(condition, body, t.line);
+        } finally {
+            --loopDepth;
+        }
+    }
+
+    private Stmt parseDo() throws ParserException {
+        Token t = next();
+        ++loopDepth;
+        try {
+            Stmt body = parseStatementOrBlock();
+            expect("while");
+            expect("lparen");
+            Expr condition = parseExpr();
+            expect("rparen");
+            consumeSemicolon();
+            return new DoWhileStmt(body, condition, t.line);
+        } finally {
+            --loopDepth;
+        }
     }
 
     private Stmt parseSwitch() throws ParserException {
@@ -446,32 +756,37 @@ public class NgParser {
         Expr value = parseExpr();
         expect("rparen");
         expect("lcurly");
-        List<SwitchCase> cases = new ArrayList<>();
-        Block defaultBody = null;
-        while (true) {
-            Token clause = peek();
-            if (clause == null) {
-                throw new ParserException("unexpected end of input, expecting case, default or }");
+        ++switchDepth;
+        try {
+            List<SwitchCase> cases = new ArrayList<>();
+            Block defaultBody = null;
+            while (true) {
+                Token clause = peek();
+                if (clause == null) {
+                    throw new ParserException("unexpected end of input, expecting case, default or }");
+                }
+                if (clause.type.equals("rcurly")) {
+                    next();
+                    break;
+                }
+                if (clause.type.equals("case")) {
+                    next();
+                    Expr caseValue = parseExpr();
+                    expect("colon");
+                    Block body = parseStatementsUntilSwitchClause();
+                    cases.add(new SwitchCase(caseValue, body, clause.line));
+                } else if (clause.type.equals("default")) {
+                    next();
+                    expect("colon");
+                    defaultBody = parseStatementsUntilSwitchClause();
+                } else {
+                    throw new ParserException("expecting case, default or } but got " + clause);
+                }
             }
-            if (clause.type.equals("rcurly")) {
-                next();
-                break;
-            }
-            if (clause.type.equals("case")) {
-                next();
-                Expr caseValue = parseExpr();
-                expect("colon");
-                Block body = parseStatementsUntilSwitchClause();
-                cases.add(new SwitchCase(caseValue, body, clause.line));
-            } else if (clause.type.equals("default")) {
-                next();
-                expect("colon");
-                defaultBody = parseStatementsUntilSwitchClause();
-            } else {
-                throw new ParserException("expecting case, default or } but got " + clause);
-            }
+            return new SwitchStmt(value, cases, defaultBody, t.line);
+        } finally {
+            --switchDepth;
         }
-        return new SwitchStmt(value, cases, defaultBody, t.line);
     }
 
     private Block parseStatementsUntilSwitchClause() throws ParserException {
@@ -495,17 +810,27 @@ public class NgParser {
     private Stmt parseTry() throws ParserException {
         Token t = next();
         Block tryBody = parseBlock();
-        expect("catch");
-        expect("lparen");
-        Token catchVar = expect("ident");
-        expect("rparen");
-        Block catchBody = parseBlock();
+        String catchVar = null;
+        Block catchBody = null;
         Block finallyBody = null;
+        if (peekIs("catch")) {
+            next();
+            if (peekIs("lparen")) {
+                next();
+                Token v = expect("ident");
+                expect("rparen");
+                catchVar = v.value;
+            }
+            catchBody = parseBlock();
+        }
         if (peekIs("finally")) {
             next();
             finallyBody = parseBlock();
         }
-        return new TryStmt(tryBody, catchVar.value, catchBody, finallyBody, t.line);
+        if (catchBody == null && finallyBody == null) {
+            throw new ParserException("expecting catch or finally", new org.ngscript.api.Source(null, t.line));
+        }
+        return new TryStmt(tryBody, catchVar, catchBody, finallyBody, t.line);
     }
 
     private Stmt parseImport() throws ParserException {
@@ -515,7 +840,7 @@ public class NgParser {
             next();
             sb.append('.').append(expect("ident").value);
         }
-        expect("semicolon");
+        consumeSemicolon();
         return new ImportStmt(sb.toString(), t.line);
     }
 
@@ -525,13 +850,13 @@ public class NgParser {
         expect("lparen");
         List<Expr> args = parseParams();
         expect("rparen");
-        expect("semicolon");
+        consumeSemicolon();
         return new GoStmt(callee, args, t.line);
     }
 
     private Stmt parseExprStmt() throws ParserException {
         Expr expr = parseExpr();
-        expect("semicolon");
+        consumeSemicolon();
         return new ExprStmt(expr, expr.line);
     }
 
@@ -561,6 +886,9 @@ public class NgParser {
             names.add(expect("ident").value);
             while (peekIs("comma")) {
                 next();
+                if (peekIs("rparen")) {
+                    break; // trailing comma
+                }
                 names.add(expect("ident").value);
             }
         }
@@ -570,10 +898,13 @@ public class NgParser {
     private List<Expr> parseParams() throws ParserException {
         List<Expr> args = new ArrayList<>();
         if (!peekIs("rparen")) {
-            args.add(parseExpr());
+            args.add(parseAssignment());
             while (peekIs("comma")) {
                 next();
-                args.add(parseExpr());
+                if (peekIs("rparen")) {
+                    break; // trailing comma
+                }
+                args.add(parseAssignment());
             }
         }
         return args;
@@ -591,30 +922,77 @@ public class NgParser {
     // expressions (precedence climbing)
     //----------------------------------------------------------------------
 
+    /**
+     * The comma operator: {@code Expression := Assignment (',' Assignment)*}.
+     * A leading {@code var} declaration turns every operand into a variable
+     * declaration ({@code var a, b = 1, c}).
+     */
     private Expr parseExpr() throws ParserException {
-        return parseAssign();
+        Expr first = parseAssignment();
+        if (!peekIs("comma")) {
+            return first;
+        }
+        List<Expr> operands = new ArrayList<>();
+        operands.add(first);
+        int line = first.line;
+        while (peekIs("comma")) {
+            next();
+            operands.add(parseAssignment());
+        }
+        if (first instanceof VarDeclExpr) {
+            for (int i = 1; i < operands.size(); i++) {
+                Expr o = operands.get(i);
+                if (o instanceof VarDeclExpr) {
+                    continue;
+                }
+                if (o instanceof AssignExpr && ((AssignExpr) o).target instanceof VarDeclExpr) {
+                    continue;
+                }
+                if (o instanceof IdentExpr) {
+                    operands.set(i, new VarDeclExpr(((IdentExpr) o).name, false, o.line));
+                    continue;
+                }
+                if (o instanceof AssignExpr && ((AssignExpr) o).target instanceof IdentExpr) {
+                    AssignExpr a = (AssignExpr) o;
+                    operands.set(i, new AssignExpr(
+                            new VarDeclExpr(((IdentExpr) a.target).name, false, a.target.line),
+                            a.value, a.line, a.op));
+                    continue;
+                }
+                throw new ParserException("invalid variable declaration " + o,
+                        new org.ngscript.api.Source(null, o.line));
+            }
+        }
+        return new CommaExpr(operands, line);
     }
 
-    private Expr parseAssign() throws ParserException {
+    private Expr parseAssignment() throws ParserException {
         Expr left = parseCond();
-        while (peekIs("assign")) {
-            Token t = next();
-            Expr right = parseCond();
-            left = new AssignExpr(left, right, t.line);
+        Token t = peek();
+        if (t != null && ASSIGN_OPS.contains(t.type)) {
+            next();
+            // right associative: a = b = c parses as a = (b = c)
+            Expr right = parseAssignment();
+            return new AssignExpr(left, right, t.line, t.type);
         }
         return left;
     }
 
     private Expr parseCond() throws ParserException {
-        Expr cond = parseOr();
-        while (peekIs("question_mark")) {
+        Expr cond = parseNullish();
+        if (peekIs("question_mark")) {
             Token t = next();
-            Expr thenExpr = parseOr();
+            Expr thenExpr = parseAssignment();
             expect("colon");
-            Expr elseExpr = parseOr();
-            cond = new CondExpr(cond, thenExpr, elseExpr, t.line);
+            // right associative: the else branch may be another conditional
+            Expr elseExpr = parseAssignment();
+            return new CondExpr(cond, thenExpr, elseExpr, t.line);
         }
         return cond;
+    }
+
+    private Expr parseNullish() throws ParserException {
+        return parseLeftAssoc(Arrays.asList("nullish"), this::parseOr);
     }
 
     private Expr parseOr() throws ParserException {
@@ -642,7 +1020,31 @@ public class NgParser {
     }
 
     private Expr parseRel() throws ParserException {
-        return parseLeftAssoc(Arrays.asList("gt", "lt", "ge", "le"), this::parseAdd);
+        Expr left = parseShift();
+        while (true) {
+            Token t = peek();
+            if (t == null) {
+                return left;
+            }
+            BinaryExpr.Op op;
+            switch (t.type) {
+                case "gt": op = BinaryExpr.Op.GT; break;
+                case "lt": op = BinaryExpr.Op.LT; break;
+                case "ge": op = BinaryExpr.Op.GE; break;
+                case "le": op = BinaryExpr.Op.LE; break;
+                case "instanceof": op = BinaryExpr.Op.INSTANCEOF; break;
+                case "in": op = BinaryExpr.Op.IN; break;
+                default:
+                    return left;
+            }
+            next();
+            Expr right = parseShift();
+            left = new BinaryExpr(op, left, right, t.line);
+        }
+    }
+
+    private Expr parseShift() throws ParserException {
+        return parseLeftAssoc(Arrays.asList("shl", "shr", "ushr"), this::parseAdd);
     }
 
     private Expr parseAdd() throws ParserException {
@@ -650,7 +1052,20 @@ public class NgParser {
     }
 
     private Expr parseMul() throws ParserException {
-        return parseLeftAssoc(Arrays.asList("mul", "div", "mod"), this::parseUnary);
+        return parseLeftAssoc(Arrays.asList("mul", "div", "mod"), this::parseExp);
+    }
+
+    /**
+     * Exponentiation, right associative: {@code a ** b ** c} is {@code a ** (b ** c)}.
+     */
+    private Expr parseExp() throws ParserException {
+        Expr base = parseUnary();
+        if (peekIs("exp")) {
+            Token t = next();
+            Expr right = parseExp();
+            return new BinaryExpr(BinaryExpr.Op.EXP, base, right, t.line);
+        }
+        return base;
     }
 
     private Expr parseLeftAssoc(List<String> operatorTypes, ExprSupplier operand)
@@ -675,33 +1090,73 @@ public class NgParser {
         switch (t.type) {
             case "sub":
                 next();
-                return new UnaryExpr(UnaryExpr.Op.NEG, parsePostfix(true), t.line);
+                return new UnaryExpr(UnaryExpr.Op.NEG, parseUnary(), t.line);
+            case "add":
+                next();
+                return new UnaryExpr(UnaryExpr.Op.PLUS, parseUnary(), t.line);
             case "not":
                 next();
-                return new UnaryExpr(UnaryExpr.Op.NOT, parsePostfix(true), t.line);
+                return new UnaryExpr(UnaryExpr.Op.NOT, parseUnary(), t.line);
+            case "bit_not":
+                next();
+                return new UnaryExpr(UnaryExpr.Op.BIT_NOT, parseUnary(), t.line);
             case "typeof":
                 next();
-                return new UnaryExpr(UnaryExpr.Op.TYPEOF, parsePostfix(true), t.line);
+                return new UnaryExpr(UnaryExpr.Op.TYPEOF, parseUnary(), t.line);
+            case "delete":
+                next();
+                return new UnaryExpr(UnaryExpr.Op.DELETE, parseUnary(), t.line);
+            case "void":
+                next();
+                return new UnaryExpr(UnaryExpr.Op.VOID, parseUnary(), t.line);
             case "inc":
                 next();
-                return new UnaryExpr(UnaryExpr.Op.INC, parsePostfix(true), t.line);
+                return prefixUpdate(UnaryExpr.Op.INC, t);
             case "dec":
                 next();
-                return new UnaryExpr(UnaryExpr.Op.DEC, parsePostfix(true), t.line);
+                return prefixUpdate(UnaryExpr.Op.DEC, t);
             default: {
                 Expr operand = parsePostfix(true);
                 Token post = peek();
-                if (post != null && post.type.equals("inc")) {
+                // postfix ++/-- is a restricted production: a line terminator
+                // before the operator makes it a prefix operator of the next
+                // statement instead (a\n++b is a; ++b)
+                if (post != null && post.type.equals("inc") && post.line <= lastTokenLine) {
                     next();
-                    return new UnaryExpr(UnaryExpr.Op.POST_INC, operand, post.line);
+                    return postfixUpdate(UnaryExpr.Op.POST_INC, operand, post);
                 }
-                if (post != null && post.type.equals("dec")) {
+                if (post != null && post.type.equals("dec") && post.line <= lastTokenLine) {
                     next();
-                    return new UnaryExpr(UnaryExpr.Op.POST_DEC, operand, post.line);
+                    return postfixUpdate(UnaryExpr.Op.POST_DEC, operand, post);
                 }
                 return operand;
             }
         }
+    }
+
+    private Expr prefixUpdate(UnaryExpr.Op op, Token t) throws ParserException {
+        Expr operand = parseUnary();
+        if (!isAssignableTarget(operand)) {
+            throw new ParserException("invalid target for " + op + " operator: " + operand,
+                    new org.ngscript.api.Source(null, t.line));
+        }
+        return new UnaryExpr(op, operand, t.line);
+    }
+
+    private Expr postfixUpdate(UnaryExpr.Op op, Expr operand, Token t) throws ParserException {
+        if (!isAssignableTarget(operand)) {
+            throw new ParserException("invalid target for " + op + " operator: " + operand,
+                    new org.ngscript.api.Source(null, t.line));
+        }
+        return new UnaryExpr(op, operand, t.line);
+    }
+
+    /**
+     * Whether an expression may be the target of an assignment or update
+     * (an identifier, a member access or an index access).
+     */
+    private static boolean isAssignableTarget(Expr e) {
+        return e instanceof IdentExpr || e instanceof MemberExpr || e instanceof IndexExpr;
     }
 
     /**
@@ -723,6 +1178,9 @@ public class NgParser {
                     expr = new MemberExpr(expr, name.value, t.line);
                     break;
                 }
+                case "optional_chain":
+                    throw new ParserException("optional chaining is not supported yet",
+                            new org.ngscript.api.Source(null, t.line));
                 case "lparen":
                     if (!allowCall) {
                         return expr;
@@ -762,9 +1220,12 @@ public class NgParser {
     private Expr parseNew(Token newTok) throws ParserException {
         next();
         Expr cls = parseExprClass();
-        expect("lparen");
-        List<Expr> args = parseParams();
-        expect("rparen");
+        List<Expr> args = Collections.emptyList();
+        if (peekIs("lparen")) {
+            next();
+            args = parseParams();
+            expect("rparen");
+        }
         return new NewExpr(cls, args, newTok.line);
     }
 
@@ -787,18 +1248,62 @@ public class NgParser {
             // () => { ... }
             next();
             next();
-            Block body = parseBlock();
-            return new LambdaExpr(new Params(Collections.emptyList()), body, lparen.line);
+            ++functionDepth;
+            try {
+                Block body = parseBlock();
+                return new LambdaExpr(new Params(Collections.emptyList()), body, lparen.line);
+            } finally {
+                --functionDepth;
+            }
         }
         if (second.type.equals("ident")) {
             Token third = peekN(3);
-            if (third != null && (third.type.equals("comma") || third.type.equals("rparen_arrow_fn"))) {
-                // (x) => { ... } or (x, y) => { ... }
+            if (third != null && third.type.equals("rparen_arrow_fn")) {
+                // (x) => { ... }
                 next();
-                Params params = parseParamList();
+                next();
                 expect("rparen_arrow_fn");
-                Block body = parseBlock();
-                return new LambdaExpr(params, body, lparen.line);
+                ++functionDepth;
+                try {
+                    Block body = parseBlock();
+                    return new LambdaExpr(
+                            new Params(Collections.singletonList(second.value)), body, lparen.line);
+                } finally {
+                    --functionDepth;
+                }
+            }
+            if (third != null && third.type.equals("comma")) {
+                // probe for the arrow form (x, y, ...) =>: only treat the
+                // parenthesised list as parameters when the closing paren is
+                // followed by => (otherwise it is a comma expression)
+                boolean arrow = false;
+                int n = 3;
+                while (true) {
+                    Token tt = peekN(n);
+                    if (tt == null) {
+                        break;
+                    }
+                    if (tt.type.equals("comma")) {
+                        n += 2;
+                        continue;
+                    }
+                    if (tt.type.equals("rparen_arrow_fn")) {
+                        arrow = true;
+                    }
+                    break;
+                }
+                if (arrow) {
+                    next();
+                    Params params = parseParamList();
+                    expect("rparen_arrow_fn");
+                    ++functionDepth;
+                    try {
+                        Block body = parseBlock();
+                        return new LambdaExpr(params, body, lparen.line);
+                    } finally {
+                        --functionDepth;
+                    }
+                }
             }
         }
         // plain parenthesized expression
@@ -814,19 +1319,25 @@ public class NgParser {
             throw new ParserException("unexpected end of input");
         }
         switch (t.type) {
+            case "new":
+                // nested member expressions like "new new String"
+                return parseNew(t);
             case "var": {
                 next();
                 Token name = expect("ident");
                 return new VarDeclExpr(name.value, false, name.line);
             }
-            case "val": {
+            case "ident": {
                 next();
-                Token name = expect("ident");
-                return new VarDeclExpr(name.value, true, name.line);
-            }
-            case "ident":
-                next();
+                if (t.value.equals("val") && peek() != null && peek().type.equals("ident")) {
+                    // the ngscript read-only declaration extension: "val x"
+                    // (val is a plain identifier in ES, so this only applies
+                    // when followed by a name)
+                    Token name = next();
+                    return new VarDeclExpr(name.value, true, t.line);
+                }
                 return new IdentExpr(t.value, t.line);
+            }
             case "undefined":
                 next();
                 return new LiteralExpr(LiteralExpr.Kind.UNDEFINED, null, t.line);
@@ -848,13 +1359,25 @@ public class NgParser {
             case "string":
                 next();
                 return new LiteralExpr(LiteralExpr.Kind.STRING, t.value, t.line);
+            case "regex":
+                next();
+                return new RegExpLiteral(t.value, t.line);
             case "function": {
                 next();
+                String name = null;
+                if (peekIs("ident")) {
+                    name = next().value;
+                }
                 expect("lparen");
                 Params params = parseParamList();
                 expect("rparen");
-                Block body = parseBlock();
-                return new LambdaExpr(params, body, t.line);
+                ++functionDepth;
+                try {
+                    Block body = parseBlock();
+                    return new LambdaExpr(name, params, body, t.line);
+                } finally {
+                    --functionDepth;
+                }
             }
             case "lsqr":
                 return parseArrayLiteral(t);
@@ -868,11 +1391,17 @@ public class NgParser {
     private Expr parseArrayLiteral(Token lsqr) throws ParserException {
         next();
         List<Expr> items = new ArrayList<>();
-        if (!peekIs("rsqr")) {
-            items.add(parseExpr());
-            while (peekIs("comma")) {
+        while (!peekIs("rsqr")) {
+            if (peekIs("comma")) {
+                // an elision: the hole is approximated by undefined
+                items.add(new LiteralExpr(LiteralExpr.Kind.UNDEFINED, null, lsqr.line));
+            } else {
+                items.add(parseAssignment());
+            }
+            if (peekIs("comma")) {
                 next();
-                items.add(parseExpr());
+            } else {
+                break;
             }
         }
         expect("rsqr");
@@ -882,11 +1411,12 @@ public class NgParser {
     private Expr parseObjectLiteral(Token lcurly) throws ParserException {
         next();
         List<Kvp> kvps = new ArrayList<>();
-        if (!peekIs("rcurly")) {
+        while (!peekIs("rcurly")) {
             kvps.add(parseKvp());
-            while (peekIs("comma")) {
+            if (peekIs("comma")) {
                 next();
-                kvps.add(parseKvp());
+            } else {
+                break;
             }
         }
         expect("rcurly");
@@ -895,12 +1425,57 @@ public class NgParser {
 
     private Kvp parseKvp() throws ParserException {
         Token name = peek();
-        if (name == null || !(name.type.equals("ident") || name.type.equals("string"))) {
+        // accessor properties: { get x() {...} } / { set x(v) {...} }
+        if (name != null && name.type.equals("ident")
+                && (name.value.equals("get") || name.value.equals("set"))) {
+            Token second = peekN(2);
+            Token third = peekN(3);
+            if (second != null && (isKeyName(second.type)
+                    || second.type.equals("integer") || second.type.equals("double"))
+                    && third != null && third.type.equals("lparen")) {
+                next(); // get/set
+                Token key = next();
+                expect("lparen");
+                Params params = parseParamList();
+                expect("rparen");
+                ++functionDepth;
+                try {
+                    Block body = parseBlock();
+                    return new Kvp(key.value, new LambdaExpr(name.value, params, body, name.line),
+                            name.line, name.value);
+                } finally {
+                    --functionDepth;
+                }
+            }
+        }
+        if (name == null || !(isKeyName(name.type) || name.type.equals("string")
+                || name.type.equals("integer") || name.type.equals("double"))) {
             throw new ParserException("expecting object key but got " + (name == null ? "end of input" : name));
         }
         next();
         expect("colon");
-        Expr value = parseExpr();
+        Expr value = parseAssignment();
         return new Kvp(name.value, value, name.line);
+    }
+
+    /**
+     * Whether a token type may be an object property name (identifier or any
+     * keyword, per ES IdentifierName).
+     */
+    private static boolean isKeyName(String type) {
+        switch (type) {
+            case "ident":
+            case "true": case "false": case "null": case "undefined":
+            case "var": case "function": case "new": case "if": case "return":
+            case "break": case "continue": case "while": case "switch": case "case":
+            case "default": case "typeof": case "try": case "catch": case "finally":
+            case "go": case "throw": case "for": case "else": case "do":
+            case "in": case "instanceof": case "delete": case "void": case "with":
+            case "class": case "const": case "enum": case "export": case "extends":
+            case "super": case "import":
+                return true;
+            default:
+                return false;
+        }
     }
 }

@@ -23,10 +23,20 @@ package org.ngscript.ast;
  */
 public class AssignExpr extends Expr {
 
+    /**
+     * The assignment operator token: {@code "assign"} for plain {@code =},
+     * otherwise one of the compound operators (asgn_add, asgn_sub, ...).
+     */
+    public final String op;
     public final Expr target;
     public final Expr value;
 
     public AssignExpr(Expr target, Expr value, int line) {
+        this(target, value, line, "assign");
+    }
+
+    public AssignExpr(Expr target, Expr value, int line, String op) {
+        this.op = op;
         this.target = target;
         this.value = value;
         this.line = line;
@@ -34,6 +44,6 @@ public class AssignExpr extends Expr {
 
     @Override
     protected String toString(int indent) {
-        return childrenToString(indent, target, value);
+        return childrenToString(indent, "op=" + op, target, value);
     }
 }

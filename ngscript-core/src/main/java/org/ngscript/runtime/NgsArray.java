@@ -16,6 +16,8 @@
 
 package org.ngscript.runtime;
 
+import org.ngscript.value.MemRef;
+
 /**
  * An array literal: an {@link NgsObject} indexed by stringified integers
  * ({@code "0"}..{@code "n-1"}).
@@ -26,5 +28,28 @@ public class NgsArray extends NgsObject {
 
     public NgsArray(NgsObject parent) {
         super(parent);
+    }
+
+    @Override
+    public MemRef lookup(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {
+        if ("length".equals(member)) {
+            // virtual length: one past the highest numeric index
+            MemRef ref = getRef(member);
+            if (ref == null) {
+                int len = 0;
+                for (String key : keys()) {
+                    try {
+                        len = Math.max(len, Integer.parseInt(key) + 1);
+                    } catch (NumberFormatException ignored) {
+                        // non-numeric keys do not affect length
+                    }
+                }
+                ref = new MemRef(len);
+                define(member);
+                set(member, len);
+            }
+            return ref;
+        }
+        return super.lookup(member, vm, isMember);
     }
 }

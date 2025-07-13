@@ -24,10 +24,10 @@ package org.ngscript.ast;
 public class IfStmt extends Stmt {
 
     public final Expr condition;
-    public final Block thenBody;
-    public final Block elseBody;
+    public final Stmt thenBody;
+    public final Stmt elseBody;
 
-    public IfStmt(Expr condition, Block thenBody, Block elseBody, int line) {
+    public IfStmt(Expr condition, Stmt thenBody, Stmt elseBody, int line) {
         this.condition = condition;
         this.thenBody = thenBody;
         this.elseBody = elseBody;

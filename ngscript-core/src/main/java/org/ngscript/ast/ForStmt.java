@@ -28,9 +28,9 @@ public class ForStmt extends Stmt {
     public final Expr init;
     public final Expr test;
     public final Expr step;
-    public final Block body;
+    public final Stmt body;
 
-    public ForStmt(Expr init, Expr test, Expr step, Block body, int line) {
+    public ForStmt(Expr init, Expr test, Expr step, Stmt body, int line) {
         this.init = init;
         this.test = test;
         this.step = step;

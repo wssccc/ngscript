@@ -26,14 +26,25 @@ public class Kvp extends AstNode {
     public final String name;
     public final Expr value;
 
+    /**
+     * The accessor kind for {@code get} / {@code set} properties, or null
+     * for plain data properties.
+     */
+    public final String kind;
+
     public Kvp(String name, Expr value, int line) {
+        this(name, value, line, null);
+    }
+
+    public Kvp(String name, Expr value, int line, String kind) {
         this.name = name;
         this.value = value;
         this.line = line;
+        this.kind = kind;
     }
 
     @Override
     protected String toString(int indent) {
-        return childrenToString(indent, "name=" + name, value);
+        return childrenToString(indent, "name=" + name + (kind == null ? "" : " kind=" + kind), value);
     }
 }

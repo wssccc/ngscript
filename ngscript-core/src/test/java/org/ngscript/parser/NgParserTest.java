@@ -29,8 +29,11 @@ import org.junit.Test;
 import org.ngscript.ast.ArrayLiteral;
 import org.ngscript.ast.AssignExpr;
 import org.ngscript.ast.BinaryExpr;
+import org.ngscript.ast.Block;
+import org.ngscript.ast.BlockStmt;
 import org.ngscript.ast.BreakStmt;
 import org.ngscript.ast.CallExpr;
+import org.ngscript.ast.CommaExpr;
 import org.ngscript.ast.CondExpr;
 import org.ngscript.ast.ContinueStmt;
 import org.ngscript.ast.Expr;
@@ -68,7 +71,12 @@ import org.ngscript.lexer.Lexer;
 public class NgParserTest {
 
     private Program parse(String code) throws Exception {
-        return new NgParser().parse(Lexer.scan(code));
+        return new NgParser().parse(code);
+    }
+
+    private static Block blockOf(Stmt stmt) {
+        assertTrue(stmt instanceof BlockStmt);
+        return ((BlockStmt) stmt).block;
     }
 
     private Expr exprOf(String code) throws Exception {
@@ -108,13 +116,27 @@ public class NgParserTest {
     }
 
     @Test
-    public void testAssignmentIsLeftAssociative() throws Exception {
-        // a = b = c parses as (a = b) = c, matching the original grammar
+    public void testAssignmentIsRightAssociative() throws Exception {
+        // a = b = c parses as a = (b = c), matching ECMAScript
         AssignExpr outer = (AssignExpr) exprOf("a = b = c;");
-        AssignExpr inner = (AssignExpr) outer.target;
-        ident(inner.target, "a");
-        ident(inner.value, "b");
-        ident(outer.value, "c");
+        ident(outer.target, "a");
+        AssignExpr inner = (AssignExpr) outer.value;
+        ident(inner.target, "b");
+        ident(inner.value, "c");
+    }
+
+    @Test
+    public void testCompoundAssignment() throws Exception {
+        AssignExpr add = (AssignExpr) exprOf("a += 1;");
+        assertEquals("asgn_add", add.op);
+        ident(add.target, "a");
+        lit(add.value, "1");
+    }
+
+    @Test
+    public void testCommaOperator() throws Exception {
+        CommaExpr comma = (CommaExpr) exprOf("a, b, c;");
+        assertEquals(3, comma.operands.size());
     }
 
     @Test
@@ -174,11 +196,20 @@ public class NgParserTest {
         ArrayLiteral array = (ArrayLiteral) exprOf("[1, 2, 3];");
         assertEquals(3, array.items.size());
 
-        ObjectLiteral object = (ObjectLiteral) exprOf("{a: 1, \"b\": 2};");
+        AssignExpr assign = (AssignExpr) exprOf("var o = {a: 1, \"b\": 2};");
+        ObjectLiteral object = (ObjectLiteral) assign.value;
         assertEquals(2, object.kvps.size());
         Kvp kvp = object.kvps.get(0);
         assertEquals("a", kvp.name);
         lit(kvp.value, "1");
+    }
+
+    @Test
+    public void testBareBlockStatement() throws Exception {
+        // a brace at statement position is a block statement in ES, not an object literal
+        Program program = parse("{ a; b; }");
+        assertEquals(1, program.statements.size());
+        assertTrue(program.statements.get(0) instanceof BlockStmt);
     }
 
     @Test
@@ -222,8 +253,8 @@ public class NgParserTest {
         assertEquals(1, decl.params.names.size());
         assertEquals(1, decl.body.statements.size());
         IfStmt ifStmt = (IfStmt) decl.body.statements.get(0);
-        assertEquals(1, ifStmt.thenBody.statements.size());
-        assertTrue(ifStmt.thenBody.statements.get(0) instanceof ReturnStmt);
+        assertEquals(1, blockOf(ifStmt.thenBody).statements.size());
+        assertTrue(blockOf(ifStmt.thenBody).statements.get(0) instanceof ReturnStmt);
         assertNull(ifStmt.elseBody);
     }
 
@@ -231,7 +262,7 @@ public class NgParserTest {
     public void testIfElse() throws Exception {
         IfStmt ifStmt = (IfStmt) parse("if (a) { b; } else { c; }").statements.get(0);
         assertNotNull(ifStmt.elseBody);
-        assertEquals(1, ifStmt.elseBody.statements.size());
+        assertEquals(1, blockOf(ifStmt.elseBody).statements.size());
     }
 
     @Test
@@ -241,7 +272,7 @@ public class NgParserTest {
         assertNull(forStmt.init);
         assertNull(forStmt.test);
         assertNull(forStmt.step);
-        assertEquals(0, forStmt.body.statements.size());
+        assertEquals(0, blockOf(forStmt.body).statements.size());
     }
 
     @Test
@@ -250,14 +281,14 @@ public class NgParserTest {
         assertTrue(forStmt.init instanceof AssignExpr);
         assertTrue(forStmt.test instanceof BinaryExpr);
         assertTrue(forStmt.step instanceof UnaryExpr);
-        assertTrue(forStmt.body.statements.get(0) instanceof BreakStmt);
+        assertTrue(blockOf(forStmt.body).statements.get(0) instanceof BreakStmt);
     }
 
     @Test
     public void testWhileLoop() throws Exception {
         WhileStmt whileStmt = (WhileStmt) parse("while (a) { continue; }").statements.get(0);
         ident(whileStmt.condition, "a");
-        assertTrue(whileStmt.body.statements.get(0) instanceof ContinueStmt);
+        assertTrue(blockOf(whileStmt.body).statements.get(0) instanceof ContinueStmt);
     }
 
     @Test
@@ -285,11 +316,26 @@ public class NgParserTest {
     public void testThrowReturnBreakContinue() throws Exception {
         ThrowStmt throwStmt = (ThrowStmt) parse("throw a;").statements.get(0);
         ident(throwStmt.expr, "a");
-        ReturnStmt returnStmt = (ReturnStmt) parse("return a;").statements.get(0);
+        // return/break/continue need a function or loop context (early errors)
+        FunctionDecl fn = (FunctionDecl) parse("function f() { return a; }").statements.get(0);
+        ReturnStmt returnStmt = (ReturnStmt) fn.body.statements.get(0);
         ident(returnStmt.expr, "a");
-        assertNull(((ReturnStmt) parse("return;").statements.get(0)).expr);
-        assertTrue(parse("break;").statements.get(0) instanceof BreakStmt);
-        assertTrue(parse("continue;").statements.get(0) instanceof ContinueStmt);
+        assertNull(((ReturnStmt) ((FunctionDecl) parse("function f() { return; }")
+                .statements.get(0)).body.statements.get(0)).expr);
+        assertTrue(parse("while (a) { break; }").statements.get(0) instanceof WhileStmt);
+        assertTrue(parse("while (a) { continue; }").statements.get(0) instanceof WhileStmt);
+        try {
+            parse("return a;");
+            fail("expected ParserException");
+        } catch (ParserException expected) {
+            assertTrue(expected.getMessage().contains("return"));
+        }
+        try {
+            parse("break;");
+            fail("expected ParserException");
+        } catch (ParserException expected) {
+            assertTrue(expected.getMessage().contains("break"));
+        }
     }
 
     @Test
@@ -323,10 +369,65 @@ public class NgParserTest {
     @Test
     public void testUnexpectedEndOfInput() throws Exception {
         try {
-            parse("var x = 1");
+            parse("var x = 1; var");
             fail("expected ParserException");
         } catch (ParserException expected) {
             assertTrue(expected.getMessage().contains("end of input"));
+        }
+    }
+
+    @Test
+    public void testAsiAtEndOfInput() throws Exception {
+        // automatic semicolon insertion: a missing semicolon before EOF is fine
+        Program program = parse("var x = 1");
+        assertEquals(1, program.statements.size());
+    }
+
+    @Test
+    public void testAsiBeforeClosingBrace() throws Exception {
+        Program program = parse("function f() { return 1 }");
+        FunctionDecl decl = (FunctionDecl) program.statements.get(0);
+        ReturnStmt ret = (ReturnStmt) decl.body.statements.get(0);
+        lit(ret.expr, "1");
+    }
+
+    @Test
+    public void testAsiOnLineBreak() throws Exception {
+        Program program = parse("var a = 1\nvar b = 2");
+        assertEquals(2, program.statements.size());
+    }
+
+    @Test
+    public void testAsiRejectedOnSameLine() throws Exception {
+        try {
+            parse("var a = 1 var b = 2");
+            fail("expected ParserException");
+        } catch (ParserException expected) {
+            assertTrue(expected.getMessage().contains("semicolon"));
+        }
+    }
+
+    @Test
+    public void testRestrictedProductionReturn() throws Exception {
+        // return followed by a line terminator: ASI applies, no expression
+        Program program = parse("function f() { return\n1; }");
+        FunctionDecl decl = (FunctionDecl) program.statements.get(0);
+        ReturnStmt ret = (ReturnStmt) decl.body.statements.get(0);
+        assertNull(ret.expr);
+        // same line: the expression is part of the return statement
+        Program program2 = parse("function g() { return 1; }");
+        FunctionDecl decl2 = (FunctionDecl) program2.statements.get(0);
+        ReturnStmt ret2 = (ReturnStmt) decl2.body.statements.get(0);
+        assertNotNull(ret2.expr);
+    }
+
+    @Test
+    public void testThrowRejectsLineBreak() throws Exception {
+        try {
+            parse("throw\n1;");
+            fail("expected ParserException");
+        } catch (ParserException expected) {
+            assertTrue(expected.getMessage().contains("line break after throw"));
         }
     }
 
