@@ -22,9 +22,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.ngscript.interop.JavaMethod;
+import org.ngscript.util.FastStack;
 import org.ngscript.value.ScriptFunction;
 import org.ngscript.value.Undefined;
-import org.ngscript.util.FastStack;
 
 /**
  * @author wssccc

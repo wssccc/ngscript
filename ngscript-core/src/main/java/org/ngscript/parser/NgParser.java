@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import org.ngscript.compiler.CompilerException;
 import org.ngscript.ast.ArrayLiteral;
 import org.ngscript.ast.AssignExpr;
 import org.ngscript.ast.BinaryExpr;
@@ -61,6 +60,7 @@ import org.ngscript.ast.TryStmt;
 import org.ngscript.ast.UnaryExpr;
 import org.ngscript.ast.VarDeclExpr;
 import org.ngscript.ast.WhileStmt;
+import org.ngscript.compiler.CompilerException;
 
 /**
  * A hand-written recursive descent parser for the ngscript language.

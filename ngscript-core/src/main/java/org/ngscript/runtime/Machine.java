@@ -27,9 +27,9 @@ import org.ngscript.bytecode.Instruction;
 import org.ngscript.runtime.opcache.OpBinding;
 import org.ngscript.runtime.opcache.OpInvokable;
 import org.ngscript.runtime.opcache.OpMap;
-import org.ngscript.value.ScriptFunction;
-import org.ngscript.value.MemRef;
 import org.ngscript.util.FastStack;
+import org.ngscript.value.MemRef;
+import org.ngscript.value.ScriptFunction;
 
 /**
  * @author wssccc
