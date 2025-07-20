@@ -37,5 +37,8 @@ public class Builtins {
         AssertBuiltins.register(map);
         ObjectBuiltins.register(map);
         map.put("Coroutine", new MemRef(Coroutine.class));
+        // ES global value properties
+        map.put("NaN", new MemRef(Double.NaN));
+        map.put("Infinity", new MemRef(Double.POSITIVE_INFINITY));
     }
 }

@@ -57,7 +57,8 @@ public class OpStack {
 
     public static void pickarg(Machine vm, String param, String param_extend) {
         int offset = Integer.parseInt(param);
-        Object[] args = (Object[]) vm.stack.peek(3);
+        //stack layout inside a function: [receiver, func, args[], env, retAddr]
+        Object[] args = (Object[]) vm.stack.peek(2);
         if (offset < args.length) {
             vm.eax.write(args[offset]);
         } else {

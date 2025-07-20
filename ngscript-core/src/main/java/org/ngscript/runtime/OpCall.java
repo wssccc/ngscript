@@ -24,6 +24,7 @@ import java.util.logging.Logger;
 import org.ngscript.interop.JavaMethod;
 import org.ngscript.value.Invokable;
 import org.ngscript.value.ScriptFunction;
+import org.ngscript.value.Undefined;
 
 /**
  * Call-related opcodes: closure creation, function calls, native imports and
@@ -38,6 +39,21 @@ public class OpCall {
         vm.eax.write(closure);
     }
 
+    /**
+     * Sets the function metadata (name/length) on the function value in eax;
+     * emitted right after new_closure or static_func.
+     */
+    public static void set_func_meta(Machine vm, String param, String param_extend) {
+        Object obj = vm.eax.read();
+        if (obj instanceof ScriptFunction) {
+            ScriptFunction f = (ScriptFunction) obj;
+            f.params = Integer.parseInt(param);
+            if (param_extend != null && !param_extend.isEmpty()) {
+                f.name = param_extend;
+            }
+        }
+    }
+
     public static void import_(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         String[] split = param.split("\\.");
         String shortName = split[split.length - 1];
@@ -45,8 +61,10 @@ public class OpCall {
     }
 
     public static void call(Machine vm, String param, String param_extend) throws Exception {
-        Object callee = vm.stack.peek(1);
-        Object[] args = (Object[]) vm.stack.peek(2);
+        //stack layout: [receiver, args[], func, env]
+        Object callee = vm.stack.peek(2);
+        Object[] args = (Object[]) vm.stack.peek(1);
+        Object receiver = vm.stack.size() > 3 ? vm.stack.peek(3) : null;
 
         if (callee instanceof ScriptFunction) {
             ScriptFunction c = (ScriptFunction) callee;
@@ -54,6 +72,15 @@ public class OpCall {
             //prepare env
             NgsObject env = new NgsObject((NgsObject) c.environment);
             vm.env.write(env);
+            //bind this: a method receiver, the constructor frame for "new"
+            //(the frame is the instance, per the new_op invariant), else undefined
+            if (receiver instanceof String) {
+                vm.thisRef.write(env);
+            } else if (receiver != null) {
+                vm.thisRef.write(receiver);
+            } else {
+                vm.thisRef.write(Undefined.value);
+            }
             int nip = vm.labels.get(c.functionLabel);
             vm.stack.push(vm.getEip());
             vm.setEip(nip);
@@ -84,7 +111,7 @@ public class OpCall {
         //constructor
         if (callee instanceof Class) {
             Class cls = (Class) callee;
-            Class[] types = vm.getParamTypes(2);
+            Class[] types = vm.getParamTypes(1);
             Constructor[] conses = cls.getConstructors();
             Constructor properCons = null;
             if (conses.length == 1) {
@@ -116,7 +143,7 @@ public class OpCall {
             vm.env.write(null);
             return;
         }
-        throw new NgScriptRuntimeException(vm, "unexpected callee");
+        throw new NgScriptRuntimeException(vm, "unexpected callee " + callee + " (" + (callee == null ? "null" : callee.getClass()) + ")");
     }
 
     public static void save_machine_state(Machine vm, String param, String param_extend) {

@@ -44,6 +44,12 @@ public class NgsObject implements Scope {
     private NgsObject parent;
 
     /**
+     * The [[Prototype]] chain for property access (distinct from the lexical
+     * parent chain used for variable lookup).
+     */
+    private NgsObject proto;
+
+    /**
      * The constructor function that created this object via {@code new},
      * used by the minimal instanceof support. Null for plain objects.
      */
@@ -51,6 +57,14 @@ public class NgsObject implements Scope {
 
     public NgsObject(NgsObject parent) {
         this.parent = parent;
+    }
+
+    public NgsObject getPrototype() {
+        return proto;
+    }
+
+    public void setPrototype(NgsObject proto) {
+        this.proto = proto;
     }
 
     public ScriptFunction getConstructor() {
@@ -62,18 +76,20 @@ public class NgsObject implements Scope {
     }
 
     /**
-     * Whether this object was created by the given constructor.
+     * Whether the constructor's prototype appears on this object's
+     * prototype chain (ES instanceof semantics).
      */
     public boolean isInstanceOf(ScriptFunction ctor) {
-        if (constructor == ctor) {
-            return true;
+        NgsObject target = ctor.prototype;
+        if (target == null) {
+            return false;
         }
-        NgsObject p = parent;
+        NgsObject p = proto;
         while (p != null) {
-            if (p.constructor == ctor) {
+            if (p == target) {
                 return true;
             }
-            p = p.parent;
+            p = p.proto;
         }
         return false;
     }
@@ -101,7 +117,7 @@ public class NgsObject implements Scope {
         //registers
         switch (member) {
             case "this":
-                return vm.env;
+                return vm.thisRef;
             case "%eax":
                 return vm.eax;
             case "%env":
@@ -114,6 +130,11 @@ public class NgsObject implements Scope {
                     return ref;
                 } else {
                     ref = lookupEnv(member, vm, isMember);
+                    if (ref == null) {
+                        // an unset member read as undefined (kept from the legacy
+                        // behavior: reading a member creates the reference)
+                        ref = new MemRef(Undefined.value);
+                    }
                     data.put(member, ref);
                     return ref;
                 }
@@ -122,9 +143,16 @@ public class NgsObject implements Scope {
 
     private MemRef lookupEnv(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {
         if (isMember) {
-            MemRef mem = new MemRef(Undefined.value);
-            data.put(member, mem);
-            return mem;
+            // property access: own data, then the [[Prototype]] chain
+            NgsObject p = proto;
+            while (p != null) {
+                MemRef ref = p.data.get(member);
+                if (ref != null) {
+                    return ref;
+                }
+                p = p.proto;
+            }
+            return null;
         } else {
             //find in env link
             NgsObject env = parent;

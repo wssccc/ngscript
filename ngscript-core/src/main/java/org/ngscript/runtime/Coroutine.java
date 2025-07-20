@@ -59,10 +59,12 @@ public final class Coroutine extends ScriptFunction {
         context = new Context(vm);
         context.stack = new FastStack<>(32);
 
-        //frame for call coroutine body
-        context.stack.push(args);  //args
-        context.stack.push(this);  //callee, for hook
-        context.stack.push(null);
+        //frame for call coroutine body (new call layout):
+        //stack (bottom first): receiver, func, args, env, retAddr
+        context.stack.push(null);   //receiver
+        context.stack.push(this);   //func, for hook
+        context.stack.push(args);   //args
+        context.stack.push(null);   //env
         context.stack.push(-1); //return address is a halt instruction
 
         context.stackSize = context.stack.size();
@@ -93,7 +95,8 @@ public final class Coroutine extends ScriptFunction {
             throw new NgScriptRuntimeException(this.vm, "coroutine is not suspended");
         }
         running = true;
-        NgsObject outerEnv = (NgsObject) vm.stack.peek();
+        // default result when the coroutine body finishes without yielding
+        vm.eax.write(Undefined.value);
         //switch context
         Context saved = new Context(vm);
         vm.contextStack.push(saved);
@@ -108,18 +111,22 @@ public final class Coroutine extends ScriptFunction {
 
         vm.callstack.pop();
         //
-        vm.stack.pop();
-        vm.stack.pop();
-        vm.stack.pop(); //pop 3 stack to clear yield() frame
+        //clear the yield() call frame: [receiver, func, args[], env]
+        //(yield is a JavaMethod so the frame carries no return address)
+        vm.stack.pop(); //env
+        vm.stack.pop(); //args[]
+        vm.stack.pop(); //func
+        vm.stack.pop(); //receiver
 
         //adjust stack to normal 
         context.save(vm);
         /*
          save eip 
-         3 is the offset from native call to the next instruction after call frame
+         4 is the offset from native call to the next instruction after call frame
+         (the caller's cleanup pops: pop_env, pop, pop, pop)
          when calling back, we should not touch the pops for yield
          */
-        context.eip = vm.getEip() + 3;
+        context.eip = vm.getEip() + 4;
         /*
          when jumping back, will meet the pops for resume call,
          the pops for resume will be used to clear the frame of calling coroutine body

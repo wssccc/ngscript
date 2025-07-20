@@ -21,10 +21,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
-import org.ngscript.runtime.OpCall;
-import org.ngscript.runtime.VarArgUtils;
 import org.ngscript.runtime.Machine;
 import org.ngscript.runtime.NgScriptRuntimeException;
+import org.ngscript.runtime.OpCall;
+import org.ngscript.runtime.VarArgUtils;
 import org.ngscript.value.Invokable;
 
 /**
@@ -56,7 +56,7 @@ public class JavaMethod implements Invokable {
 
     @Override
     public void invoke(Machine vm, Object[] args) throws Exception {
-        Class[] types = vm.getParamTypes(2);
+        Class[] types = vm.getParamTypes(1);
         Method properMethod = MethodTypeMap.INSTANCE.getProperMethod(methodName, methods, types);
         properMethod.setAccessible(true);
         if (properMethod == null) {

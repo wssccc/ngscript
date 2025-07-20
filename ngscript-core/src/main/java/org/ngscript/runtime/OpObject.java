@@ -53,17 +53,58 @@ public class OpObject {
             return;
         }
         //member of native
+        if (objs[0] instanceof ScriptFunction) {
+            MemRef ref = functionMember((ScriptFunction) objs[0], member, vm);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
+        }
+        // script-created properties on host objects (e.g. list.customFn = f)
+        java.util.Map<String, MemRef> props = vm.hostProps.get(objs[0]);
+        if (props != null) {
+            MemRef dynamic = props.get(member);
+            if (dynamic != null) {
+                vm.eax.write(dynamic);
+                return;
+            }
+        }
         Object ref = NgsObject.lookupNative(objs[0], member, vm);
 
         if (ref != null) {
             vm.eax.write(ref);
             return;
         }
-        throw new NgScriptRuntimeException(vm, member + " is not a member of " + OpUtils.getObjInfo(objs[0]));
+        // an unset property of a host object reads/writes as undefined
+        java.util.Map<String, MemRef> created = vm.hostProps.computeIfAbsent(objs[0],
+                k -> new java.util.HashMap<>());
+        MemRef slot = created.get(member);
+        if (slot == null) {
+            slot = new MemRef(Undefined.value);
+            created.put(member, slot);
+        }
+        vm.eax.write(slot);
+    }
+
+    /**
+     * ES function object properties: prototype, name, length.
+     */
+    private static MemRef functionMember(ScriptFunction fn, String member, Machine vm) {
+        switch (member) {
+            case "prototype":
+                return new MemRef(fn.getPrototypeObject());
+            case "name":
+                return new MemRef(fn.name == null ? "" : fn.name);
+            case "length":
+                return new MemRef(fn.params);
+            default:
+                return null;
+        }
     }
 
     public static void static_func(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         OpCall.new_closure(vm, param_extend, null);
+        ((ScriptFunction) vm.eax.read()).name = param;
         OpScope.set(vm, param, null);
     }
 
@@ -192,6 +233,24 @@ public class OpObject {
             vm.eax.write("string");
             return;
         }
+        if (obj instanceof Boolean) {
+            vm.eax.write("boolean");
+            return;
+        }
+        if (obj instanceof ScriptFunction) {
+            vm.eax.write("function");
+            return;
+        }
+        if (obj instanceof Invokable) {
+            vm.eax.write("function");
+            return;
+        }
+        if (obj instanceof NgsObject || obj instanceof NgsArray || obj instanceof RegExpValue) {
+            // ES: objects report "object" (foreign Java classes keep their
+            // qualified name for the interop extension)
+            vm.eax.write("object");
+            return;
+        }
         if (obj.getClass().isAnonymousClass()) {
             vm.eax.write(obj.getClass().getSuperclass().getName());
         } else if (TYPE_OF_SHORT_NAMES.contains(obj.getClass())) {
@@ -223,18 +282,34 @@ public class OpObject {
     public static void new_op(Machine vm, String param, String param_extend) {
         //identify native object and script object
         Object newObject = vm.env.read();
+        NgsObject oldEnv;
+        Object cons;
         if (newObject == null) {
-            //native object
+            //native constructor: stack (top first): instance, env, args, func, receiver
             newObject = vm.stack.pop();
+            oldEnv = (NgsObject) vm.stack.pop();
+            vm.stack.pop(); //params
+            cons = vm.stack.pop();
+        } else {
+            //script constructor: stack (top first): env, args, func, receiver
+            oldEnv = (NgsObject) vm.stack.pop();
+            vm.stack.pop(); //params
+            cons = vm.stack.pop();
         }
-        NgsObject oldEnv = (NgsObject) vm.stack.pop();
-        Object cons = vm.stack.pop();
-        if (newObject instanceof NgsObject && cons instanceof ScriptFunction) {
-            ((NgsObject) newObject).setConstructor((ScriptFunction) cons);
+        vm.stack.pop(); //receiver
+        if (cons instanceof ScriptFunction) {
+            ScriptFunction ctor = (ScriptFunction) cons;
+            if (newObject instanceof NgsObject) {
+                NgsObject instance = (NgsObject) newObject;
+                instance.setConstructor(ctor);
+                // link the instance to the constructor's prototype (ES [[Construct]])
+                instance.setPrototype(ctor.getPrototypeObject());
+                // a script constructor's frame is the instance: bind this
+                vm.thisRef.write(instance);
+            }
         }
 
         vm.eax.write(newObject);
         vm.env.write(oldEnv);
-        vm.stack.pop(); //params
     }
 }

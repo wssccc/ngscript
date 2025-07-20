@@ -23,8 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
-import org.ngscript.bytecode.Assembler;
-import org.ngscript.bytecode.Instruction;
 import org.ngscript.api.Configuration;
 import org.ngscript.ast.ArrayLiteral;
 import org.ngscript.ast.AssignExpr;
@@ -68,6 +66,8 @@ import org.ngscript.ast.UnaryExpr;
 import org.ngscript.ast.VarDeclExpr;
 import org.ngscript.ast.WhileStmt;
 import org.ngscript.ast.WithStmt;
+import org.ngscript.bytecode.Assembler;
+import org.ngscript.bytecode.Instruction;
 
 /**
  * Compiles a typed {@link Program} AST into a list of {@link Instruction}s for the
@@ -202,6 +202,8 @@ public class Compiler {
     private void compileFunctionDecl(FunctionDecl decl) throws CompilerException {
         String enter = _compile_function_body(decl.params, decl.body);
         assembler.instructions.add(0, new Instruction("static_func", decl.name, enter));
+        assembler.instructions.add(1,
+                new Instruction("set_func_meta", decl.params.names.size() + "", decl.name));
     }
 
     private String _compile_function_body(Params params, Block body) throws CompilerException {
@@ -301,9 +303,10 @@ public class Compiler {
             assembler.emit("pop_env");
             assembler.emit("pop");//pop params
             assembler.emit("pop");//pop function body
+            assembler.emit("pop");//pop receiver
         } else if (expr instanceof NewExpr) {
             NewExpr newExpr = (NewExpr) expr;
-            _compile_funcall(newExpr.callee, newExpr.args);
+            _compile_funcall(newExpr.callee, newExpr.args, true);
             assembler.emit("new_op");
         } else if (expr instanceof IndexExpr) {
             IndexExpr indexExpr = (IndexExpr) expr;
@@ -342,6 +345,8 @@ public class Compiler {
             LambdaExpr lambda = (LambdaExpr) expr;
             String enter = _compile_function_body(lambda.params, lambda.body);
             assembler.emit("new_closure", enter);
+            assembler.emit("set_func_meta", lambda.params.names.size() + "",
+                    lambda.name == null ? "" : lambda.name);
         } else {
             throw compileError("Unknown expression " + expr);
         }
@@ -778,21 +783,52 @@ public class Compiler {
         assembler.emit("pop_env");
         assembler.emit("pop");//pop params
         assembler.emit("pop");//pop function body
+        assembler.emit("pop");//pop receiver
         assembler.emit("halt");
         assembler.emit("label", goLabel);
         assembler.emit("go", entryLabel);
     }
 
     private void _compile_funcall(Expr callee, List<Expr> args) throws CompilerException {
+        _compile_funcall(callee, args, false);
+    }
+
+    /**
+     * Compiles a function call with the stack layout {@code [receiver, func,
+     * args[], env]}. When the callee is a member access the receiver is its
+     * base object (bound to {@code this}); new-expressions push a marker
+     * instead (new_op binds this to the instance).
+     */
+    private void _compile_funcall(Expr callee, List<Expr> args, boolean isNew) throws CompilerException {
+        //receiver (bottom of the call frame)
+        if (callee instanceof MemberExpr && !isNew) {
+            MemberExpr member = (MemberExpr) callee;
+            compileExpr(member.object);
+            assembler.emit("push_eax");
+            // duplicate the receiver: one copy stays as the this binding,
+            // the other feeds member_ref
+            assembler.emit("peek", "0");
+            assembler.emit("push_eax");
+            assembler.emit("string", member.name);
+            assembler.emit("member_ref");
+            assembler.emit("deref", "%eax");
+            assembler.emit("push_eax");
+        } else {
+            if (isNew) {
+                assembler.emit("string", "new");
+            } else {
+                assembler.emit("clear_null", "%eax");
+            }
+            assembler.emit("push_eax");
+            compileExpr(callee);
+            assembler.emit("push_eax");
+        }
         //params
         for (int i = args.size() - 1; i >= 0; i--) {
             compileExpr(args.get(i));
             assembler.emit("push_eax");
         }
         assembler.emit("packargs", args.size() + "");
-        assembler.emit("push_eax");
-        //function body
-        compileExpr(callee);
         assembler.emit("push_eax");
 
         assembler.emit("push_env");

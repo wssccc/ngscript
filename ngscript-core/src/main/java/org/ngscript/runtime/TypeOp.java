@@ -54,89 +54,27 @@ public class TypeOp {
     }
 
     private static Object typeOp(int opc, Object o1, Object o2) {
-        int type1 = getType(o1);
-        int type2 = getType(o2);
-
-        switch ((type1 << 2) + type2) {
-            case 5:
-                return opInteger(opc, (Integer) o1, (Integer) o2);
-            case 6:
-                return opDouble(opc, (Integer) o1, (Double) o2);
-            case 9:
-                return opDouble(opc, (Double) o1, (Integer) o2);
-            case 10:
-                return opDouble(opc, (Double) o1, (Double) o2);
-            case 7:
-            case 11:
-            case 15:
-            case 14:
-            case 13:
-                return opString(opc, o1, o2);
-            default:
-                return opString(opc, o1, o2);
-        }
-    }
-
-    private static int opInteger(int op, int a1, int a2) {
-        switch (op) {
+        switch (opc) {
             case '+':
-                return a1 + a2;
+                // ES: if either operand (after ToPrimitive) is a string, concat
+                if (o1 instanceof String || o2 instanceof String) {
+                    return OpUtils.toStringValue(o1) + OpUtils.toStringValue(o2);
+                }
+                return OpUtils.normalize(OpUtils.toNumber(o1) + OpUtils.toNumber(o2));
             case '-':
-                return a1 - a2;
+                return OpUtils.normalize(OpUtils.toNumber(o1) - OpUtils.toNumber(o2));
             case '*':
-                return a1 * a2;
+                return OpUtils.normalize(OpUtils.toNumber(o1) * OpUtils.toNumber(o2));
             case '/':
-                return a1 / a2;
-            case '=':
-                return a1 == a2 ? 1 : 0;
+                // ES division always has double semantics: 10 / 4 == 2.5
+                return OpUtils.normalize(OpUtils.toNumber(o1) / OpUtils.toNumber(o2));
             case '%':
-                return a1 % a2;
-            default:
-                throw new RuntimeException("unsupported operator " + op);
-        }
-    }
-
-    private static double opDouble(int op, double a1, double a2) {
-        switch (op) {
-            case '+':
-                return a1 + a2;
-            case '-':
-                return a1 - a2;
-            case '*':
-                return a1 * a2;
-            case '/':
-                return a1 / a2;
+                return OpUtils.normalize(OpUtils.toNumber(o1) % OpUtils.toNumber(o2));
             case '=':
-                return Math.abs(a1 - a2) < Double.MIN_NORMAL ? 1 : 0;
-            case '%':
-                return a1 % a2;
+                return OpUtils.abstractEquals(o1, o2);
             default:
-                throw new RuntimeException("unsupported operator " + op);
+                throw new RuntimeException("unsupported operator " + opc);
         }
-    }
-
-    private static String opString(int op, Object a1, Object a2) {
-        switch (op) {
-            case '+':
-                return a1.toString() + a2.toString();
-            case '=':
-                return a1.toString().equals(a2.toString()) ? "1" : null;
-            default:
-                throw new RuntimeException("unsupported operator " + op);
-        }
-    }
-
-    private static int getType(Object obj) {
-        if (obj instanceof Integer) {
-            return 1;
-        }
-        if (obj instanceof Double) {
-            return 2;
-        }
-        if (obj instanceof String) {
-            return 3;
-        }
-        return 0;
     }
 
     //deprecated just for profiling

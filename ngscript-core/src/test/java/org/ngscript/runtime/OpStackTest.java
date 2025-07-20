@@ -92,8 +92,10 @@ public class OpStackTest extends OpTestBase {
     public void pickargByOffset() {
         Object[] args = new Object[]{"a", "b", "c"};
         runOps(() -> {
-                    vm.stack.push(args);
+                    // stack (bottom first): receiver, func, args, env, retAddr
+                    vm.stack.push(0);
                     vm.stack.push(1);
+                    vm.stack.push(args);
                     vm.stack.push(2);
                     vm.stack.push(3);
                 },
@@ -106,8 +108,10 @@ public class OpStackTest extends OpTestBase {
     public void pickargOutOfRangeIsUndefined() {
         Object[] args = new Object[]{"a"};
         runOps(() -> {
-                    vm.stack.push(args);
+                    // stack (bottom first): receiver, func, args, env, retAddr
+                    vm.stack.push(0);
                     vm.stack.push(1);
+                    vm.stack.push(args);
                     vm.stack.push(2);
                     vm.stack.push(3);
                 },

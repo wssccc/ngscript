@@ -16,8 +16,8 @@
 
 package org.ngscript.value;
 
-import org.ngscript.runtime.NgsObject;
 import org.ngscript.runtime.Machine;
+import org.ngscript.runtime.NgsObject;
 
 /**
  * @author wssccc
@@ -28,10 +28,32 @@ public class ScriptFunction {
     public NgsObject environment;
     public Machine vm;
 
+    /**
+     * The function's name (ES Function.name), null for anonymous functions.
+     */
+    public String name;
+
+    /**
+     * The declared parameter count (ES Function.length).
+     */
+    public int params;
+
+    /**
+     * The prototype object handed to instances created with {@code new}
+     * (ES function prototype), created lazily.
+     */
+    public NgsObject prototype;
+
     public ScriptFunction(String functionLabel, NgsObject environment, Machine vm) {
         this.functionLabel = functionLabel;
         this.environment = environment;
         this.vm = vm;
     }
 
+    public NgsObject getPrototypeObject() {
+        if (prototype == null) {
+            prototype = new NgsObject(null);
+        }
+        return prototype;
+    }
 }

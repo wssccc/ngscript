@@ -119,7 +119,8 @@ public class OpObjectTest extends OpTestBase {
         NgsObject oldEnv = new NgsObject(null);
         runOps(() -> {
                     vm.env.write(instance);
-                    // stack order (top first): params, constructor, caller env
+                    // stack order (top first): caller env, params, constructor, receiver
+                    vm.stack.push("new");
                     vm.stack.push("params");
                     vm.stack.push("the-constructor");
                     vm.stack.push(oldEnv);
@@ -136,9 +137,10 @@ public class OpObjectTest extends OpTestBase {
         Object nativeInstance = new Object();
         runOps(() -> {
                     vm.env.write(null);
-                    // stack order (bottom first): params, constructor, caller env, instance
-                    vm.stack.push("params");
+                    // stack order (top first): instance, caller env, params, constructor, receiver
+                    vm.stack.push("new");
                     vm.stack.push("the-constructor");
+                    vm.stack.push("params");
                     vm.stack.push(oldEnv);
                     vm.stack.push(nativeInstance);
                 },

@@ -78,8 +78,15 @@ public class OpArithmeticTest extends OpTestBase {
 
     @Test
     public void divInt() {
+        // ES division always has double semantics: 10 / 4 == 2.5
         binary("integer", "10", "integer", "4", "div");
-        assertEquals(2, vm.eax.read());
+        assertEquals(2.5, vm.eax.read());
+    }
+
+    @Test
+    public void divByZero() {
+        binary("integer", "1", "integer", "0", "div");
+        assertEquals(Double.POSITIVE_INFINITY, vm.eax.read());
     }
 
     @Test
@@ -109,31 +116,38 @@ public class OpArithmeticTest extends OpTestBase {
     @Test
     public void ltTrue() {
         binary("integer", "3", "integer", "5", "lt");
-        assertEquals(1, vm.eax.read());
+        assertEquals(Boolean.TRUE, vm.eax.read());
     }
 
     @Test
     public void ltFalse() {
         binary("integer", "5", "integer", "3", "lt");
-        assertEquals(0, vm.eax.read());
+        assertEquals(Boolean.FALSE, vm.eax.read());
     }
 
     @Test
     public void gtTrue() {
         binary("integer", "5", "integer", "3", "gt");
-        assertEquals(1, vm.eax.read());
+        assertEquals(Boolean.TRUE, vm.eax.read());
     }
 
     @Test
     public void geEqual() {
         binary("integer", "5", "integer", "5", "ge");
-        assertEquals(1, vm.eax.read());
+        assertEquals(Boolean.TRUE, vm.eax.read());
     }
 
     @Test
     public void leEqual() {
         binary("integer", "3", "integer", "3", "le");
-        assertEquals(1, vm.eax.read());
+        assertEquals(Boolean.TRUE, vm.eax.read());
+    }
+
+    @Test
+    public void stringCompare() {
+        // both strings compare lexicographically, no numeric conversion
+        binary("string", "b", "string", "a", "gt");
+        assertEquals(Boolean.TRUE, vm.eax.read());
     }
 
     @Test
@@ -158,6 +172,70 @@ public class OpArithmeticTest extends OpTestBase {
     public void vneq() {
         binary("string", "a", "string", "b", "vneq");
         assertEquals(Boolean.TRUE, vm.eax.read());
+    }
+
+    @Test
+    public void abstractEqualsNumberString() {
+        // == converts: 5 == "5"
+        binary("integer", "5", "string", "5", "eq");
+        assertEquals(Boolean.TRUE, vm.eax.read());
+    }
+
+    @Test
+    public void strictEqualsNumberString() {
+        // === does not convert: 5 !== "5"
+        binary("integer", "5", "string", "5", "veq");
+        assertEquals(Boolean.FALSE, vm.eax.read());
+    }
+
+    @Test
+    public void strictEqualsIntDouble() {
+        // both are JS Numbers: 5 === 5.0
+        binary("integer", "5", "double_", "5.0", "veq");
+        assertEquals(Boolean.TRUE, vm.eax.read());
+    }
+
+    @Test
+    public void abstractEqualsNullUndefined() {
+        // null == undefined is true in ES
+        runOps(new Instruction("clear_null", "%eax", null),
+                new Instruction("push_eax", null, null),
+                new Instruction("undefined", null, null),
+                new Instruction("eq", null, null),
+                new Instruction("halt", "", ""));
+        assertEquals(Boolean.TRUE, vm.eax.read());
+    }
+
+    @Test
+    public void abstractEqualsBoolNumber() {
+        binary("bool", "true", "integer", "1", "eq");
+        assertEquals(Boolean.TRUE, vm.eax.read());
+    }
+
+    @Test
+    public void stringConcatNumber() {
+        // 1 + "2" == "12"
+        binary("integer", "1", "string", "2", "add");
+        assertEquals("12", vm.eax.read());
+    }
+
+    @Test
+    public void numericAddString() {
+        // "1" + 2 == "12"
+        binary("string", "1", "integer", "2", "add");
+        assertEquals("12", vm.eax.read());
+    }
+
+    @Test
+    public void addOverflowBecomesDouble() {
+        binary("integer", "2147483647", "integer", "1", "add");
+        assertEquals(2147483648.0, vm.eax.read());
+    }
+
+    @Test
+    public void toInt32Bitwise() {
+        binary("double_", "5.9", "integer", "1", "bit_and");
+        assertEquals(1, vm.eax.read());
     }
 
     private void incDecTest(String op, int expected) {

@@ -50,9 +50,10 @@ public class OpCallTest extends OpTestBase {
         ScriptFunction fn = new ScriptFunction("L10", (NgsObject) vm.env.read(), vm);
         Object[] args = new Object[0];
         runOps(() -> {
-                    // stack order (bottom first): args, callee, caller env
-                    vm.stack.push(args);
+                    // stack order (bottom first): receiver, callee, args, caller env
+                    vm.stack.push(null);
                     vm.stack.push(fn);
+                    vm.stack.push(args);
                     vm.stack.push(new NgsObject(null));
                 },
                 new Instruction("call", "", null),
@@ -62,6 +63,25 @@ public class OpCallTest extends OpTestBase {
                 new Instruction("ret", null, null));
         assertEquals(42, vm.eax.read());
         assertTrue(vm.callstack.isEmpty());
+    }
+
+    @Test
+    public void callBindsThisFromReceiver() {
+        ScriptFunction fn = new ScriptFunction("L10", (NgsObject) vm.env.read(), vm);
+        Object[] args = new Object[0];
+        NgsObject receiver = new NgsObject(null);
+        runOps(() -> {
+                    vm.stack.push(receiver);
+                    vm.stack.push(fn);
+                    vm.stack.push(args);
+                    vm.stack.push(new NgsObject(null));
+                },
+                new Instruction("call", "", null),
+                new Instruction("halt", "", ""),
+                new Instruction("label", "L10", null),
+                new Instruction("deref", "this", null),
+                new Instruction("ret", null, null));
+        assertSame(receiver, vm.eax.read());
     }
 
     @Test

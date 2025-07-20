@@ -36,21 +36,28 @@ public class TypeOfTest {
         assertTypeOf("assert(typeof 1 == \"number\");");
         assertTypeOf("assert(typeof 1.5 == \"number\");");
         assertTypeOf("assert(typeof \"abc\" == \"string\");");
-        // booleans are not in the script type registry -> qualified name (status quo)
-        assertTypeOf("assert(typeof true == \"java.lang.Boolean\");");
+        // ES: booleans report "boolean"
+        assertTypeOf("assert(typeof true == \"boolean\");");
+        assertTypeOf("assert(typeof undefined == \"undefined\");");
+        assertTypeOf("assert(typeof null == \"object\");");
     }
 
     @Test
-    public void scriptFunctionReportsSimpleName() throws Exception {
+    public void scriptFunctionReportsFunction() throws Exception {
         assertTypeOf("function f() { return 1; }\n"
-                + "assert(typeof f == \"ScriptFunction\");");
+                + "assert(typeof f == \"function\");");
+        assertTypeOf("var g = function() { return 1; };\n"
+                + "assert(typeof g == \"function\");");
     }
 
     @Test
-    public void objectInstanceReportsNgsObject() throws Exception {
-        // NgsObject split (proposal b): typeof(new Foo()) is now "NgsObject"
+    public void objectInstanceReportsObject() throws Exception {
+        // ES: objects report "object"
         assertTypeOf("function Foo() { this.x = 1; }\n"
-                + "assert(typeof new Foo() == \"NgsObject\");");
+                + "assert(typeof new Foo() == \"object\");");
+        assertTypeOf("assert(typeof {} == \"object\");");
+        assertTypeOf("assert(typeof [] == \"object\");");
+        assertTypeOf("assert(typeof /x/ == \"object\");");
     }
 
     @Test

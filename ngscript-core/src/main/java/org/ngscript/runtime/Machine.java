@@ -30,6 +30,7 @@ import org.ngscript.runtime.opcache.OpMap;
 import org.ngscript.util.FastStack;
 import org.ngscript.value.MemRef;
 import org.ngscript.value.ScriptFunction;
+import org.ngscript.value.Undefined;
 
 /**
  * @author wssccc
@@ -45,6 +46,14 @@ public class Machine {
     FastStack<Context> machineStateStack = new FastStack<>(32);
     FastStack<Context> contextStack = new FastStack<>(32);
 
+    /**
+     * Script-created properties on host (non-NgsObject) objects, e.g.
+     * {@code list.customProp = 1} on a Java ArrayList. Keyed by object
+     * identity; cleaned up with the machine.
+     */
+    public final java.util.Map<Object, java.util.Map<String, MemRef>> hostProps =
+            new java.util.IdentityHashMap<>();
+
     //machine states
     Instruction hints;
     FastStack<Object> stack = new FastStack<>(32);
@@ -56,6 +65,12 @@ public class Machine {
     public final MemRef exception = new MemRef();
 
     public final MemRef env = new MemRef();
+
+    /**
+     * The {@code this} value of the currently executing function call,
+     * bound by the call opcode (method receivers) and new_op (instances).
+     */
+    public final MemRef thisRef = new MemRef();
     private ThreadLocal<Integer> eip = ThreadLocal.withInitial(() -> 0);
     //
 
@@ -73,6 +88,7 @@ public class Machine {
         this.err = err;
         //init register
         setEip(0);
+        thisRef.write(Undefined.value);
         env.write(new NgsObject(null));
         ((NgsObject) env.read()).registerBuiltins(out);
         initialEnv = (NgsObject) env.read();
@@ -241,6 +257,7 @@ public class Machine {
         final Object eax;
         final Object exception;
         final Object env;
+        final Object thisValue;
         final Object[] stack;
         final Object[] callstack;
 
@@ -252,6 +269,7 @@ public class Machine {
             this.eax = vm.eax.read();
             this.exception = vm.exception.read();
             this.env = vm.env.read();
+            this.thisValue = vm.thisRef.read();
             this.stack = new Object[vm.stack.size()];
             for (int i = 0; i < this.stack.length; i++) {
                 this.stack[i] = vm.stack.get(i);
@@ -271,6 +289,7 @@ public class Machine {
             vm.eax.write(eax);
             vm.exception.write(exception);
             vm.env.write(env);
+            vm.thisRef.write(thisValue);
             vm.stack.clear();
             for (Object o : stack) {
                 vm.stack.push(o);

@@ -27,13 +27,7 @@ import org.ngscript.value.Undefined;
 public class OpArithmetic {
 
     public static void neg(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
-        Object eax = vm.eax.read();
-        if (eax instanceof Integer) {
-            vm.eax.write(-((Integer) eax));
-        }
-        if (eax instanceof Double) {
-            vm.eax.write(-((Double) eax));
-        }
+        vm.eax.write(OpUtils.normalize(-OpUtils.toNumber(vm.eax.read())));
     }
 
     public static void inc(Machine vm, String param, String param_extend) {
@@ -54,46 +48,46 @@ public class OpArithmetic {
 
     public static void lt(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        double d1 = OpUtils.getNumber(vm, objs[0]);
-        double d2 = OpUtils.getNumber(vm, objs[1]);
-        if (d1 < d2) {
-            vm.eax.write(1);
+        boolean r;
+        if (objs[0] instanceof String && objs[1] instanceof String) {
+            r = ((String) objs[0]).compareTo((String) objs[1]) < 0;
         } else {
-            vm.eax.write(0);
+            r = OpUtils.toNumber(objs[0]) < OpUtils.toNumber(objs[1]); // NaN compares false
         }
+        vm.eax.write(r);
     }
 
     public static void gt(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        double d1 = OpUtils.getNumber(vm, objs[0]);
-        double d2 = OpUtils.getNumber(vm, objs[1]);
-        if (d1 > d2) {
-            vm.eax.write(1);
+        boolean r;
+        if (objs[0] instanceof String && objs[1] instanceof String) {
+            r = ((String) objs[0]).compareTo((String) objs[1]) > 0;
         } else {
-            vm.eax.write(0);
+            r = OpUtils.toNumber(objs[0]) > OpUtils.toNumber(objs[1]);
         }
+        vm.eax.write(r);
     }
 
     public static void ge(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        double d1 = OpUtils.getNumber(vm, objs[0]);
-        double d2 = OpUtils.getNumber(vm, objs[1]);
-        if (d1 >= d2) {
-            vm.eax.write(1);
+        boolean r;
+        if (objs[0] instanceof String && objs[1] instanceof String) {
+            r = ((String) objs[0]).compareTo((String) objs[1]) >= 0;
         } else {
-            vm.eax.write(0);
+            r = OpUtils.toNumber(objs[0]) >= OpUtils.toNumber(objs[1]);
         }
+        vm.eax.write(r);
     }
 
     public static void le(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        double d1 = OpUtils.getNumber(vm, objs[0]);
-        double d2 = OpUtils.getNumber(vm, objs[1]);
-        if (d1 <= d2) {
-            vm.eax.write(1);
+        boolean r;
+        if (objs[0] instanceof String && objs[1] instanceof String) {
+            r = ((String) objs[0]).compareTo((String) objs[1]) <= 0;
         } else {
-            vm.eax.write(0);
+            r = OpUtils.toNumber(objs[0]) <= OpUtils.toNumber(objs[1]);
         }
+        vm.eax.write(r);
     }
 
     public static void add(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
@@ -103,45 +97,45 @@ public class OpArithmetic {
 
     public static void bit_and(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        vm.eax.write(OpUtils.getInteger(vm, objs[0]) & OpUtils.getInteger(vm, objs[1]));
+        vm.eax.write(OpUtils.toInt32(objs[0]) & OpUtils.toInt32(objs[1]));
     }
 
     public static void bit_or(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        vm.eax.write(OpUtils.getInteger(vm, objs[0]) | OpUtils.getInteger(vm, objs[1]));
+        vm.eax.write(OpUtils.toInt32(objs[0]) | OpUtils.toInt32(objs[1]));
     }
 
     public static void bit_xor(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        vm.eax.write(OpUtils.getInteger(vm, objs[0]) ^ OpUtils.getInteger(vm, objs[1]));
+        vm.eax.write(OpUtils.toInt32(objs[0]) ^ OpUtils.toInt32(objs[1]));
     }
 
     public static void shl(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        vm.eax.write(OpUtils.getInteger(vm, objs[0]) << (OpUtils.getInteger(vm, objs[1]) & 31));
+        vm.eax.write(OpUtils.toInt32(objs[0]) << (OpUtils.toInt32(objs[1]) & 31));
     }
 
     public static void shr(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        vm.eax.write(OpUtils.getInteger(vm, objs[0]) >> (OpUtils.getInteger(vm, objs[1]) & 31));
+        vm.eax.write(OpUtils.toInt32(objs[0]) >> (OpUtils.toInt32(objs[1]) & 31));
     }
 
     public static void ushr(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        vm.eax.write(OpUtils.getInteger(vm, objs[0]) >>> (OpUtils.getInteger(vm, objs[1]) & 31));
+        vm.eax.write(OpUtils.toInt32(objs[0]) >>> (OpUtils.toInt32(objs[1]) & 31));
     }
 
     public static void exp(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        vm.eax.write(Math.pow(OpUtils.getNumber(vm, objs[0]), OpUtils.getNumber(vm, objs[1])));
+        vm.eax.write(OpUtils.normalize(Math.pow(OpUtils.toNumber(objs[0]), OpUtils.toNumber(objs[1]))));
     }
 
     public static void unary_plus(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
-        vm.eax.write(OpUtils.getNumber(vm, vm.eax.read()));
+        vm.eax.write(OpUtils.normalize(OpUtils.toNumber(vm.eax.read())));
     }
 
     public static void bit_not(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
-        vm.eax.write(~OpUtils.getInteger(vm, vm.eax.read()));
+        vm.eax.write(~OpUtils.toInt32(vm.eax.read()));
     }
 
     public static void nullish(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
@@ -176,21 +170,21 @@ public class OpArithmetic {
 
     public static void eq(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        vm.eax.write(OpUtils.testEq(objs[0], objs[1]));
+        vm.eax.write(OpUtils.abstractEquals(objs[0], objs[1]));
     }
 
     public static void veq(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        vm.eax.write(OpUtils.testEq(objs[0], objs[1]));
+        vm.eax.write(OpUtils.strictEquals(objs[0], objs[1]));
     }
 
     public static void neq(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        vm.eax.write(!OpUtils.testEq(objs[0], objs[1]));
+        vm.eax.write(!OpUtils.abstractEquals(objs[0], objs[1]));
     }
 
     public static void vneq(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
-        vm.eax.write(!OpUtils.testEq(objs[0], objs[1]));
+        vm.eax.write(!OpUtils.strictEquals(objs[0], objs[1]));
     }
 }
