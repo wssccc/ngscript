@@ -30,6 +30,7 @@ public class OpArray {
     public static void array_new(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         int length = Integer.parseInt(param);
         NgsArray list = new NgsArray((NgsObject) vm.env.read());
+        list.setPrototype(vm.arrayPrototype);
 
         for (int i = 0; i < length; i++) {
             Object object = vm.stack.pop();

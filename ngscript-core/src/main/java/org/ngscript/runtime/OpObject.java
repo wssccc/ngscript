@@ -34,6 +34,7 @@ public class OpObject {
 
     public static void object_new(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         NgsObject sh = new NgsObject((NgsObject) vm.env.read());
+        sh.setPrototype(vm.objectPrototype);
         int size = Integer.parseInt(param);
         for (int i = 0; i < size; i++) {
             Object v = vm.stack.pop();
@@ -55,6 +56,22 @@ public class OpObject {
         //member of native
         if (objs[0] instanceof ScriptFunction) {
             MemRef ref = functionMember((ScriptFunction) objs[0], member, vm);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
+        }
+        if (objs[0] instanceof org.ngscript.builtins.ObjectCtor) {
+            MemRef ref = org.ngscript.builtins.ObjectCtor.lookup(
+                    (org.ngscript.builtins.ObjectCtor) objs[0], member, vm);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
+        }
+        if (objs[0] instanceof org.ngscript.builtins.ArrayCtor) {
+            MemRef ref = org.ngscript.builtins.ArrayCtor.lookup(
+                    (org.ngscript.builtins.ArrayCtor) objs[0], member, vm);
             if (ref != null) {
                 vm.eax.write(ref);
                 return;
@@ -166,6 +183,9 @@ public class OpObject {
             } else {
                 vm.eax.write(0);
             }
+        } else if (ctor instanceof Class) {
+            // Java classes: ordinary instanceof (e.g. e instanceof Error)
+            vm.eax.write(((Class) ctor).isInstance(obj) ? 1 : 0);
         } else {
             throw new NgScriptRuntimeException(vm, "right-hand side of instanceof is not callable");
         }

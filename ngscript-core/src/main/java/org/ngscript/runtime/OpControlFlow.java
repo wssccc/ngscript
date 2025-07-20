@@ -16,6 +16,7 @@
 
 package org.ngscript.runtime;
 
+import org.ngscript.value.ScriptFunction;
 import org.ngscript.value.Undefined;
 
 /**
@@ -92,6 +93,11 @@ public class OpControlFlow {
 
     public static void ret(Machine vm, String param, String param_extend) {
         int nip = (Integer) vm.stack.pop();
+        // restore the caller's this binding before popping the call frame
+        if (!vm.callstack.isEmpty()) {
+            ScriptFunction top = vm.callstack.peek();
+            vm.thisRef.write(top.savedThis);
+        }
         vm.callstack.pop();
         vm.setEip(nip);
     }

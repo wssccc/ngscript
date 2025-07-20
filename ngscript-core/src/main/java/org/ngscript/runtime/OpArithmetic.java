@@ -30,6 +30,10 @@ public class OpArithmetic {
         vm.eax.write(OpUtils.normalize(-OpUtils.toNumber(vm.eax.read())));
     }
 
+    public static void not(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        vm.eax.write(!OpUtils.testValue(vm.eax.read()));
+    }
+
     public static void inc(Machine vm, String param, String param_extend) {
         OpUtils.addEax(vm, 1, false);
     }

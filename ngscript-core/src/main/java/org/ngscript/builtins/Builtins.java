@@ -20,6 +20,7 @@ import java.io.PrintWriter;
 import java.util.Map;
 
 import org.ngscript.runtime.Coroutine;
+import org.ngscript.runtime.NgsObject;
 import org.ngscript.value.MemRef;
 
 /**
@@ -32,11 +33,40 @@ import org.ngscript.value.MemRef;
  */
 public class Builtins {
 
+    /**
+     * Shared prototype objects (created lazily, shared across machines).
+     */
+    private static NgsObject arrayPrototype;
+    private static NgsObject objectPrototype;
+
+    public static synchronized NgsObject getArrayPrototype() {
+        if (arrayPrototype == null) {
+            arrayPrototype = ArrayProto.create();
+        }
+        return arrayPrototype;
+    }
+
+    public static synchronized NgsObject getObjectPrototype() {
+        if (objectPrototype == null) {
+            objectPrototype = ObjectProto.create();
+        }
+        return objectPrototype;
+    }
+
     public static void register(Map<String, MemRef> map, PrintWriter out) {
         ConsoleBuiltins.register(map, out);
         AssertBuiltins.register(map);
         ObjectBuiltins.register(map);
         map.put("Coroutine", new MemRef(Coroutine.class));
+        map.put("Object", new MemRef(new ObjectCtor()));
+        map.put("Array", new MemRef(new ArrayCtor()));
+        // ES error constructors map to their Java counterparts (approximate)
+        map.put("Error", new MemRef(Error.class));
+        map.put("TypeError", new MemRef(IllegalArgumentException.class));
+        map.put("RangeError", new MemRef(IndexOutOfBoundsException.class));
+        map.put("ReferenceError", new MemRef(RuntimeException.class));
+        map.put("SyntaxError", new MemRef(IllegalStateException.class));
+        map.put("URIError", new MemRef(java.net.URISyntaxException.class));
         // ES global value properties
         map.put("NaN", new MemRef(Double.NaN));
         map.put("Infinity", new MemRef(Double.POSITIVE_INFINITY));

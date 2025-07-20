@@ -31,6 +31,36 @@ public class NgsArray extends NgsObject {
     }
 
     @Override
+    public void set(String member, Object value) {
+        super.set(member, value);
+        if ("length".equals(member) || isNumericKey(member)) {
+            // invalidate the cached virtual length
+            remove("length");
+        }
+    }
+
+    @Override
+    public boolean remove(String key) {
+        if (isNumericKey(key)) {
+            remove("length");
+        }
+        return super.remove(key);
+    }
+
+    private static boolean isNumericKey(String key) {
+        if (key.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < key.length(); i++) {
+            char c = key.charAt(i);
+            if (c < '0' || c > '9') {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
     public MemRef lookup(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {
         if ("length".equals(member)) {
             // virtual length: one past the highest numeric index

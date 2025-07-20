@@ -1,0 +1,61 @@
+/*
+ * Copyright 2021 wssccc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.ngscript.builtins;
+
+import org.ngscript.runtime.Machine;
+import org.ngscript.runtime.NgsObject;
+import org.ngscript.value.Invokable;
+import org.ngscript.value.Undefined;
+
+/**
+ * The shared Object.prototype: toString/hasOwnProperty/valueOf. Object
+ * literals link to it via {@link Machine#objectPrototype}.
+ *
+ * @author wssccc
+ */
+public class ObjectProto {
+
+    public static NgsObject create() {
+        NgsObject proto = new NgsObject(null);
+        proto.set("toString", (Invokable) (vm, args) -> vm.eax.write("[object Object]"));
+        proto.set("valueOf", (Invokable) (vm, args) -> {
+            Object t = vm.thisRef.read();
+            vm.eax.write(t == null ? Undefined.value : t);
+        });
+        proto.set("hasOwnProperty", (Invokable) (vm, args) -> {
+            String key = args.length > 0 ? args[0].toString() : "undefined";
+            Object t = vm.thisRef.read();
+            vm.eax.write(t instanceof NgsObject && ((NgsObject) t).has(key));
+        });
+        proto.set("isPrototypeOf", (Invokable) (vm, args) -> {
+            Object t = vm.thisRef.read();
+            Object other = args.length > 0 ? args[0] : null;
+            if (t instanceof NgsObject && other instanceof NgsObject) {
+                NgsObject p = ((NgsObject) other).getPrototype();
+                while (p != null) {
+                    if (p == t) {
+                        vm.eax.write(true);
+                        return;
+                    }
+                    p = p.getPrototype();
+                }
+            }
+            vm.eax.write(false);
+        });
+        return proto;
+    }
+}

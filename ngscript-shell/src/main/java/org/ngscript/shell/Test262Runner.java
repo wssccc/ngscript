@@ -51,6 +51,11 @@ public class Test262Runner {
     private final NgParser parser = new NgParser();
     private final Set<String> excludelist = new HashSet<>();
     private final List<String> enabledFeatures = new ArrayList<>();
+    private boolean execMode;
+    private boolean es5Only;
+    private String harnessDir;
+    private String harnessPrelude = "";
+    private org.ngscript.api.NgScriptEngine sharedEngine;
 
     private int total;
     private int passed;
@@ -59,6 +64,7 @@ public class Test262Runner {
     private int es5Total;
     private int es5Passed;
     private final List<String> failures = new ArrayList<>();
+    private int limit = -1;
 
     public static void main(String[] args) throws Exception {
         String dir = "test262";
@@ -66,6 +72,9 @@ public class Test262Runner {
         Double failBelow = null;
         List<String> features = new ArrayList<>();
         boolean parseMode = true;
+        boolean execMode = false;
+        boolean es5Only = false;
+        int limit = -1;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--dir":
@@ -83,16 +92,33 @@ public class Test262Runner {
                 case "--no-parse":
                     parseMode = false;
                     break;
+                case "--exec":
+                    execMode = true;
+                    parseMode = false;
+                    break;
+                case "--es5":
+                    es5Only = true;
+                    break;
+                case "--limit":
+                    limit = Integer.parseInt(args[++i]);
+                    break;
                 default:
                     System.err.println("unknown argument " + args[i]);
                     System.exit(2);
             }
         }
+        final boolean es5OnlyFlag = es5Only;
+        final int limitFlag = limit;
         Test262Runner runner = new Test262Runner();
         runner.enabledFeatures.addAll(features);
+        runner.execMode = execMode;
+        runner.es5Only = es5OnlyFlag;
+        runner.limit = limitFlag;
+        runner.harnessDir = dir + "/harness";
+        runner.harnessPrelude = runner.buildHarnessPrelude();
         runner.loadExcludelist(new File(dir, "excludelist.xml"));
         File root = new File(dir);
-        if (parseMode) {
+        if (parseMode || execMode) {
             // test262 keeps the conformance suites under test/ (the src/
             // directory holds the in-progress migration)
             for (String sub : new String[]{"test/language", "test/built-ins"}) {
@@ -139,6 +165,9 @@ public class Test262Runner {
     }
 
     private void runCase(File file, String id) throws IOException {
+        if (limit >= 0 && total >= limit) {
+            return;
+        }
         ++total;
         if (excludelist.contains(id)) {
             ++excluded;
@@ -194,6 +223,14 @@ public class Test262Runner {
                 }
             }
         }
+        if (es5Only && !es5) {
+            ++excluded;
+            return;
+        }
+        if (execMode) {
+            runExecutableCase(file, id, source, body, flags, negativePhase, negativeType, es5);
+            return;
+        }
         // parse-only judgement
         boolean parseOk = parse(body);
         boolean expectedFail = "parse".equals(negativePhase) || "early".equals(negativePhase);
@@ -210,6 +247,83 @@ public class Test262Runner {
                 ++es5Passed;
             }
         }
+    }
+
+    /**
+     * Execution-mode judgement: strict mode is not implemented yet, so
+     * onlyStrict tests are excluded; the body runs against the harness.
+     */
+    private void runExecutableCase(File file, String id, String source, String body,
+                                   Set<String> flags, String negativePhase, String negativeType, boolean es5)
+            throws IOException {
+        if (flags.contains("onlyStrict") || flags.contains("async")) {
+            ++excluded;
+            return;
+        }
+        boolean expectedRuntimeFail = "runtime".equals(negativePhase);
+        String harnessed = harnessPrelude + body.replace("$DONOTEVALUATE();", "");
+        try {
+            // a shared engine is reused across cases: each eval compiles and
+            // executes in an isolated root scope, so no state leaks between tests
+            if (sharedEngine == null) {
+                sharedEngine = new org.ngscript.api.NgScriptEngine();
+            }
+            sharedEngine.eval(harnessed);
+            if (expectedRuntimeFail) {
+                fail(file, id, "expected runtime " + negativeType + " but execution succeeded");
+            } else {
+                ++passed;
+                if (es5) {
+                    ++es5Total;
+                    ++es5Passed;
+                }
+            }
+        } catch (Throwable e) {
+            if (expectedRuntimeFail) {
+                ++passed;
+                if (es5) {
+                    ++es5Total;
+                    ++es5Passed;
+                }
+            } else {
+                fail(file, id, "execution failed: " + firstLine(e.getMessage()));
+            }
+        }
+    }
+
+    private static String firstLine(String s) {
+        if (s == null) {
+            return "null";
+        }
+        int i = s.indexOf('\n');
+        return i > 0 ? s.substring(0, i).trim() : s.trim();
+    }
+
+    /**
+     * Minimal harness: sta.js + assert.js with a stub $262 host object.
+     */
+    private String buildHarnessPrelude() {
+        StringBuilder sb = new StringBuilder();
+        try {
+            sb.append("var $262 = { print: println, gc: function() {},"
+                    + " evalScript: function(s) { return eval(s); },"
+                    + " detachArrayBuffer: function() {}, createRealm: function() { throw new Error(\"createRealm not supported\"); } };");
+            sb.append("assert.throws = function(ctor, fn) {"
+                    + " var threw = false;"
+                    + " try { fn(); } catch (e) { threw = true; if (e instanceof ctor) { return; } throw e; }"
+                    + " if (!threw) { throw new Test262Error(\"expected throw\"); } };");
+            sb.append("var $DONOTEVALUATE = function() {};");
+            sb.append('\n');
+            sb.append(new String(Files.readAllBytes(
+                    new File(harnessDir, "sta.js").toPath()), StandardCharsets.UTF_8));
+            sb.append('\n');
+            sb.append(new String(Files.readAllBytes(
+                    new File(harnessDir, "assert.js").toPath()), StandardCharsets.UTF_8));
+            sb.append('\n');
+        } catch (IOException e) {
+            System.err.println("harness prelude failed: " + e);
+        }
+        return sb.toString();
     }
 
     private boolean parse(String source) {

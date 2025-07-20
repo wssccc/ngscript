@@ -69,6 +69,7 @@ public class OpCall {
         if (callee instanceof ScriptFunction) {
             ScriptFunction c = (ScriptFunction) callee;
             vm.callstack.push(c);
+            c.savedThis = vm.thisRef.read();
             //prepare env
             NgsObject env = new NgsObject((NgsObject) c.environment);
             vm.env.write(env);
@@ -76,6 +77,10 @@ public class OpCall {
             //(the frame is the instance, per the new_op invariant), else undefined
             if (receiver instanceof String) {
                 vm.thisRef.write(env);
+                // link the prototype now so the constructor body itself can
+                // check `this instanceof Ctor` (new_op re-links idempotently)
+                env.setConstructor(c);
+                env.setPrototype(c.getPrototypeObject());
             } else if (receiver != null) {
                 vm.thisRef.write(receiver);
             } else {
@@ -89,6 +94,11 @@ public class OpCall {
 
         //call native things
         if (callee instanceof Invokable) {
+            // native callables (builtins, array methods) see the receiver as this
+            Object savedThis = vm.thisRef.read();
+            if (receiver != null && !(receiver instanceof String)) {
+                vm.thisRef.write(receiver);
+            }
             try {
                 ((Invokable) callee).invoke(vm, args);
             } catch (Exception ex) {
@@ -100,6 +110,7 @@ public class OpCall {
                 vm.exception.write(e);
                 restore_machine_state(vm, null, null);
             }
+            vm.thisRef.write(savedThis);
             return;
         }
         if (callee instanceof JavaMethod) {

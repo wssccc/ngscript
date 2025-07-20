@@ -488,7 +488,9 @@ public class Compiler {
                 }
                 break;
             case NOT:
-                throw compileError("not operator is not supported");
+                compileExpr(unary.operand);
+                assembler.emit("not");
+                break;
         }
     }
 
@@ -694,11 +696,24 @@ public class Compiler {
             assembler.emit("set", tryStmt.catchVar);
         }
         assembler.emit("clear_null", "%exception");
+        String rethrowLabel = null;
         if (tryStmt.catchBody != null) {
             compileBlock(tryStmt.catchBody);
+        } else {
+            // no catch clause: remember the exception, run finally, then rethrow
+            assembler.emit("push_eax");
+            rethrowLabel = assembler.label("rethrow", tryStmt);
         }
         assembler.emit("push_eip");
         assembler.emit("jmp", finallyLabel);
+        if (rethrowLabel != null) {
+            // the finally return lands here (return address + 1): rethrow
+            assembler.emit("jmp", rethrowLabel);
+            assembler.emit("label", rethrowLabel);
+            assembler.emit("pop_eax");
+            assembler.emit("mov_exception_eax");
+            assembler.emit("restore_machine_state");
+        }
         assembler.emit("jmp", exitLabel);
         assembler.emit("label", finallyLabel);
         inHookedBlock = savedHooked;

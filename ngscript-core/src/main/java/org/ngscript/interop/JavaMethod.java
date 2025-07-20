@@ -78,6 +78,32 @@ public class JavaMethod implements Invokable {
             if (val instanceof Long) {
                 val = ((Long) val).intValue();
             }
+            if (val instanceof Object[]) {
+                // Java array results become script arrays
+                Object[] src = (Object[]) val;
+                org.ngscript.runtime.NgsArray out = new org.ngscript.runtime.NgsArray(null);
+                for (int i = 0; i < src.length; i++) {
+                    out.set("" + i, src[i]);
+                }
+                out.setPrototype(vm.arrayPrototype);
+                val = out;
+            } else if (val instanceof int[]) {
+                int[] src = (int[]) val;
+                org.ngscript.runtime.NgsArray out = new org.ngscript.runtime.NgsArray(null);
+                for (int i = 0; i < src.length; i++) {
+                    out.set("" + i, src[i]);
+                }
+                out.setPrototype(vm.arrayPrototype);
+                val = out;
+            } else if (val instanceof double[]) {
+                double[] src = (double[]) val;
+                org.ngscript.runtime.NgsArray out = new org.ngscript.runtime.NgsArray(null);
+                for (int i = 0; i < src.length; i++) {
+                    out.set("" + i, src[i]);
+                }
+                out.setPrototype(vm.arrayPrototype);
+                val = out;
+            }
             vm.eax.write(val);
         } catch (Exception ex) {
             vm.exception.write(

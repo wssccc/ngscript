@@ -49,7 +49,7 @@ public class OpUtils {
     }
 
     /** ES ToNumber. Objects require ToPrimitive (arrives with the object model). */
-    static double toNumber(Object obj) {
+    public static double toNumber(Object obj) {
         if (obj instanceof Integer) {
             return (Integer) obj;
         }
@@ -114,7 +114,7 @@ public class OpUtils {
     }
 
     /** ES ToString. */
-    static String toStringValue(Object obj) {
+    public static String toStringValue(Object obj) {
         if (obj == null) {
             return "null";
         }
@@ -210,7 +210,7 @@ public class OpUtils {
     }
 
     /** ES {@code ===} (strict equality). Integer and Double are the same JS type. */
-    static boolean strictEquals(Object a, Object b) {
+    public static boolean strictEquals(Object a, Object b) {
         if (a == b) {
             return true;
         }

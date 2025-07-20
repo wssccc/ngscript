@@ -44,6 +44,12 @@ public class ScriptFunction {
      */
     public NgsObject prototype;
 
+    /**
+     * The this binding of the caller, saved when this function is invoked and
+     * restored by {@code ret} (single-threaded machines only).
+     */
+    public Object savedThis;
+
     public ScriptFunction(String functionLabel, NgsObject environment, Machine vm) {
         this.functionLabel = functionLabel;
         this.environment = environment;
@@ -53,6 +59,8 @@ public class ScriptFunction {
     public NgsObject getPrototypeObject() {
         if (prototype == null) {
             prototype = new NgsObject(null);
+            // the constructor's prototype links to Object.prototype
+            prototype.setPrototype(vm.objectPrototype);
         }
         return prototype;
     }

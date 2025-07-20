@@ -28,6 +28,7 @@ import org.ngscript.runtime.opcache.OpBinding;
 import org.ngscript.runtime.opcache.OpInvokable;
 import org.ngscript.runtime.opcache.OpMap;
 import org.ngscript.util.FastStack;
+import org.ngscript.value.Invokable;
 import org.ngscript.value.MemRef;
 import org.ngscript.value.ScriptFunction;
 import org.ngscript.value.Undefined;
@@ -53,6 +54,15 @@ public class Machine {
      */
     public final java.util.Map<Object, java.util.Map<String, MemRef>> hostProps =
             new java.util.IdentityHashMap<>();
+
+    /**
+     * Shared built-in prototype objects: array literals link to
+     * {@link #arrayPrototype}, object literals to {@link #objectPrototype}.
+     * Set up by {@link org.ngscript.builtins.Builtins#register} at
+     * construction time.
+     */
+    public NgsObject arrayPrototype;
+    public NgsObject objectPrototype;
 
     //machine states
     Instruction hints;
@@ -89,6 +99,8 @@ public class Machine {
         //init register
         setEip(0);
         thisRef.write(Undefined.value);
+        this.arrayPrototype = org.ngscript.builtins.Builtins.getArrayPrototype();
+        this.objectPrototype = org.ngscript.builtins.Builtins.getObjectPrototype();
         env.write(new NgsObject(null));
         ((NgsObject) env.read()).registerBuiltins(out);
         initialEnv = (NgsObject) env.read();
@@ -208,7 +220,7 @@ public class Machine {
             }
             try {
                 instruction.invoke(this);
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
                 try {
                     exception.write(ex);
                     OpCall.restore_machine_state(this, null, null);
@@ -223,6 +235,65 @@ public class Machine {
 
     public int getEip() {
         return eip.get();
+    }
+
+    /**
+     * Sentinel return address used by {@link #callFunctionSync} so the nested
+     * instruction loop knows when the callee has returned.
+     */
+    private static final int SYNC_CALL_RET = -2;
+
+    /**
+     * Calls a script function synchronously from a builtin (e.g. an Array
+     * iteration callback): pushes the call frame, executes the function body
+     * instructions inline, then restores the machine state. Supports nested
+     * calls because the instruction loop follows eip like the main loop.
+     */
+    public Object callFunctionSync(Object callee, Object[] args, Object receiver) throws Exception {
+        int savedEip = getEip();
+        int savedStackSize = stack.size();
+        int savedCallStackSize = callstack.size();
+        Object savedThis = thisRef.read();
+        NgsObject savedEnv = (NgsObject) env.read();
+        if (callee instanceof ScriptFunction) {
+            ScriptFunction c = (ScriptFunction) callee;
+            callstack.push(c);
+            NgsObject frame = new NgsObject((NgsObject) c.environment);
+            env.write(frame);
+            thisRef.write(receiver != null ? receiver : Undefined.value);
+            stack.push(receiver != null ? receiver : null);
+            stack.push(callee);
+            stack.push(args);
+            stack.push(frame);
+            stack.push(SYNC_CALL_RET);
+            setEip(labels.get(c.functionLabel));
+            try {
+                while (true) {
+                    int eip = getEip();
+                    if (eip < 0 || eip >= instructions.length) {
+                        break;
+                    }
+                    setEip(eip + 1);
+                    instructions[eip].invoke(this);
+                }
+            } finally {
+                while (stack.size() > savedStackSize) {
+                    stack.pop();
+                }
+                while (callstack.size() > savedCallStackSize) {
+                    callstack.pop();
+                }
+                env.write(savedEnv);
+                thisRef.write(savedThis);
+                setEip(savedEip);
+            }
+            return eax.read();
+        }
+        if (callee instanceof Invokable) {
+            ((Invokable) callee).invoke(this, args);
+            return eax.read();
+        }
+        throw new NgScriptRuntimeException(this, "not a function");
     }
 
     public void setEip(int eip) {
