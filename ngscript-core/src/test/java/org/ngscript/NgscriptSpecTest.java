@@ -52,23 +52,31 @@ import org.ngscript.api.NgScriptEngine;
 public class NgscriptSpecTest {
 
     private static final String TEST_CASES_DIR = "ngscript/tc";
+    private static final String EXTENSION_CASES_DIR = "ngscript/tc-extension";
 
-    @Parameterized.Parameters(name = "{0} [{1}]")
+    @Parameterized.Parameters(name = "{0} [{1}]") 
     public static Collection<Object[]> cases() throws Exception {
-        URL url = NgscriptSpecTest.class.getClassLoader().getResource(TEST_CASES_DIR);
-        assertNotNull("Test cases directory should exist on classpath", url);
+        List<Object[]> params = new ArrayList<>();
+        collectCases(TEST_CASES_DIR, params);
+        collectCases(EXTENSION_CASES_DIR, params);
+        return params;
+    }
+
+    private static void collectCases(String dirName, List<Object[]> params) throws Exception {
+        URL url = NgscriptSpecTest.class.getClassLoader().getResource(dirName);
+        if (url == null) {
+            return;
+        }
         File dir = new File(url.toURI());
         assertTrue("Test cases directory should be a directory", dir.isDirectory());
         File[] files = dir.listFiles(file -> file.isFile() && file.getName().endsWith(".txt"));
         assertNotNull("Test cases directory should not be empty", files);
         Arrays.sort(files, Comparator.comparing(File::getName));
 
-        List<Object[]> params = new ArrayList<>();
         for (File file : files) {
             params.add(new Object[]{file.getName(), "eval"});
             params.add(new Object[]{file.getName(), "interactive"});
         }
-        return params;
     }
 
     private final String fileName;
@@ -154,6 +162,10 @@ public class NgscriptSpecTest {
         InputStream expected = getClass().getClassLoader()
                 .getResourceAsStream(TEST_CASES_DIR + "/" + name + ".expected");
         if (expected == null) {
+            expected = getClass().getClassLoader()
+                    .getResourceAsStream(EXTENSION_CASES_DIR + "/" + name + ".expected");
+        }
+        if (expected == null) {
             assertTrue("Script " + name + " should execute without errors", true);
             return;
         }
@@ -175,6 +187,9 @@ public class NgscriptSpecTest {
 
     private InputStream openResource(String name) throws IOException {
         InputStream in = getClass().getClassLoader().getResourceAsStream(TEST_CASES_DIR + "/" + name);
+        if (in == null) {
+            in = getClass().getClassLoader().getResourceAsStream(EXTENSION_CASES_DIR + "/" + name);
+        }
         assertNotNull("Test case should exist on classpath: " + name, in);
         return in;
     }

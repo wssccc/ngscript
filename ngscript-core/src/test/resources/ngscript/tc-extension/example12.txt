@@ -1,5 +1,5 @@
 // Define a callback function that takes a parameter
-val callbackFunction = function(inputValue) {
+var callbackFunction = function(inputValue) {
     println("Executing callback with value: " + inputValue);
 };
 

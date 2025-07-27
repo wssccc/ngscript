@@ -31,3 +31,16 @@ jobs:
       run: mvn test
     - name: Package with Maven
       run: mvn package -DskipTests
+    - name: Fetch test262
+      run: |
+        ./tools/fetch-test262.sh
+    - name: test262 parse gate (ES5)
+      run: |
+        CP="ngscript-shell/target/classes:ngscript-core/target/classes:$(find ~/.m2 -name 'slf4j-api-*.jar' | head -1):$(find ~/.m2 -name 'commons-io-*.jar' | head -1):$(find ~/.m2 -name 'commons-lang3-*.jar' | head -1):$(find ~/.m2 -name 'javassist-*.jar' | head -1)"
+        java -Xss64m -cp "$CP" org.ngscript.shell.Test262Runner --dir test262 --report target/test262-parse.txt
+        grep "es5id cases:" target/test262-parse.txt
+    - name: test262 exec gate (ES5 sample)
+      run: |
+        CP="ngscript-shell/target/classes:ngscript-core/target/classes:$(find ~/.m2 -name 'slf4j-api-*.jar' | head -1):$(find ~/.m2 -name 'commons-io-*.jar' | head -1):$(find ~/.m2 -name 'commons-lang3-*.jar' | head -1):$(find ~/.m2 -name 'javassist-*.jar' | head -1)"
+        java -Xss64m -cp "$CP" org.ngscript.shell.Test262Runner --dir test262 --exec --es5 --limit 500 --report target/test262-exec.txt
+        grep "es5id cases:" target/test262-exec.txt

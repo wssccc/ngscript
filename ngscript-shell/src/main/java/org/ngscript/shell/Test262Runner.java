@@ -266,7 +266,9 @@ public class Test262Runner {
             // a shared engine is reused across cases: each eval compiles and
             // executes in an isolated root scope, so no state leaks between tests
             if (sharedEngine == null) {
-                sharedEngine = new org.ngscript.api.NgScriptEngine();
+                java.io.PrintWriter sink = new java.io.PrintWriter(new java.io.StringWriter());
+                sharedEngine = new org.ngscript.api.NgScriptEngine(
+                        new org.ngscript.api.Configuration(), sink, sink);
             }
             sharedEngine.eval(harnessed);
             if (expectedRuntimeFail) {

@@ -1,13 +1,13 @@
 // Simple arrow function that adds two numbers
-val addNumbers = (x, y) => { x + y; };
+var addNumbers = (x, y) => { x + y; };
 
 // Arrow function that increments a number by 1
-val incrementByOne = (x) => {
+var incrementByOne = (x) => {
     return x + 1;
 };
 
 // Arrow function that adds two numbers with explicit return
-val addTwoNumbers = (x, y) => {
+var addTwoNumbers = (x, y) => {
     return x + y;
 };
 

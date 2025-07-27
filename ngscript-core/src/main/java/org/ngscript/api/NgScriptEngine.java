@@ -20,16 +20,16 @@ import java.io.PrintWriter;
 import java.util.Collections;
 import java.util.List;
 
+import org.ngscript.ast.Program;
+import org.ngscript.ast.Stmt;
+import org.ngscript.bytecode.Instruction;
 import org.ngscript.compiler.Compiler;
 import org.ngscript.compiler.CompilerException;
-import org.ngscript.bytecode.Instruction;
+import org.ngscript.lexer.Lexer;
+import org.ngscript.lexer.LexerException;
 import org.ngscript.parser.NgParser;
 import org.ngscript.parser.ParserException;
 import org.ngscript.parser.Token;
-import org.ngscript.ast.Program;
-import org.ngscript.ast.Stmt;
-import org.ngscript.lexer.Lexer;
-import org.ngscript.lexer.LexerException;
 import org.ngscript.runtime.Machine;
 
 import lombok.extern.slf4j.Slf4j;
@@ -43,14 +43,23 @@ public class NgScriptEngine {
     Configuration configuration;
     NgParser parser;
     Compiler compiler;
-    Machine vm = new Machine(new PrintWriter(System.out), new PrintWriter(System.err));
+    Machine vm;
 
     public NgScriptEngine() {
         this(Configuration.DEFAULT);
     }
 
     public NgScriptEngine(Configuration configuration) {
+        this(configuration, new PrintWriter(System.out), new PrintWriter(System.err));
+    }
+
+    /**
+     * Creates an engine writing script output to the given writers (used by
+     * the test262 runner to discard per-case logging).
+     */
+    public NgScriptEngine(Configuration configuration, PrintWriter out, PrintWriter err) {
         this.configuration = configuration;
+        this.vm = new Machine(out, err);
         this.compiler = new Compiler(configuration);
         this.parser = new NgParser();
         this.parser.setStatementListener(stmt -> compileAndRun(stmt, ""));
