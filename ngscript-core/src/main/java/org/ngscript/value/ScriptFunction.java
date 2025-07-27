@@ -50,6 +50,19 @@ public class ScriptFunction {
      */
     public Object savedThis;
 
+    /**
+     * Whether this function is an arrow function: arrows have no own
+     * {@code this} and are not constructible. When true, {@link #capturedThis}
+     * holds the this binding captured at creation time.
+     */
+    public boolean arrow;
+
+    /**
+     * The lexical this binding captured when an arrow function was created;
+     * null for ordinary functions.
+     */
+    public Object capturedThis;
+
     public ScriptFunction(String functionLabel, NgsObject environment, Machine vm) {
         this.functionLabel = functionLabel;
         this.environment = environment;

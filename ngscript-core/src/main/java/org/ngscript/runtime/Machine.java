@@ -260,7 +260,10 @@ public class Machine {
             callstack.push(c);
             NgsObject frame = new NgsObject((NgsObject) c.environment);
             env.write(frame);
-            thisRef.write(receiver != null ? receiver : Undefined.value);
+            // arrows keep their lexical this; ordinary functions bind the receiver
+            thisRef.write(c.arrow
+                    ? (c.capturedThis != null ? c.capturedThis : Undefined.value)
+                    : (receiver != null ? receiver : Undefined.value));
             stack.push(receiver != null ? receiver : null);
             stack.push(callee);
             stack.push(args);

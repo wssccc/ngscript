@@ -1219,7 +1219,14 @@ public class NgParser {
 
     private Expr parseNew(Token newTok) throws ParserException {
         next();
-        Expr cls = parseExprClass();
+        Expr cls;
+        if (peekIs("lparen")) {
+            // new (expr) / new (() => {}): parseParenOrArrow expects the
+            // lparen to still be the current token
+            cls = parseParenOrArrow(peek());
+        } else {
+            cls = parseExprClass();
+        }
         List<Expr> args = Collections.emptyList();
         if (peekIs("lparen")) {
             next();
@@ -1244,32 +1251,27 @@ public class NgParser {
         if (second == null) {
             throw new ParserException("unexpected end of input");
         }
-        if (second.type.equals("rparen_arrow_fn")) {
-            // () => { ... }
-            next();
-            next();
-            ++functionDepth;
-            try {
-                Block body = parseBlock();
-                return new LambdaExpr(new Params(Collections.emptyList()), body, lparen.line);
-            } finally {
-                --functionDepth;
-            }
-        }
-        if (second.type.equals("ident")) {
+        if (second.type.equals("rparen")) {
+            // () => ...
             Token third = peekN(3);
-            if (third != null && third.type.equals("rparen_arrow_fn")) {
-                // (x) => { ... }
+            if (third != null && third.type.equals("arrow_fn") && third.line == second.line) {
                 next();
                 next();
-                expect("rparen_arrow_fn");
-                ++functionDepth;
-                try {
-                    Block body = parseBlock();
-                    return new LambdaExpr(
-                            new Params(Collections.singletonList(second.value)), body, lparen.line);
-                } finally {
-                    --functionDepth;
+                next();
+                return parseArrowRest(new Params(Collections.emptyList()), lparen.line);
+            }
+        } else if (second.type.equals("ident")) {
+            Token third = peekN(3);
+            if (third != null && third.type.equals("rparen")) {
+                // (x) => ...
+                Token fourth = peekN(4);
+                if (fourth != null && fourth.type.equals("arrow_fn") && fourth.line == third.line) {
+                    next();
+                    next();
+                    next();
+                    next();
+                    return parseArrowRest(
+                            new Params(Collections.singletonList(second.value)), lparen.line);
                 }
             }
             if (third != null && third.type.equals("comma")) {
@@ -1287,22 +1289,20 @@ public class NgParser {
                         n += 2;
                         continue;
                     }
-                    if (tt.type.equals("rparen_arrow_fn")) {
-                        arrow = true;
+                    if (tt.type.equals("rparen")) {
+                        Token nx = peekN(n + 1);
+                        if (nx != null && nx.type.equals("arrow_fn") && nx.line == tt.line) {
+                            arrow = true;
+                        }
                     }
                     break;
                 }
                 if (arrow) {
                     next();
                     Params params = parseParamList();
-                    expect("rparen_arrow_fn");
-                    ++functionDepth;
-                    try {
-                        Block body = parseBlock();
-                        return new LambdaExpr(params, body, lparen.line);
-                    } finally {
-                        --functionDepth;
-                    }
+                    expect("rparen");
+                    expect("arrow_fn");
+                    return parseArrowRest(params, lparen.line);
                 }
             }
         }
@@ -1311,6 +1311,26 @@ public class NgParser {
         Expr expr = parseExpr();
         expect("rparen");
         return expr;
+    }
+
+    /**
+     * Parses the body of an arrow function after the arrow token: either a
+     * block body or a single assignment expression. ES disallows a line
+     * terminator between the arrow and its body; that check happens where
+     * the arrow token is matched.
+     */
+    private Expr parseArrowRest(Params params, int line) throws ParserException {
+        ++functionDepth;
+        try {
+            if (peekIs("lcurly")) {
+                Block body = parseBlock();
+                return new LambdaExpr(params, null, body, line, true);
+            }
+            Expr body = parseAssignment();
+            return new LambdaExpr(params, body, null, line, true);
+        } finally {
+            --functionDepth;
+        }
     }
 
     private Expr parseExpr9() throws ParserException {
@@ -1328,6 +1348,16 @@ public class NgParser {
                 return new VarDeclExpr(name.value, false, name.line);
             }
             case "ident": {
+                // single-parameter arrow function without parens: ident =>
+                // (a line terminator between them turns it back into a plain
+                // identifier, leaving => as an error further up)
+                Token second = peekN(2);
+                if (second != null && second.type.equals("arrow_fn") && second.line == t.line) {
+                    next();
+                    next();
+                    return parseArrowRest(
+                            new Params(Collections.singletonList(t.value)), t.line);
+                }
                 next();
                 if (t.value.equals("val") && peek() != null && peek().type.equals("ident")) {
                     // the ngscript read-only declaration extension: "val x"

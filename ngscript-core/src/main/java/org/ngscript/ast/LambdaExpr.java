@@ -18,7 +18,9 @@ package org.ngscript.ast;
 
 /**
  * A function expression: {@code function(params) { body }} or the arrow form
- * {@code (params) => { body }}.
+ * {@code (params) => { body }} / {@code x => expr}. Exactly one of
+ * {@link #body} and {@link #bodyExpr} is non-null for arrows with expression
+ * bodies; function expressions always use {@link #body}.
  *
  * @author wssccc
  */
@@ -27,6 +29,8 @@ public class LambdaExpr extends Expr {
     public final String name;
     public final Params params;
     public final Block body;
+    public final Expr bodyExpr;
+    public final boolean isArrow;
 
     public LambdaExpr(Params params, Block body, int line) {
         this(null, params, body, line);
@@ -36,14 +40,28 @@ public class LambdaExpr extends Expr {
      * @param name the optional name of a named function expression, or null
      */
     public LambdaExpr(String name, Params params, Block body, int line) {
+        this(name, params, null, body, line, false);
+    }
+
+    /**
+     * Creates an arrow function; exactly one of {@code bodyExpr}/{@code body}
+     * is non-null (expression vs block body).
+     */
+    public LambdaExpr(Params params, Expr bodyExpr, Block body, int line, boolean isArrow) {
+        this(null, params, bodyExpr, body, line, isArrow);
+    }
+
+    public LambdaExpr(String name, Params params, Expr bodyExpr, Block body, int line, boolean isArrow) {
         this.name = name;
         this.params = params;
+        this.bodyExpr = bodyExpr;
         this.body = body;
+        this.isArrow = isArrow;
         this.line = line;
     }
 
     @Override
     protected String toString(int indent) {
-        return childrenToString(indent, body);
+        return childrenToString(indent, body != null ? (AstNode) body : bodyExpr);
     }
 }

@@ -57,6 +57,7 @@ public class Lexer {
             "not", "bit_and", "bit_or", "bit_xor", "and", "or",
             "add", "sub", "mul", "div", "mod", "exp", "shl", "shr", "ushr", "bit_not",
             "lt", "gt", "le", "ge",
+            "arrow_fn",
             "return", "typeof", "new", "throw", "case")));
 
     private final SourceReader reader;
@@ -162,14 +163,8 @@ public class Lexer {
                 return token("lparen");
             case ')': {
                 // the token's line must be recorded before skipping blanks
-                // (the arrow-function lookahead below skips them)
                 int rparenLine = reader.lineNumber;
                 reader.skipBlanks();
-                if (reader.peek() == '=' && reader.peek(1) == '>') {
-                    reader.forward();
-                    reader.forward();
-                    return token("rparen_arrow_fn");
-                }
                 return token("rparen", rparenLine);
             }
             case '{':
@@ -187,6 +182,11 @@ public class Lexer {
                     } else {
                         return token("eq");
                     }
+                } else if (reader.peek() == '>') {
+                    // the arrow punctuator => (no line terminator may appear
+                    // inside it since blanks are not skipped here)
+                    reader.forward();
+                    return token("arrow_fn");
                 } else {
                     return token("assign");
                 }

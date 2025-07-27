@@ -17,6 +17,7 @@
 package org.ngscript.compiler;
 
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
@@ -343,8 +344,15 @@ public class Compiler {
             assembler.emit("regex_new", re.value.substring(1, lastSlash), re.value.substring(lastSlash + 1));
         } else if (expr instanceof LambdaExpr) {
             LambdaExpr lambda = (LambdaExpr) expr;
-            String enter = _compile_function_body(lambda.params, lambda.body);
-            assembler.emit("new_closure", enter);
+            Block body = lambda.body;
+            if (body == null && lambda.bodyExpr != null) {
+                // arrow expression body: return the expression value
+                body = new Block(
+                        Collections.singletonList(new ReturnStmt(lambda.bodyExpr, lambda.line)),
+                        lambda.line);
+            }
+            String enter = _compile_function_body(lambda.params, body);
+            assembler.emit("new_closure", enter, lambda.isArrow ? "1" : "0");
             assembler.emit("set_func_meta", lambda.params.names.size() + "",
                     lambda.name == null ? "" : lambda.name);
         } else {

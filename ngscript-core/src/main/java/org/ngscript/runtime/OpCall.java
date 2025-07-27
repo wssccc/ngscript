@@ -36,6 +36,11 @@ public class OpCall {
 
     public static void new_closure(Machine vm, String param, String param_extend) {
         ScriptFunction closure = new ScriptFunction(param, (NgsObject) vm.env.read(), vm);
+        if ("1".equals(param_extend)) {
+            // arrow function: capture the lexical this binding
+            closure.arrow = true;
+            closure.capturedThis = vm.thisRef.read();
+        }
         vm.eax.write(closure);
     }
 
@@ -76,11 +81,19 @@ public class OpCall {
             //bind this: a method receiver, the constructor frame for "new"
             //(the frame is the instance, per the new_op invariant), else undefined
             if (receiver instanceof String) {
+                if (c.arrow) {
+                    // arrows are not constructible
+                    throw new IllegalArgumentException(
+                            (c.name == null ? "" : c.name + " ") + "is not a constructor");
+                }
                 vm.thisRef.write(env);
                 // link the prototype now so the constructor body itself can
                 // check `this instanceof Ctor` (new_op re-links idempotently)
                 env.setConstructor(c);
                 env.setPrototype(c.getPrototypeObject());
+            } else if (c.arrow) {
+                // arrows keep the this binding captured at creation time
+                vm.thisRef.write(c.capturedThis != null ? c.capturedThis : Undefined.value);
             } else if (receiver != null) {
                 vm.thisRef.write(receiver);
             } else {

@@ -160,16 +160,16 @@ public class OpObject {
         Object obj = objs[1];
         String key = objs[0].toString();
         if (obj instanceof NgsObject) {
-            vm.eax.write(((NgsObject) obj).has(key) ? 1 : 0);
+            vm.eax.write(((NgsObject) obj).has(key) ? Boolean.TRUE : Boolean.FALSE);
         } else if (obj instanceof String) {
             try {
                 int idx = Integer.parseInt(key);
-                vm.eax.write(idx >= 0 && idx < ((String) obj).length() ? 1 : 0);
+                vm.eax.write(idx >= 0 && idx < ((String) obj).length() ? Boolean.TRUE : Boolean.FALSE);
             } catch (NumberFormatException e) {
-                vm.eax.write(0);
+                vm.eax.write(Boolean.FALSE);
             }
         } else {
-            vm.eax.write(0);
+            vm.eax.write(Boolean.FALSE);
         }
     }
 
@@ -179,13 +179,13 @@ public class OpObject {
         Object ctor = objs[1];
         if (ctor instanceof ScriptFunction) {
             if (obj instanceof NgsObject) {
-                vm.eax.write(((NgsObject) obj).isInstanceOf((ScriptFunction) ctor) ? 1 : 0);
+                vm.eax.write(((NgsObject) obj).isInstanceOf((ScriptFunction) ctor) ? Boolean.TRUE : Boolean.FALSE);
             } else {
-                vm.eax.write(0);
+                vm.eax.write(Boolean.FALSE);
             }
         } else if (ctor instanceof Class) {
             // Java classes: ordinary instanceof (e.g. e instanceof Error)
-            vm.eax.write(((Class) ctor).isInstance(obj) ? 1 : 0);
+            vm.eax.write(((Class) ctor).isInstance(obj) ? Boolean.TRUE : Boolean.FALSE);
         } else {
             throw new NgScriptRuntimeException(vm, "right-hand side of instanceof is not callable");
         }
