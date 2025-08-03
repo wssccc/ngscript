@@ -59,6 +59,15 @@ public class ArrayProto {
         register(proto, "toString", (vm, args) -> join(vm, new Object[0]));
         register(proto, "isArray", (vm, args) -> vm.eax.write(
                 args.length > 0 && args[0] instanceof NgsArray));
+        // the array iterator (for-of and arr[Symbol.iterator]()): the array
+        // itself implements java.util.Iterator
+        register(proto, "@@iterator", (vm, args) -> {
+            Object t = vm.thisRef.read();
+            if (t instanceof NgsArray) {
+                ((NgsArray) t).resetIterator();
+            }
+            vm.eax.write(t);
+        });
         return proto;
     }
 

@@ -16,7 +16,9 @@
 
 package org.ngscript.runtime;
 
+import org.ngscript.value.Invokable;
 import org.ngscript.value.MemRef;
+import org.ngscript.value.ScriptFunction;
 import org.ngscript.value.Undefined;
 
 /**
@@ -29,6 +31,46 @@ public class OpUtils {
         objects[0] = vm.stack.pop();
         objects[1] = vm.eax.read();
         return objects;
+    }
+
+    /**
+     * Reads a member of an object (own data and the prototype chain for
+     * script objects, reflection for Java objects); null when absent.
+     */
+    public static Object getMember(Machine vm, Object obj, String key) throws NgScriptRuntimeException {
+        if (obj instanceof NgsObject) {
+            return ((NgsObject) obj).lookup(key, vm, true).read();
+        }
+        if (obj == null || obj == Undefined.value) {
+            throw new NgScriptRuntimeException(vm, "cannot read property '" + key + "' of null/undefined");
+        }
+        Object v = NgsObject._lookupNative(obj, obj.getClass(), key, vm);
+        if (v instanceof MemRef) {
+            return ((MemRef) v).read();
+        }
+        return v;
+    }
+
+    /**
+     * Calls a value with a receiver and arguments, synchronously for script
+     * functions (so iterator polling works from opcodes).
+     */
+    public static Object callValue(Machine vm, Object callee, Object receiver, Object[] args) throws Exception {
+        if (callee instanceof Invokable && !(callee instanceof ScriptFunction)) {
+            // builtins read their receiver via the this binding
+            Object savedThis = vm.thisRef.read();
+            vm.thisRef.write(receiver != null ? receiver : Undefined.value);
+            try {
+                ((Invokable) callee).invoke(vm, args);
+            } finally {
+                vm.thisRef.write(savedThis);
+            }
+            return vm.eax.read();
+        }
+        if (callee instanceof ScriptFunction) {
+            return vm.callFunctionSync(callee, args, receiver);
+        }
+        throw new NgScriptRuntimeException(vm, (callee == null ? "null" : callee.toString()) + " is not callable");
     }
 
     static double getNumber(Machine vm, Object obj) throws NgScriptRuntimeException {

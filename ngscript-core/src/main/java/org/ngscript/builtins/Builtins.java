@@ -60,6 +60,7 @@ public class Builtins {
         map.put("Coroutine", new MemRef(Coroutine.class));
         map.put("Object", new MemRef(new ObjectCtor()));
         map.put("Array", new MemRef(new ArrayCtor()));
+        map.put("Symbol", new MemRef(new SymbolCtor()));
         // ES error constructors map to their Java counterparts (approximate)
         map.put("Error", new MemRef(Error.class));
         map.put("TypeError", new MemRef(IllegalArgumentException.class));

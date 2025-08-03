@@ -19,6 +19,7 @@ package org.ngscript.runtime;
 import java.util.ArrayList;
 
 import org.ngscript.value.MemRef;
+import org.ngscript.value.SymbolValue;
 
 /**
  * Array opcodes: literal construction and indexed access.
@@ -26,6 +27,17 @@ import org.ngscript.value.MemRef;
  * @author wssccc
  */
 public class OpArray {
+
+    /**
+     * Converts an index value to a property key string; symbols use their
+     * canonical internal key ("@@iterator" etc.).
+     */
+    public static String keyString(Object key) {
+        if (key instanceof SymbolValue) {
+            return ((SymbolValue) key).getId();
+        }
+        return "" + key;
+    }
 
     public static void array_new(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         int length = Integer.parseInt(param);
@@ -43,7 +55,7 @@ public class OpArray {
         Object[] objs = OpUtils.get2OpParam(vm);
         if (objs[0] instanceof NgsObject) {
             NgsObject env = (NgsObject) objs[0];
-            String member = "" + objs[1];
+            String member = keyString(objs[1]);
             MemRef ref = env.lookup(member, vm, true);
             vm.eax.write(ref);
             return;

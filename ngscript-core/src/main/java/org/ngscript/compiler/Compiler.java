@@ -40,6 +40,7 @@ import org.ngscript.ast.DoWhileStmt;
 import org.ngscript.ast.Expr;
 import org.ngscript.ast.ExprStmt;
 import org.ngscript.ast.ForInStmt;
+import org.ngscript.ast.ForOfStmt;
 import org.ngscript.ast.ForStmt;
 import org.ngscript.ast.FunctionDecl;
 import org.ngscript.ast.GoStmt;
@@ -263,6 +264,8 @@ public class Compiler {
             compileDo((DoWhileStmt) stmt);
         } else if (stmt instanceof ForInStmt) {
             compileForIn((ForInStmt) stmt);
+        } else if (stmt instanceof ForOfStmt) {
+            compileForOf((ForOfStmt) stmt);
         } else if (stmt instanceof LabeledStmt) {
             compileLabeled((LabeledStmt) stmt);
         } else if (stmt instanceof BlockStmt) {
@@ -836,6 +839,49 @@ public class Compiler {
             emitAssignToName(((IdentExpr) stmt.target).name);
         } else {
             throw compileError("unsupported for-in target " + stmt.target);
+        }
+        compileStmt(stmt.body);
+        emitLabel(continueLabel);
+        emitJump(testLabel);
+        emitLabel(breakLabel);
+        if (letTarget) {
+            leaveBlock();
+            emitLabel(afterLabel);
+        }
+        breakLabels.pop();
+        continueLabels.pop();
+    }
+
+    private void compileForOf(ForOfStmt stmt) throws CompilerException {
+        String testLabel = assembler.label("test", stmt);
+        String continueLabel = assembler.label("continue", stmt);
+        String breakLabel = assembler.label("break", stmt);
+        String afterLabel = null;
+        boolean letTarget = stmt.target instanceof LetDeclExpr;
+        if (letTarget) {
+            afterLabel = assembler.label("after", stmt);
+            enterBlock();
+        }
+        if (currentLabel != null && !continueLabelTargets.containsKey(currentLabel)) {
+            continueLabelTargets.put(currentLabel, continueLabel);
+        }
+        breakLabels.push(breakLabel);
+        continueLabels.push(continueLabel);
+        compileExpr(stmt.object);
+        assembler.emit("forof_init");
+        emitLabel(testLabel);
+        assembler.emit("forof_next");
+        assembler.emit("jz", breakLabel);
+        if (letTarget) {
+            LetDeclExpr decl = (LetDeclExpr) stmt.target;
+            assembler.emit("decl_let", decl.names.get(0), decl.isConst ? "1" : "0");
+            emitAssignToName(decl.names.get(0));
+        } else if (stmt.target instanceof VarDeclExpr) {
+            assembler.emit("set", ((VarDeclExpr) stmt.target).name);
+        } else if (stmt.target instanceof IdentExpr) {
+            emitAssignToName(((IdentExpr) stmt.target).name);
+        } else {
+            throw compileError("unsupported for-of target " + stmt.target);
         }
         compileStmt(stmt.body);
         emitLabel(continueLabel);

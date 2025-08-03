@@ -20,14 +20,61 @@ import org.ngscript.value.MemRef;
 
 /**
  * An array literal: an {@link NgsObject} indexed by stringified integers
- * ({@code "0"}..{@code "n-1"}).
+ * ({@code "0"}..{@code "n-1"}). Also acts as its own java.util.Iterator
+ * (the for-of loop and Array.prototype[Symbol.iterator] use it directly).
  *
  * @author wssccc
  */
-public class NgsArray extends NgsObject {
+public class NgsArray extends NgsObject implements java.util.Iterator<Object>, java.lang.Iterable<Object> {
+
+    private int iterIndex;
 
     public NgsArray(NgsObject parent) {
         super(parent);
+    }
+
+    @Override
+    public java.util.Iterator<Object> iterator() {
+        return this;
+    }
+
+    @Override
+    public boolean hasNext() {
+        return iterIndex < length();
+    }
+
+    @Override
+    public Object next() {
+        Object v = get("" + iterIndex);
+        ++iterIndex;
+        return v;
+    }
+
+    @Override
+    public void remove() {
+        throw new UnsupportedOperationException();
+    }
+
+    /** The virtual length: one past the highest numeric index. */
+    public int length() {
+        Object cached = get("length");
+        if (cached instanceof Integer) {
+            return (Integer) cached;
+        }
+        int len = 0;
+        for (String key : keys()) {
+            try {
+                len = Math.max(len, Integer.parseInt(key) + 1);
+            } catch (NumberFormatException ignored) {
+                // non-numeric keys do not affect length
+            }
+        }
+        return len;
+    }
+
+    /** Resets the iteration cursor (arrays iterate from index 0). */
+    public void resetIterator() {
+        iterIndex = 0;
     }
 
     @Override

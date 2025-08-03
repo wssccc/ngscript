@@ -215,6 +215,103 @@ public class OpObject {
     }
 
     /**
+     * Prepares a for-of loop: obtains an iterator for the value in eax (the
+     * ES iterator protocol via @@iterator, Java iterables, or a code-point
+     * iterator for strings) and pushes it on the stack.
+     */
+    public static void forof_init(Machine vm, String param, String param_extend) throws Exception {
+        Object iterable = vm.eax.read();
+        Object iterator;
+        if (iterable instanceof java.util.Iterator) {
+            // arrays (and Array.prototype[Symbol.iterator]() results)
+            iterator = iterable;
+        } else if (iterable instanceof java.lang.Iterable) {
+            iterator = ((java.lang.Iterable) iterable).iterator();
+        } else if (iterable instanceof String) {
+            // ES iterates strings by code point, not by UTF-16 code unit
+            iterator = new CodePointIterator((String) iterable);
+        } else {
+            // generic ES iterator protocol: iterable[Symbol.iterator]()
+            Object method = OpUtils.getMember(vm, iterable, "@@iterator");
+            if (method == null || method == Undefined.value) {
+                throw new IllegalArgumentException("value is not iterable");
+            }
+            iterator = OpUtils.callValue(vm, method, iterable, new Object[0]);
+        }
+        vm.stack.push(iterator);
+    }
+
+    /**
+     * Advances a for-of loop: yields the next value in eax, or false when
+     * done (popping the iterator). JS iterators are polled via next() and
+     * the result object's done/value properties.
+     */
+    public static void forof_next(Machine vm, String param, String param_extend) throws Exception {
+        Object iterator = vm.stack.peek(0);
+        if (iterator instanceof java.util.Iterator) {
+            java.util.Iterator it = (java.util.Iterator) iterator;
+            if (it.hasNext()) {
+                vm.eax.write(it.next());
+                return;
+            }
+            vm.stack.pop();
+            vm.eax.write(Boolean.FALSE);
+            return;
+        }
+        // generic ES iterator protocol: result = iterator.next()
+        Object method = OpUtils.getMember(vm, iterator, "next");
+        if (method == null || method == Undefined.value) {
+            vm.stack.pop();
+            vm.eax.write(Boolean.FALSE);
+            return;
+        }
+        Object result = OpUtils.callValue(vm, method, iterator, new Object[0]);
+        if (result instanceof NgsObject) {
+            Object done = ((NgsObject) result).get("done");
+            if (OpUtils.testValue(done)) {
+                vm.stack.pop();
+                vm.eax.write(Boolean.FALSE);
+                return;
+            }
+            vm.eax.write(((NgsObject) result).get("value"));
+            return;
+        }
+        vm.stack.pop();
+        vm.eax.write(Boolean.FALSE);
+    }
+
+    /**
+     * A code-point iterator for strings (ES iterates strings by Unicode code
+     * point, combining surrogate pairs).
+     */
+    public static class CodePointIterator implements java.util.Iterator<Object> {
+
+        private final String s;
+        private int index;
+
+        public CodePointIterator(String s) {
+            this.s = s;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return index < s.length();
+        }
+
+        @Override
+        public Object next() {
+            int cp = s.codePointAt(index);
+            index += Character.charCount(cp);
+            return new String(Character.toChars(cp));
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
      * Advances a for-in loop: yields the next key in eax, or a falsy value
      * (0) when the iteration is done (and pops the iteration state).
      */
@@ -259,6 +356,10 @@ public class OpObject {
         }
         if (obj instanceof ScriptFunction) {
             vm.eax.write("function");
+            return;
+        }
+        if (obj instanceof org.ngscript.value.SymbolValue) {
+            vm.eax.write("symbol");
             return;
         }
         if (obj instanceof Invokable) {

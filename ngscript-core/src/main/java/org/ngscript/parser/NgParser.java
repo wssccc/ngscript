@@ -43,6 +43,7 @@ import org.ngscript.ast.DoWhileStmt;
 import org.ngscript.ast.Expr;
 import org.ngscript.ast.ExprStmt;
 import org.ngscript.ast.ForInStmt;
+import org.ngscript.ast.ForOfStmt;
 import org.ngscript.ast.ForStmt;
 import org.ngscript.ast.FunctionDecl;
 import org.ngscript.ast.GoStmt;
@@ -708,6 +709,21 @@ public class NgParser {
         }
     }
 
+    /**
+     * Parses the rest of a for-of loop: the iterable expression, the closing
+     * paren and the body. The {@code of} keyword has been consumed.
+     */
+    private Stmt parseForOf(Expr target, Token forTok) throws ParserException {
+        Expr object = parseExpr();
+        expect("rparen");
+        ++loopDepth;
+        try {
+            return new ForOfStmt(target, object, parseStatementOrBlock(), forTok.line);
+        } finally {
+            --loopDepth;
+        }
+    }
+
     private Stmt parseIf() throws ParserException {
         Token t = next();
         expect("lparen");
@@ -746,8 +762,10 @@ public class NgParser {
             }
             if (second != null && second.type.equals("ident") && third != null
                     && third.type.equals("ident") && third.value.equals("of")) {
-                throw new ParserException("for-of loops are not supported yet",
-                        new org.ngscript.api.Source(null, t.line));
+                next();
+                next();
+                next();
+                return parseForOf(new VarDeclExpr(second.value, false, second.line), t);
             }
         } else if (first != null && first.type.equals("ident")) {
             Token second = peekN(2);
@@ -765,8 +783,9 @@ public class NgParser {
                 }
             }
             if (second != null && second.type.equals("ident") && second.value.equals("of")) {
-                throw new ParserException("for-of loops are not supported yet",
-                        new org.ngscript.api.Source(null, t.line));
+                next();
+                next();
+                return parseForOf(new IdentExpr(first.value, first.line), t);
             }
             // let as a declaration in for: for (let x in obj) / for (let i = 0;;)
             if (first.value.equals("let") && second != null && second.type.equals("ident")) {
@@ -788,8 +807,12 @@ public class NgParser {
                     }
                 }
                 if (third != null && third.type.equals("ident") && third.value.equals("of")) {
-                    throw new ParserException("for-of loops are not supported yet",
-                            new org.ngscript.api.Source(null, t.line));
+                    next();
+                    next();
+                    next();
+                    return parseForOf(new LetDeclExpr(
+                            Collections.singletonList(second.value),
+                            Collections.singletonList(null), false, second.line), t);
                 }
                 // C-style for with a let init: for (let i = 0; test; step)
                 LetDeclExpr init = parseLexicalDeclTail(false, next());
@@ -826,8 +849,12 @@ public class NgParser {
             }
             if (second != null && second.type.equals("ident") && third != null
                     && third.type.equals("ident") && third.value.equals("of")) {
-                throw new ParserException("for-of loops are not supported yet",
-                        new org.ngscript.api.Source(null, t.line));
+                next();
+                next();
+                next();
+                return parseForOf(new LetDeclExpr(
+                        Collections.singletonList(second.value),
+                        Collections.singletonList(null), true, second.line), t);
             }
             // C-style for with a const init: for (const i = 0; test; step)
             LetDeclExpr init = parseLexicalDeclTail(true, next());
