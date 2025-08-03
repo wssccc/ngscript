@@ -54,6 +54,9 @@ public class CompiledScript implements Script {
         try {
             machine.installInstructions(boundInstructions);
             machine.env.write(new NgsObject(machine.getInitialEnvironment()));
+            // the script root scope is a function scope: top-level var
+            // declarations bind here rather than to the builtins baseline
+            ((NgsObject) machine.env.read()).functionScope = true;
             machine.resetForExecution();
             machine.run();
             return machine.eax.read();

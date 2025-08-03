@@ -60,7 +60,10 @@ public abstract class OpTestBase {
             list.add(i);
         }
         vm.installInstructions(vm.bindInstructions(list));
-        vm.env.write(new NgsObject(vm.getInitialEnvironment()));
+        NgsObject frame = new NgsObject(vm.getInitialEnvironment());
+        // script/function frames are function scopes for var declarations
+        frame.functionScope = true;
+        vm.env.write(frame);
         vm.resetForExecution();
         if (preRun != null) {
             preRun.run();

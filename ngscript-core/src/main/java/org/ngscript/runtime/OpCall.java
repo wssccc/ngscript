@@ -77,6 +77,7 @@ public class OpCall {
             c.savedThis = vm.thisRef.read();
             //prepare env
             NgsObject env = new NgsObject((NgsObject) c.environment);
+            env.functionScope = true;
             vm.env.write(env);
             //bind this: a method receiver, the constructor frame for "new"
             //(the frame is the instance, per the new_op invariant), else undefined

@@ -50,6 +50,7 @@ import org.ngscript.ast.IndexExpr;
 import org.ngscript.ast.Kvp;
 import org.ngscript.ast.LabeledStmt;
 import org.ngscript.ast.LambdaExpr;
+import org.ngscript.ast.LetDeclExpr;
 import org.ngscript.ast.LiteralExpr;
 import org.ngscript.ast.MemberExpr;
 import org.ngscript.ast.NewExpr;
@@ -105,6 +106,87 @@ public class Compiler {
      */
     boolean inHookedBlock;
 
+    /**
+     * The number of block frames (let/const scopes) open at the current
+     * compilation point; jumps must pop any frames above the target's depth.
+     */
+    private int blockDepth;
+
+    /**
+     * The block depth at which each label was emitted, used to pop block
+     * frames when jumping out of a lexical scope.
+     */
+    private final Map<String, Integer> labelDepths = new HashMap<>();
+
+    /** Emits a label op, recording the current block depth for jump fixups. */
+    private void emitLabel(String name) {
+        labelDepths.put(name, blockDepth);
+        assembler.emit("label", name);
+    }
+
+    /** Emits a jmp, first popping any block frames above the target depth. */
+    private void emitJump(String name) {
+        Integer targetDepth = labelDepths.get(name);
+        while (targetDepth != null && blockDepth > targetDepth) {
+            assembler.emit("leave_block");
+            --blockDepth;
+        }
+        assembler.emit("jmp", name);
+    }
+
+    /** Pushes a block scope frame onto the environment chain. */
+    private void enterBlock() {
+        assembler.emit("enter_block");
+        ++blockDepth;
+    }
+
+    /** Pops the active block scope frame off the environment chain. */
+    private void leaveBlock() {
+        assembler.emit("leave_block");
+        --blockDepth;
+    }
+
+    /**
+     * Assigns the current eax value to an existing (or implicitly declared)
+     * name through the normal assignment path: the reference is pushed, the
+     * value restored to eax, then assign runs (TDZ/const checks apply). The
+     * saved value is popped afterwards to keep the stack balanced.
+     */
+    private void emitAssignToName(String name) {
+        assembler.emit("push_eax");
+        assembler.emit("mov_eax", name);
+        assembler.emit("push_eax");
+        assembler.emit("peek", "1");
+        assembler.emit("assign");
+        assembler.emit("pop");
+    }
+
+    private void compileLetDecl(LetDeclExpr decl) throws CompilerException {
+        for (int i = 0; i < decl.names.size(); i++) {
+            assembler.emit("decl_let", decl.names.get(i), decl.isConst ? "1" : "0");
+            if (decl.inits.get(i) != null) {
+                assembler.emit("mov_eax", decl.names.get(i));
+                assembler.emit("push_eax");
+                compileExpr(decl.inits.get(i));
+                assembler.emit("assign");
+            } else {
+                // let x; initializes the binding to undefined
+                assembler.emit("undefined");
+                emitAssignToName(decl.names.get(i));
+            }
+        }
+    }
+
+    /** Whether a block directly contains let/const declarations. */
+    private boolean blockHasLexical(Block block) {
+        for (Stmt stmt : block.statements) {
+            if (stmt instanceof ExprStmt && ((ExprStmt) stmt).expr instanceof LetDeclExpr) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public Compiler(Configuration configuration) {
         this.configuration = configuration;
     }
@@ -148,8 +230,15 @@ public class Compiler {
     }
 
     private void compileBlock(Block block) throws CompilerException {
+        boolean scoped = blockHasLexical(block);
+        if (scoped) {
+            enterBlock();
+        }
         for (Stmt stmt : block.statements) {
             compileStmt(stmt);
+        }
+        if (scoped) {
+            leaveBlock();
         }
     }
 
@@ -210,18 +299,28 @@ public class Compiler {
     private String _compile_function_body(Params params, Block body) throws CompilerException {
         String exit = assembler.label("func_exit", body);
         String enter = assembler.label("func_enter", body);
-        assembler.emit("jmp", exit);
-        assembler.emit("label", enter);
+        emitJump(exit);
+        emitLabel(enter);
 
-        for (int i = 0; i < params.names.size(); i++) {
-            assembler.emit("pickarg", i + "");
-            assembler.emit("set", params.names.get(i), "%eax");
+        // nested functions/arrows have their own block-depth bookkeeping
+        int savedBlockDepth = blockDepth;
+        blockDepth = 0;
+        try {
+            for (int i = 0; i < params.names.size(); i++) {
+                assembler.emit("pickarg", i + "");
+                assembler.emit("set", params.names.get(i), "%eax");
+            }
+            compileBlock(body);
+            //default return void (pop any open block frames first)
+            while (blockDepth > 0) {
+                leaveBlock();
+            }
+            assembler.emit("clear", "%eax");
+            assembler.emit("ret");
+        } finally {
+            blockDepth = savedBlockDepth;
         }
-        compileBlock(body);
-        //default return void
-        assembler.emit("clear", "%eax");
-        assembler.emit("ret");
-        assembler.emit("label", exit);
+        emitLabel(exit);
         return enter;
     }
 
@@ -256,6 +355,10 @@ public class Compiler {
             } else {
                 assembler.emit("mov_eax", decl.name);
             }
+        } else if (expr instanceof LetDeclExpr) {
+            // a let/const declaration used in statement or for-init position
+            compileLetDecl((LetDeclExpr) expr);
+            assembler.emit("undefined");
         } else if (expr instanceof AssignExpr) {
             AssignExpr assign = (AssignExpr) expr;
             if (!assign.op.equals("assign")) {
@@ -285,10 +388,10 @@ public class Compiler {
             compileExpr(cond.condition);
             assembler.emit("jz", falseLabel);
             compileExpr(cond.thenExpr);
-            assembler.emit("jmp", exitLabel);
-            assembler.emit("label", falseLabel);
+            emitJump(exitLabel);
+            emitLabel(falseLabel);
             compileExpr(cond.elseExpr);
-            assembler.emit("label", exitLabel);
+            emitLabel(exitLabel);
         } else if (expr instanceof MemberExpr) {
             MemberExpr member = (MemberExpr) expr;
             compileExpr(member.object);
@@ -410,7 +513,7 @@ public class Compiler {
                 assembler.emit("jnn", exit);
             }
             compileExpr(assign.value);
-            assembler.emit("label", exit);
+            emitLabel(exit);
             assembler.emit("assign");
             return;
         }
@@ -508,7 +611,7 @@ public class Compiler {
             compileExpr(bin.left);
             assembler.emit("jnz", exit);
             compileExpr(bin.right);
-            assembler.emit("label", exit);
+            emitLabel(exit);
             return;
         }
         if (bin.op == BinaryExpr.Op.AND) {
@@ -516,7 +619,7 @@ public class Compiler {
             compileExpr(bin.left);
             assembler.emit("jz", exit);
             compileExpr(bin.right);
-            assembler.emit("label", exit);
+            emitLabel(exit);
             return;
         }
         compileExpr(bin.left);
@@ -546,17 +649,17 @@ public class Compiler {
             compileExpr(ifStmt.condition);
             assembler.emit("jz", exitLabel);
             compileStmt(ifStmt.thenBody);
-            assembler.emit("label", exitLabel);
+            emitLabel(exitLabel);
         } else {
             String exitLabel = assembler.label("exit", ifStmt);
             String elseLabel = assembler.label("else", ifStmt);
             compileExpr(ifStmt.condition);
             assembler.emit("jz", elseLabel);
             compileStmt(ifStmt.thenBody);
-            assembler.emit("jmp", exitLabel);
-            assembler.emit("label", elseLabel);
+            emitJump(exitLabel);
+            emitLabel(elseLabel);
             compileStmt(ifStmt.elseBody);
-            assembler.emit("label", exitLabel);
+            emitLabel(exitLabel);
         }
     }
 
@@ -567,7 +670,7 @@ public class Compiler {
         currentLabel = labeled.name;
         compileStmt(labeled.statement);
         currentLabel = savedLabel;
-        assembler.emit("label", exit);
+        emitLabel(exit);
         breakLabelTargets.remove(labeled.name);
     }
 
@@ -575,20 +678,33 @@ public class Compiler {
         String testLabel = assembler.label("test", forStmt);
         String continueLabel = assembler.label("continue", forStmt);
         String breakLabel = assembler.label("break", forStmt);
+        String afterLabel = null;
+        boolean letInit = forStmt.init instanceof LetDeclExpr;
+        if (letInit) {
+            // the init declaration lives in a block frame wrapping the whole
+            // loop; the frame is popped after the break label so breaks and
+            // normal exits both leave it
+            afterLabel = assembler.label("after", forStmt);
+            enterBlock();
+        }
         if (currentLabel != null && !continueLabelTargets.containsKey(currentLabel)) {
             continueLabelTargets.put(currentLabel, continueLabel);
         }
         breakLabels.push(breakLabel);
         continueLabels.push(continueLabel);
         _compile_nullable_expr(forStmt.init);
-        assembler.emit("label", testLabel);
+        emitLabel(testLabel);
         _compile_nullable_expr(forStmt.test);
         assembler.emit("jz", breakLabel);
         compileStmt(forStmt.body);
-        assembler.emit("label", continueLabel);
+        emitLabel(continueLabel);
         _compile_nullable_expr(forStmt.step);
-        assembler.emit("jmp", testLabel);
-        assembler.emit("label", breakLabel);
+        emitJump(testLabel);
+        emitLabel(breakLabel);
+        if (letInit) {
+            leaveBlock();
+            emitLabel(afterLabel);
+        }
         breakLabels.pop();
         continueLabels.pop();
     }
@@ -602,12 +718,12 @@ public class Compiler {
         }
         breakLabels.push(breakLabel);
         continueLabels.push(continueLabel);
-        assembler.emit("label", testLabel);
+        emitLabel(testLabel);
         compileStmt(stmt.body);
-        assembler.emit("label", continueLabel);
+        emitLabel(continueLabel);
         compileExpr(stmt.condition);
         assembler.emit("jnz", testLabel);
-        assembler.emit("label", breakLabel);
+        emitLabel(breakLabel);
         breakLabels.pop();
         continueLabels.pop();
     }
@@ -616,6 +732,12 @@ public class Compiler {
         String testLabel = assembler.label("test", stmt);
         String continueLabel = assembler.label("continue", stmt);
         String breakLabel = assembler.label("break", stmt);
+        String afterLabel = null;
+        boolean letTarget = stmt.target instanceof LetDeclExpr;
+        if (letTarget) {
+            afterLabel = assembler.label("after", stmt);
+            enterBlock();
+        }
         if (currentLabel != null && !continueLabelTargets.containsKey(currentLabel)) {
             continueLabelTargets.put(currentLabel, continueLabel);
         }
@@ -623,20 +745,29 @@ public class Compiler {
         continueLabels.push(continueLabel);
         compileExpr(stmt.object);
         assembler.emit("forin_init");
-        assembler.emit("label", testLabel);
+        emitLabel(testLabel);
         assembler.emit("forin_next");
         assembler.emit("jz", breakLabel);
-        if (stmt.target instanceof VarDeclExpr) {
+        if (letTarget) {
+            // for (let x in obj): a fresh TDZ binding per scope, assigned the key
+            LetDeclExpr decl = (LetDeclExpr) stmt.target;
+            assembler.emit("decl_let", decl.names.get(0), decl.isConst ? "1" : "0");
+            emitAssignToName(decl.names.get(0));
+        } else if (stmt.target instanceof VarDeclExpr) {
             assembler.emit("set", ((VarDeclExpr) stmt.target).name);
         } else if (stmt.target instanceof IdentExpr) {
-            assembler.emit("set", ((IdentExpr) stmt.target).name);
+            emitAssignToName(((IdentExpr) stmt.target).name);
         } else {
             throw compileError("unsupported for-in target " + stmt.target);
         }
         compileStmt(stmt.body);
-        assembler.emit("label", continueLabel);
-        assembler.emit("jmp", testLabel);
-        assembler.emit("label", breakLabel);
+        emitLabel(continueLabel);
+        emitJump(testLabel);
+        emitLabel(breakLabel);
+        if (letTarget) {
+            leaveBlock();
+            emitLabel(afterLabel);
+        }
         breakLabels.pop();
         continueLabels.pop();
     }
@@ -650,13 +781,13 @@ public class Compiler {
         }
         breakLabels.push(breakLabel);
         continueLabels.push(continueLabel);
-        assembler.emit("label", testLabel);
+        emitLabel(testLabel);
         compileExpr(whileStmt.condition);
         assembler.emit("jz", breakLabel);
         compileStmt(whileStmt.body);
-        assembler.emit("label", continueLabel);
-        assembler.emit("jmp", testLabel);
-        assembler.emit("label", breakLabel);
+        emitLabel(continueLabel);
+        emitJump(testLabel);
+        emitLabel(breakLabel);
         breakLabels.pop();
         continueLabels.pop();
     }
@@ -673,14 +804,14 @@ public class Compiler {
             assembler.emit("eq");
             assembler.emit("jz", nextLabel);
             compileBlock(c.body);
-            assembler.emit("jmp", breakLabel);
-            assembler.emit("label", nextLabel);
+            emitJump(breakLabel);
+            emitLabel(nextLabel);
         }
         if (switchStmt.defaultBody != null) {
             compileBlock(switchStmt.defaultBody);
         }
         breakLabels.pop();
-        assembler.emit("label", breakLabel);
+        emitLabel(breakLabel);
     }
 
     private void compileTry(TryStmt tryStmt) throws CompilerException {
@@ -696,12 +827,17 @@ public class Compiler {
         compileBlock(tryStmt.tryBody);
         assembler.emit("drop_machine_state");
         assembler.emit("push_eip");
-        assembler.emit("jmp", finallyLabel);
-        assembler.emit("jmp", exitLabel);
-        assembler.emit("label", catchLabel);
+        emitJump(finallyLabel);
+        emitJump(exitLabel);
+        emitLabel(catchLabel);
         assembler.emit("mov_eax_exception");
-        if (tryStmt.catchVar != null) {
-            assembler.emit("set", tryStmt.catchVar);
+        boolean catchScoped = tryStmt.catchVar != null;
+        if (catchScoped) {
+            // the catch binding is block scoped: a dedicated frame with a
+            // let binding (ES catch (e) creates a new lexical scope)
+            enterBlock();
+            assembler.emit("decl_let", tryStmt.catchVar, "0");
+            emitAssignToName(tryStmt.catchVar);
         }
         assembler.emit("clear_null", "%exception");
         String rethrowLabel = null;
@@ -712,18 +848,21 @@ public class Compiler {
             assembler.emit("push_eax");
             rethrowLabel = assembler.label("rethrow", tryStmt);
         }
+        if (catchScoped) {
+            leaveBlock();
+        }
         assembler.emit("push_eip");
-        assembler.emit("jmp", finallyLabel);
+        emitJump(finallyLabel);
         if (rethrowLabel != null) {
             // the finally return lands here (return address + 1): rethrow
-            assembler.emit("jmp", rethrowLabel);
-            assembler.emit("label", rethrowLabel);
+            emitJump(rethrowLabel);
+            emitLabel(rethrowLabel);
             assembler.emit("pop_eax");
             assembler.emit("mov_exception_eax");
             assembler.emit("restore_machine_state");
         }
-        assembler.emit("jmp", exitLabel);
-        assembler.emit("label", finallyLabel);
+        emitJump(exitLabel);
+        emitLabel(finallyLabel);
         inHookedBlock = savedHooked;
         if (tryStmt.finallyBody != null) {
             compileBlock(tryStmt.finallyBody);
@@ -731,7 +870,7 @@ public class Compiler {
         assembler.emit("clear_call_stack");
         assembler.emit("pop_eax");
         assembler.emit("jmp", "offset", "1");
-        assembler.emit("label", exitLabel);
+        emitLabel(exitLabel);
         finallyLabels.pop();
     }
 
@@ -744,6 +883,10 @@ public class Compiler {
     private void compileReturn(ReturnStmt stmt) throws CompilerException {
         if (inHookedBlock) {
             _compile_call_finally();
+        }
+        // returning pops any block frames the body may have opened
+        while (blockDepth > 0) {
+            leaveBlock();
         }
         if (stmt.expr != null) {
             compileExpr(stmt.expr);
@@ -770,7 +913,7 @@ public class Compiler {
         if (inHookedBlock) {
             _compile_call_finally();
         }
-        assembler.emit("jmp", target);
+        emitJump(target);
     }
 
     private void compileContinue(ContinueStmt stmt) throws CompilerException {
@@ -789,26 +932,26 @@ public class Compiler {
         if (inHookedBlock) {
             _compile_call_finally();
         }
-        assembler.emit("jmp", target);
+        emitJump(target);
     }
 
     private void _compile_call_finally() {
         assembler.emit("push_eip");
-        assembler.emit("jmp", finallyLabels.peek());
+        emitJump(finallyLabels.peek());
     }
 
     private void compileGo(GoStmt goStmt) throws CompilerException {
         String entryLabel = assembler.label("entry", goStmt);
         String goLabel = assembler.label("go", goStmt);
-        assembler.emit("jmp", goLabel);
-        assembler.emit("label", entryLabel);
+        emitJump(goLabel);
+        emitLabel(entryLabel);
         _compile_funcall(goStmt.callee, goStmt.args);
         assembler.emit("pop_env");
         assembler.emit("pop");//pop params
         assembler.emit("pop");//pop function body
         assembler.emit("pop");//pop receiver
         assembler.emit("halt");
-        assembler.emit("label", goLabel);
+        emitLabel(goLabel);
         assembler.emit("go", entryLabel);
     }
 

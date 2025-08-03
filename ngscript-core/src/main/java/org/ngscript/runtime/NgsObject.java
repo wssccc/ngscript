@@ -55,6 +55,13 @@ public class NgsObject implements Scope {
      */
     private ScriptFunction constructor;
 
+    /**
+     * Whether this frame is a function scope: {@code var} declarations and
+     * parameters bind to the nearest enclosing frame with this flag set
+     * (block frames introduced by let/const carry no flag).
+     */
+    public boolean functionScope;
+
     public NgsObject(NgsObject parent) {
         this.parent = parent;
     }
@@ -111,7 +118,9 @@ public class NgsObject implements Scope {
     /**
      * Looks up a member: registers, own data, the parent chain, then Java
      * class fallbacks. With {@code isMember=true} an unset member is created
-     * as an undefined reference.
+     * as an undefined reference on this object; variable lookups create the
+     * binding in the root (global) frame instead (sloppy-mode implicit
+     * globals).
      */
     public MemRef lookup(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {
         //registers
@@ -135,10 +144,48 @@ public class NgsObject implements Scope {
                         // behavior: reading a member creates the reference)
                         ref = new MemRef(Undefined.value);
                     }
-                    data.put(member, ref);
+                    if (isMember) {
+                        data.put(member, ref);
+                    } else {
+                        rootFrame().data.put(member, ref);
+                    }
                     return ref;
                 }
         }
+    }
+
+    /**
+     * The outermost frame of the environment chain (the implicit global).
+     */
+    public NgsObject rootFrame() {
+        NgsObject p = this;
+        while (p.parent != null) {
+            p = p.parent;
+        }
+        return p;
+    }
+
+    /**
+     * Binds a {@code var} declaration (or a parameter): the binding goes to
+     * the nearest enclosing function scope, skipping any block frames.
+     */
+    public void setVar(String name, Object value) {
+        NgsObject f = this;
+        while (f != null && !f.functionScope) {
+            f = f.parent;
+        }
+        if (f == null) {
+            f = this;
+        }
+        f.data.put(name, new MemRef(value));
+    }
+
+    /**
+     * Stores a raw binding reference (used by let/const declarations, which
+     * install {@link org.ngscript.value.LetBinding} references).
+     */
+    public void putRef(String name, MemRef ref) {
+        data.put(name, ref);
     }
 
     private MemRef lookupEnv(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {

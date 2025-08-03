@@ -16,6 +16,7 @@
 
 package org.ngscript.runtime;
 
+import org.ngscript.value.LetBinding;
 import org.ngscript.value.MemRef;
 
 /**
@@ -25,8 +26,33 @@ import org.ngscript.value.MemRef;
  */
 public class OpScope {
 
+    /**
+     * Binds a {@code var} declaration: the binding goes to the nearest
+     * enclosing function scope, not to any block frame.
+     */
     public static void set(Machine vm, String param, String param_extend) {
-        ((NgsObject) vm.env.read()).set(param, vm.eax.read());
+        ((NgsObject) vm.env.read()).setVar(param, vm.eax.read());
+    }
+
+    /**
+     * Installs a let/const binding in the active (block) frame as an
+     * uninitialized TDZ reference; the initializer (or undefined) must be
+     * assigned through the normal assignment path afterwards.
+     */
+    public static void decl_let(Machine vm, String param, String param_extend) {
+        boolean isConst = "1".equals(param_extend);
+        ((NgsObject) vm.env.read()).putRef(param, new LetBinding(param, isConst));
+    }
+
+    /** Pushes a fresh block scope onto the environment chain. */
+    public static void enter_block(Machine vm, String param, String param_extend) {
+        NgsObject current = (NgsObject) vm.env.read();
+        vm.env.write(new NgsObject(current));
+    }
+
+    /** Pops the active block scope off the environment chain. */
+    public static void leave_block(Machine vm, String param, String param_extend) {
+        vm.env.write(((NgsObject) vm.env.read()).getParent());
     }
 
     public static void val(Machine vm, String param, String param_extend) {

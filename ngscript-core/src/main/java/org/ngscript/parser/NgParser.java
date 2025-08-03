@@ -53,6 +53,7 @@ import org.ngscript.ast.IndexExpr;
 import org.ngscript.ast.Kvp;
 import org.ngscript.ast.LabeledStmt;
 import org.ngscript.ast.LambdaExpr;
+import org.ngscript.ast.LetDeclExpr;
 import org.ngscript.ast.LiteralExpr;
 import org.ngscript.ast.MemberExpr;
 import org.ngscript.ast.NewExpr;
@@ -504,6 +505,8 @@ public class NgParser {
                 return null;
             case "try":
                 return parseTry();
+            case "const":
+                return parseLexicalDecl(true);
             case "lcurly":
                 // a bare block used as a statement
                 next();
@@ -577,6 +580,18 @@ public class NgParser {
             case "go":
                 return parseGo();
             default:
+                // let as a declaration keyword is contextual: "let x" declares,
+                // "let = 1" / "let.x" / "let()" treat it as a plain identifier
+                if (t.type.equals("ident") && t.value.equals("let")) {
+                    Token second = peekN(2);
+                    if (second != null && second.type.equals("ident")) {
+                        return parseLexicalDecl(false);
+                    }
+                    if (second != null && (second.type.equals("lsqr") || second.type.equals("lcurly"))) {
+                        throw new ParserException("destructuring declarations are not supported yet",
+                                new org.ngscript.api.Source(null, t.line));
+                    }
+                }
                 // a label statement: ident followed by a colon
                 if (t.type.equals("ident")) {
                     Token second = peekN(2);
@@ -594,6 +609,45 @@ public class NgParser {
                 }
                 return parseExprStmt();
         }
+    }
+
+    /**
+     * Parses a let/const declaration statement; the leading keyword token
+     * must still be current.
+     */
+    private Stmt parseLexicalDecl(boolean isConst) throws ParserException {
+        LetDeclExpr decl = parseLexicalDeclTail(isConst, next());
+        consumeSemicolon();
+        return new ExprStmt(decl, decl.line);
+    }
+
+    /**
+     * Parses the declarator list of a let/const declaration after the leading
+     * keyword token has been consumed ({@code kw} is that token, used for the
+     * line number).
+     */
+    private LetDeclExpr parseLexicalDeclTail(boolean isConst, Token kw) throws ParserException {
+        List<String> names = new ArrayList<>();
+        List<Expr> inits = new ArrayList<>();
+        while (true) {
+            Token name = expect("ident");
+            names.add(name.value);
+            if (peekIs("assign")) {
+                next();
+                inits.add(parseAssignment());
+            } else {
+                inits.add(null);
+                if (isConst) {
+                    throw new ParserException("Missing initializer in const declaration",
+                            new org.ngscript.api.Source(null, name.line));
+                }
+            }
+            if (!peekIs("comma")) {
+                break;
+            }
+            next();
+        }
+        return new LetDeclExpr(names, inits, isConst, kw.line);
     }
 
     /**
@@ -688,6 +742,11 @@ public class NgParser {
                     --loopDepth;
                 }
             }
+            if (second != null && second.type.equals("ident") && third != null
+                    && third.type.equals("ident") && third.value.equals("of")) {
+                throw new ParserException("for-of loops are not supported yet",
+                        new org.ngscript.api.Source(null, t.line));
+            }
         } else if (first != null && first.type.equals("ident")) {
             Token second = peekN(2);
             if (second != null && second.type.equals("in")) {
@@ -702,6 +761,84 @@ public class NgParser {
                 } finally {
                     --loopDepth;
                 }
+            }
+            if (second != null && second.type.equals("ident") && second.value.equals("of")) {
+                throw new ParserException("for-of loops are not supported yet",
+                        new org.ngscript.api.Source(null, t.line));
+            }
+            // let as a declaration in for: for (let x in obj) / for (let i = 0;;)
+            if (first.value.equals("let") && second != null && second.type.equals("ident")) {
+                Token third = peekN(3);
+                if (third != null && third.type.equals("in")) {
+                    next();
+                    next();
+                    next();
+                    Expr object = parseExpr();
+                    expect("rparen");
+                    ++loopDepth;
+                    try {
+                        return new ForInStmt(new LetDeclExpr(
+                                Collections.singletonList(second.value),
+                                Collections.singletonList(null), false, second.line), object,
+                                parseStatementOrBlock(), t.line);
+                    } finally {
+                        --loopDepth;
+                    }
+                }
+                if (third != null && third.type.equals("ident") && third.value.equals("of")) {
+                    throw new ParserException("for-of loops are not supported yet",
+                            new org.ngscript.api.Source(null, t.line));
+                }
+                // C-style for with a let init: for (let i = 0; test; step)
+                LetDeclExpr init = parseLexicalDeclTail(false, next());
+                expect("semicolon");
+                Expr test = parseNullableExpr();
+                expect("semicolon");
+                Expr step = parseNullableExpr();
+                expect("rparen");
+                ++loopDepth;
+                try {
+                    return new ForStmt(init, test, step, parseStatementOrBlock(), t.line);
+                } finally {
+                    --loopDepth;
+                }
+            }
+        } else if (first != null && first.type.equals("const")) {
+            Token second = peekN(2);
+            Token third = peekN(3);
+            if (second != null && second.type.equals("ident") && third != null && third.type.equals("in")) {
+                next();
+                next();
+                next();
+                Expr object = parseExpr();
+                expect("rparen");
+                ++loopDepth;
+                try {
+                    return new ForInStmt(new LetDeclExpr(
+                            Collections.singletonList(second.value),
+                            Collections.singletonList(null), true, second.line), object,
+                            parseStatementOrBlock(), t.line);
+                } finally {
+                    --loopDepth;
+                }
+            }
+            if (second != null && second.type.equals("ident") && third != null
+                    && third.type.equals("ident") && third.value.equals("of")) {
+                throw new ParserException("for-of loops are not supported yet",
+                        new org.ngscript.api.Source(null, t.line));
+            }
+            // C-style for with a const init: for (const i = 0; test; step)
+            LetDeclExpr init = parseLexicalDeclTail(true, next());
+            expect("semicolon");
+            Expr test = parseNullableExpr();
+            expect("semicolon");
+            Expr step = parseNullableExpr();
+            expect("rparen");
+            ++loopDepth;
+            try {
+                return new ForStmt(init, test, step, parseStatementOrBlock(), t.line);
+            } finally {
+                --loopDepth;
             }
         }
         // C-style for

@@ -102,6 +102,7 @@ public class Machine {
         this.arrayPrototype = org.ngscript.builtins.Builtins.getArrayPrototype();
         this.objectPrototype = org.ngscript.builtins.Builtins.getObjectPrototype();
         env.write(new NgsObject(null));
+        ((NgsObject) env.read()).functionScope = true;
         ((NgsObject) env.read()).registerBuiltins(out);
         initialEnv = (NgsObject) env.read();
     }
@@ -259,6 +260,7 @@ public class Machine {
             ScriptFunction c = (ScriptFunction) callee;
             callstack.push(c);
             NgsObject frame = new NgsObject((NgsObject) c.environment);
+            frame.functionScope = true;
             env.write(frame);
             // arrows keep their lexical this; ordinary functions bind the receiver
             thisRef.write(c.arrow

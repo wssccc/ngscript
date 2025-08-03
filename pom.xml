@@ -26,6 +26,7 @@
         <slf4j.version>2.0.9</slf4j.version>
         <commons-io.version>2.15.1</commons-io.version>
         <commons-lang3.version>3.14.0</commons-lang3.version>
+        <commons-codec.version>1.16.0</commons-codec.version>
         <javassist.version>3.29.2-GA</javassist.version>
         <jline.version>3.25.0</jline.version>
         <lombok.version>1.18.30</lombok.version>
