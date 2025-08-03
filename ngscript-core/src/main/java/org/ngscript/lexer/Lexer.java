@@ -17,9 +17,11 @@
 package org.ngscript.lexer;
 
 import java.math.BigInteger;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -168,8 +170,23 @@ public class Lexer {
                 return token("rparen", rparenLine);
             }
             case '{':
+                if (inTemplateSubstitution()) {
+                    // braces inside a template substitution nest one level
+                    templateDepths.push(templateDepths.pop() + 1);
+                }
                 return token("lcurly");
             case '}':
+                if (inTemplateSubstitution()) {
+                    int depth = templateDepths.pop();
+                    if (depth > 0) {
+                        templateDepths.push(depth - 1);
+                        return token("rcurly");
+                    }
+                    // the brace closes the substitution: resume scanning the
+                    // suspended template literal (whitespace after } is
+                    // literal template text, so no blanks are skipped)
+                    return scanTemplate(reader.lineNumber, false);
+                }
                 return token("rcurly");
             case '[':
                 return token("lsqr");
@@ -302,6 +319,9 @@ public class Lexer {
             case '"':
             case '\'':
                 return scanString(chr);
+            case '`':
+                // a template literal (or the text after a substitution's })
+                return scanTemplate(reader.lineNumber, true);
             case SourceReader.EOF:
                 return null;
             default:
@@ -661,6 +681,117 @@ public class Lexer {
 
     boolean isNumeric(char c) {
         return (c >= '0' && c <= '9');
+    }
+
+    /**
+     * A stack of brace depths for template substitutions. Each entry tracks
+     * the {@code {}} nesting of one ${...} substitution expression; the
+     * stack itself tracks nested template literals inside substitutions.
+     */
+    private final Deque<Integer> templateDepths = new ArrayDeque<>();
+
+    /**
+     * Whether the lexer is currently inside a template substitution
+     * expression (between ${ and the matching }).
+     */
+    private boolean inTemplateSubstitution() {
+        return !templateDepths.isEmpty();
+    }
+
+    /**
+     * Scans a template literal chunk, starting after the opening backtick or
+     * the closing brace of a substitution, until the next substitution or the
+     * closing backtick. The cooked text is in {@code value}, the raw text
+     * (with escapes unprocessed) in {@code raw}.
+     *
+     * <p>{@code first} distinguishes a chunk opening a new template
+     * ({@code template_start}/{@code template_start_end}) from a chunk
+     * resuming after a substitution ({@code template}/{@code template_end});
+     * a continuation chunk can never be the tag of another template.</p>
+     */
+    private Token scanTemplate(int line, boolean first) throws LexerException {
+        StringBuilder cooked = new StringBuilder();
+        StringBuilder raw = new StringBuilder();
+        while (true) {
+            char c = reader.read();
+            if (c == '\\') {
+                raw.append('\\');
+                char next = reader.read();
+                raw.append(next);
+                switch (next) {
+                    case 'n': cooked.append('\n'); break;
+                    case 'r': cooked.append('\r'); break;
+                    case 't': cooked.append('\t'); break;
+                    case 'b': cooked.append('\b'); break;
+                    case 'f': cooked.append('\f'); break;
+                    case 'v': cooked.append('\u000b'); break;
+                    case '0': cooked.append('\0'); break;
+                    case '`': cooked.append('`'); break;
+                    case '$': cooked.append('$'); break;
+                    case '\\': cooked.append('\\'); break;
+                    case 'x':
+                        cooked.append((char) readHexDigits(2, "hex escape"));
+                        break;
+                    case 'u':
+                        if (reader.peek() == '{') {
+                            // code point escape: backslash-u{1F600}
+                            reader.forward();
+                            int value = 0;
+                            int digits = 0;
+                            while (true) {
+                                int d = Character.digit(reader.peek(), 16);
+                                if (d < 0) {
+                                    break;
+                                }
+                                value = value * 16 + d;
+                                reader.forward();
+                                ++digits;
+                            }
+                            if (digits == 0 || reader.peek() != '}' || value > 0x10FFFF) {
+                                throw new LexerException("invalid unicode code point escape");
+                            }
+                            reader.forward();
+                            if (value > 0xFFFF) {
+                                // encode as a surrogate pair
+                                value -= 0x10000;
+                                cooked.append((char) (0xD800 + (value >> 10)));
+                                cooked.append((char) (0xDC00 + (value & 0x3FF)));
+                            } else {
+                                cooked.append((char) value);
+                            }
+                        } else {
+                            cooked.append((char) readHexDigits(4, "unicode escape"));
+                        }
+                        break;
+                    case SourceReader.EOF:
+                        throw new LexerException("unclosed template literal");
+                    default:
+                        if (next == '\n' || next == '\r' || next == '\u2028' || next == '\u2029') {
+                            // LineContinuation: the backslash and the line terminator vanish
+                            break;
+                        }
+                        // a backslash before any other character (NonEscapeCharacter)
+                        // keeps the character, e.g. \A == "A"
+                        cooked.append(next);
+                        break;
+                }
+            } else if (c == '$' && reader.peek() == '{') {
+                // a substitution begins; the expression is tokenized normally
+                // until the matching close brace
+                reader.forward();
+                templateDepths.push(0);
+                String type = first ? "template_start" : "template";
+                return new Token(type, line, cooked.toString(), raw.toString());
+            } else if (c == '`') {
+                String type = first ? "template_start_end" : "template_end";
+                return new Token(type, line, cooked.toString(), raw.toString());
+            } else if (c == SourceReader.EOF) {
+                throw new LexerException("unclosed template literal");
+            } else {
+                cooked.append(c);
+                raw.append(c);
+            }
+        }
     }
 
     Token determine(char next, String ifTrue, String ifFalse) {

@@ -65,6 +65,8 @@ import org.ngscript.ast.ReturnStmt;
 import org.ngscript.ast.Stmt;
 import org.ngscript.ast.SwitchCase;
 import org.ngscript.ast.SwitchStmt;
+import org.ngscript.ast.TaggedTemplateExpr;
+import org.ngscript.ast.TemplateExpr;
 import org.ngscript.ast.ThrowStmt;
 import org.ngscript.ast.TryStmt;
 import org.ngscript.ast.UnaryExpr;
@@ -1327,6 +1329,14 @@ public class NgParser {
                     expect("rparen");
                     expr = new CallExpr(expr, args, t.line);
                     break;
+                case "template_start":
+                case "template_start_end": {
+                    // a tagged template: tag`...` (start_end = no substitutions)
+                    next();
+                    TemplateExpr tpl = parseTemplateRest(t);
+                    expr = new TaggedTemplateExpr(expr, tpl, t.line);
+                    break;
+                }
                 case "lsqr": {
                     next();
                     Expr index = parseExpr();
@@ -1351,7 +1361,51 @@ public class NgParser {
         if (t.type.equals("lparen")) {
             return parseParenOrArrow(t);
         }
+        if (t.type.equals("template_start") || t.type.equals("template_start_end")) {
+            // an untagged template literal (template_start_end = no substitutions)
+            next();
+            return parseTemplateRest(t);
+        }
         return parseExpr9();
+    }
+
+    /**
+     * Parses the rest of a template literal after the first chunk token:
+     * substitution expressions interleaved with template chunk tokens.
+     */
+    private TemplateExpr parseTemplateRest(Token first) throws ParserException {
+        List<String> chunks = new ArrayList<>();
+        List<String> raws = new ArrayList<>();
+        List<Expr> exprs = new ArrayList<>();
+        chunks.add(first.value);
+        raws.add(first.raw);
+        if (first.type.equals("template_start_end")) {
+            // a template with no substitutions
+            return new TemplateExpr(chunks, raws, exprs, first.line);
+        }
+        while (true) {
+            Expr e = parseExpr();
+            exprs.add(e);
+            Token t = peek();
+            if (t == null) {
+                throw new ParserException("unexpected end of input in template literal");
+            }
+            if (t.type.equals("template_end")) {
+                next();
+                chunks.add(t.value);
+                raws.add(t.raw);
+                break;
+            }
+            if (t.type.equals("template")) {
+                next();
+                chunks.add(t.value);
+                raws.add(t.raw);
+                continue;
+            }
+            throw new ParserException("expecting template continuation but got " + t,
+                    new org.ngscript.api.Source(null, t.line));
+        }
+        return new TemplateExpr(chunks, raws, exprs, first.line);
     }
 
     private Expr parseNew(Token newTok) throws ParserException {

@@ -62,6 +62,8 @@ import org.ngscript.ast.ReturnStmt;
 import org.ngscript.ast.Stmt;
 import org.ngscript.ast.SwitchCase;
 import org.ngscript.ast.SwitchStmt;
+import org.ngscript.ast.TaggedTemplateExpr;
+import org.ngscript.ast.TemplateExpr;
 import org.ngscript.ast.ThrowStmt;
 import org.ngscript.ast.TryStmt;
 import org.ngscript.ast.UnaryExpr;
@@ -445,6 +447,21 @@ public class Compiler {
                 throw compileError("invalid regular expression literal " + re.value);
             }
             assembler.emit("regex_new", re.value.substring(1, lastSlash), re.value.substring(lastSlash + 1));
+        } else if (expr instanceof TemplateExpr) {
+            // chunks and substitution values interleaved on the stack;
+            // template_join concatenates with ES ToString coercion
+            TemplateExpr tpl = (TemplateExpr) expr;
+            assembler.emit("string", tpl.chunks.get(0));
+            assembler.emit("push_eax");
+            for (int i = 0; i < tpl.exprs.size(); i++) {
+                compileExpr(tpl.exprs.get(i));
+                assembler.emit("push_eax");
+                assembler.emit("string", tpl.chunks.get(i + 1));
+                assembler.emit("push_eax");
+            }
+            assembler.emit("template_join", tpl.exprs.size() * 2 + 1 + "");
+        } else if (expr instanceof TaggedTemplateExpr) {
+            compileTaggedTemplate((TaggedTemplateExpr) expr);
         } else if (expr instanceof LambdaExpr) {
             LambdaExpr lambda = (LambdaExpr) expr;
             Block body = lambda.body;
@@ -461,6 +478,66 @@ public class Compiler {
         } else {
             throw compileError("Unknown expression " + expr);
         }
+    }
+
+    /**
+     * Compiles {@code tag`...`}: the tag (with its base object as receiver
+     * for member tags) is called with the cooked chunks array (carrying the
+     * raw chunks as its {@code raw} property) followed by the substitution
+     * values (ES tagged template call convention).
+     */
+    private void compileTaggedTemplate(TaggedTemplateExpr t) throws CompilerException {
+        if (t.tag instanceof MemberExpr) {
+            MemberExpr member = (MemberExpr) t.tag;
+            compileExpr(member.object);
+            assembler.emit("push_eax");
+            // duplicate the receiver: one copy stays as the this binding,
+            // the other feeds member_ref
+            assembler.emit("peek", "0");
+            assembler.emit("push_eax");
+            assembler.emit("string", member.name);
+            assembler.emit("member_ref");
+            assembler.emit("deref", "%eax");
+            assembler.emit("push_eax");
+        } else {
+            assembler.emit("clear_null", "%eax");
+            assembler.emit("push_eax");
+            compileExpr(t.tag);
+            assembler.emit("push_eax");
+        }
+        // substitution values pushed in reverse so the cooked array (pushed
+        // last) becomes the first argument
+        for (int i = t.template.exprs.size() - 1; i >= 0; i--) {
+            compileExpr(t.template.exprs.get(i));
+            assembler.emit("push_eax");
+        }
+        // cooked chunks array with the raw chunks as its raw property
+        buildTemplateArray(t.template.chunks);
+        assembler.emit("push_eax");
+        assembler.emit("peek", "0");
+        assembler.emit("push_eax");
+        assembler.emit("string", "raw");
+        assembler.emit("member_ref");
+        assembler.emit("push_eax");
+        buildTemplateArray(t.template.rawChunks);
+        assembler.emit("assign");
+        assembler.emit("packargs", t.template.exprs.size() + 1 + "");
+        assembler.emit("push_eax");
+        assembler.emit("push_env");
+        assembler.emit("call");
+        assembler.emit("pop_env");
+        assembler.emit("pop");//pop params
+        assembler.emit("pop");//pop function body
+        assembler.emit("pop");//pop receiver
+    }
+
+    /** Builds an array of string parts on the value stack. */
+    private void buildTemplateArray(List<String> parts) {
+        for (int i = parts.size() - 1; i >= 0; i--) {
+            assembler.emit("string", parts.get(i));
+            assembler.emit("push_eax");
+        }
+        assembler.emit("array_new", parts.size() + "");
     }
 
     private void compileLiteral(LiteralExpr lit) {

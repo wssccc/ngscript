@@ -27,6 +27,12 @@ public class Token {
     public String value;
     public int line;
 
+    /**
+     * The raw (pre-escape-decoding) text for template chunks, used by tagged
+     * templates (String.raw); null for other tokens.
+     */
+    public String raw;
+
     public boolean isValidPos() {
         return line != -1;
     }
@@ -45,6 +51,13 @@ public class Token {
         this.type = type;
         this.line = line;
         this.value = value;
+    }
+
+    public Token(String type, int line, String value, String raw) {
+        this.type = type;
+        this.line = line;
+        this.value = value;
+        this.raw = raw;
     }
 
     @Override

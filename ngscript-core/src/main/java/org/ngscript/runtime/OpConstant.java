@@ -46,4 +46,30 @@ public class OpConstant {
         // the value is written as-is.
         vm.eax.write(param);
     }
+
+    /**
+     * Concatenates template literal chunks and substitution values: the
+     * stack holds interleaved chunk strings and expression values (odd
+     * positions are expressions), pushed chunk-first. Expressions use ES
+     * ToString coercion.
+     */
+    public static void template_join(Machine vm, String param, String param_extend) {
+        int n = Integer.parseInt(param);
+        Object[] items = new Object[n];
+        for (int i = n - 1; i >= 0; i--) {
+            items[i] = vm.stack.pop();
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n; i++) {
+            Object it = items[i];
+            if (i % 2 == 1) {
+                // substitution values
+                sb.append(OpUtils.toStringValue(it));
+            } else if (it != null) {
+                // chunk text
+                sb.append(it);
+            }
+        }
+        vm.eax.write(sb.toString());
+    }
 }
