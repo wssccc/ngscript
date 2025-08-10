@@ -81,6 +81,36 @@ public class OpControlFlow {
         }
     }
 
+    /**
+     * Jumps when the current value is exactly undefined (used by default
+     * parameter initializers; null does not trigger the default).
+     */
+    public static void jundef(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        if (vm.eax.read() == Undefined.value) {
+            if (vm.labels.containsKey(param)) {
+                int nip = vm.labels.get(param);
+                vm.setEip(nip);
+            } else {
+                throw new NgScriptRuntimeException(vm, "jump to no where");
+            }
+        }
+    }
+
+    /**
+     * Jumps when the current value is not exactly undefined (the complement
+     * of {@link #jundef}).
+     */
+    public static void jnundef(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        if (vm.eax.read() != Undefined.value) {
+            if (vm.labels.containsKey(param)) {
+                int nip = vm.labels.get(param);
+                vm.setEip(nip);
+            } else {
+                throw new NgScriptRuntimeException(vm, "jump to no where");
+            }
+        }
+    }
+
     public static void label(Machine vm, String param, String param_extend) {
         //
     }

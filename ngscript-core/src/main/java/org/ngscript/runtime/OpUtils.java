@@ -52,6 +52,28 @@ public class OpUtils {
     }
 
     /**
+     * Obtains an iterator for a value: Java iterators pass through, Java
+     * iterables use iterator(), strings iterate by code point, and other
+     * objects go through the ES @@iterator protocol.
+     */
+    public static Object getIterator(Machine vm, Object iterable) throws Exception {
+        if (iterable instanceof java.util.Iterator) {
+            return iterable;
+        }
+        if (iterable instanceof java.lang.Iterable) {
+            return ((java.lang.Iterable) iterable).iterator();
+        }
+        if (iterable instanceof String) {
+            return new OpObject.CodePointIterator((String) iterable);
+        }
+        Object method = getMember(vm, iterable, "@@iterator");
+        if (method == null || method == Undefined.value) {
+            throw new IllegalArgumentException("value is not iterable");
+        }
+        return callValue(vm, method, iterable, new Object[0]);
+    }
+
+    /**
      * Calls a value with a receiver and arguments, synchronously for script
      * functions (so iterator polling works from opcodes).
      */

@@ -145,6 +145,12 @@ public class Lexer {
                     return token("div");
                 }
             case '.':
+                if (reader.peek() == '.' && reader.peek(1) == '.') {
+                    // the spread/rest punctuator ...
+                    reader.forward();
+                    reader.forward();
+                    return token("spread");
+                }
                 chr = reader.peek();
                 if (isNumeric(chr)) {
                     marker = reader.position - 1;

@@ -19,15 +19,25 @@ package org.ngscript.ast;
 import java.util.List;
 
 /**
- * Formal parameter list of a function or lambda.
+ * Formal parameter list of a function or lambda. {@link #defaults} is
+ * parallel to {@link #names} (null = no default); {@link #rest} marks the
+ * last parameter as a rest parameter ({@code function f(a, ...rest)}).
  *
  * @author wssccc
  */
 public class Params {
 
     public final List<String> names;
+    public final List<Expr> defaults;
+    public final boolean rest;
 
     public Params(List<String> names) {
+        this(names, null, false);
+    }
+
+    public Params(List<String> names, List<Expr> defaults, boolean rest) {
         this.names = names;
+        this.defaults = defaults;
+        this.rest = rest;
     }
 }

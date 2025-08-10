@@ -60,6 +60,7 @@ import org.ngscript.ast.Params;
 import org.ngscript.ast.Program;
 import org.ngscript.ast.RegExpLiteral;
 import org.ngscript.ast.ReturnStmt;
+import org.ngscript.ast.SpreadExpr;
 import org.ngscript.ast.Stmt;
 import org.ngscript.ast.SwitchCase;
 import org.ngscript.ast.SwitchStmt;
@@ -298,7 +299,27 @@ public class Compiler {
         String enter = _compile_function_body(decl.params, decl.body);
         assembler.instructions.add(0, new Instruction("static_func", decl.name, enter));
         assembler.instructions.add(1,
-                new Instruction("set_func_meta", decl.params.names.size() + "", decl.name));
+                new Instruction("set_func_meta", functionLength(decl.params) + "", decl.name));
+    }
+
+    /**
+     * The ES Function.length: the parameter count, stopping before the first
+     * parameter with a default and excluding a rest parameter.
+     */
+    private int functionLength(Params params) {
+        int length = params.names.size();
+        if (params.rest) {
+            length = params.names.size() - 1;
+        }
+        if (params.defaults != null) {
+            for (int i = 0; i < params.defaults.size(); i++) {
+                if (params.defaults.get(i) != null) {
+                    length = Math.min(length, i);
+                    break;
+                }
+            }
+        }
+        return length;
     }
 
     private String _compile_function_body(Params params, Block body) throws CompilerException {
@@ -314,6 +335,20 @@ public class Compiler {
             for (int i = 0; i < params.names.size(); i++) {
                 assembler.emit("pickarg", i + "");
                 assembler.emit("set", params.names.get(i), "%eax");
+                if (params.rest && i == params.names.size() - 1) {
+                    // rest parameter: bind the remaining arguments as an array
+                    assembler.emit("rest_args", i + "");
+                    assembler.emit("set", params.names.get(i), "%eax");
+                }
+                if (params.defaults != null && params.defaults.get(i) != null) {
+                    // default parameter: apply when the argument is undefined
+                    String skip = assembler.label("param_default", body);
+                    assembler.emit("deref", params.names.get(i));
+                    assembler.emit("jnundef", skip);
+                    compileExpr(params.defaults.get(i));
+                    emitAssignToName(params.names.get(i));
+                    emitLabel(skip);
+                }
             }
             compileBlock(body);
             //default return void (pop any open block frames first)
@@ -428,11 +463,32 @@ public class Compiler {
             }
         } else if (expr instanceof ArrayLiteral) {
             ArrayLiteral array = (ArrayLiteral) expr;
-            for (int i = array.items.size() - 1; i >= 0; i--) {
-                compileExpr(array.items.get(i));
-                assembler.emit("push_eax");
+            boolean hasSpread = false;
+            for (Expr item : array.items) {
+                if (item instanceof SpreadExpr) {
+                    hasSpread = true;
+                    break;
+                }
             }
-            assembler.emit("array_new", array.items.size() + "");
+            if (!hasSpread) {
+                for (int i = array.items.size() - 1; i >= 0; i--) {
+                    compileExpr(array.items.get(i));
+                    assembler.emit("push_eax");
+                }
+                assembler.emit("array_new", array.items.size() + "");
+            } else {
+                assembler.emit("args_array_new");
+                for (Expr item : array.items) {
+                    if (item instanceof SpreadExpr) {
+                        compileExpr(((SpreadExpr) item).expr);
+                        assembler.emit("args_spread_add");
+                    } else {
+                        compileExpr(item);
+                        assembler.emit("args_add");
+                    }
+                }
+                assembler.emit("args_to_array");
+            }
         } else if (expr instanceof ObjectLiteral) {
             ObjectLiteral object = (ObjectLiteral) expr;
             for (Kvp kvp : object.kvps) {
@@ -450,6 +506,8 @@ public class Compiler {
                 throw compileError("invalid regular expression literal " + re.value);
             }
             assembler.emit("regex_new", re.value.substring(1, lastSlash), re.value.substring(lastSlash + 1));
+        } else if (expr instanceof SpreadExpr) {
+            throw compileError("spread is only valid in call arguments and array literals");
         } else if (expr instanceof TemplateExpr) {
             // chunks and substitution values interleaved on the stack;
             // template_join concatenates with ES ToString coercion
@@ -476,7 +534,7 @@ public class Compiler {
             }
             String enter = _compile_function_body(lambda.params, body);
             assembler.emit("new_closure", enter, lambda.isArrow ? "1" : "0");
-            assembler.emit("set_func_meta", lambda.params.names.size() + "",
+            assembler.emit("set_func_meta", functionLength(lambda.params) + "",
                     lambda.name == null ? "" : lambda.name);
         } else {
             throw compileError("Unknown expression " + expr);
@@ -1113,12 +1171,35 @@ public class Compiler {
             assembler.emit("push_eax");
         }
         //params
-        for (int i = args.size() - 1; i >= 0; i--) {
-            compileExpr(args.get(i));
+        boolean hasSpread = false;
+        for (Expr a : args) {
+            if (a instanceof SpreadExpr) {
+                hasSpread = true;
+                break;
+            }
+        }
+        if (!hasSpread) {
+            for (int i = args.size() - 1; i >= 0; i--) {
+                compileExpr(args.get(i));
+                assembler.emit("push_eax");
+            }
+            assembler.emit("packargs", args.size() + "");
+            assembler.emit("push_eax");
+        } else {
+            // spread elements: collect the arguments dynamically
+            assembler.emit("args_array_new");
+            for (Expr a : args) {
+                if (a instanceof SpreadExpr) {
+                    compileExpr(((SpreadExpr) a).expr);
+                    assembler.emit("args_spread_add");
+                } else {
+                    compileExpr(a);
+                    assembler.emit("args_add");
+                }
+            }
+            assembler.emit("args_pack");
             assembler.emit("push_eax");
         }
-        assembler.emit("packargs", args.size() + "");
-        assembler.emit("push_eax");
 
         assembler.emit("push_env");
         assembler.emit("call");

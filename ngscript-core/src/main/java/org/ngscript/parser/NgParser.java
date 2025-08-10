@@ -63,6 +63,7 @@ import org.ngscript.ast.Params;
 import org.ngscript.ast.Program;
 import org.ngscript.ast.RegExpLiteral;
 import org.ngscript.ast.ReturnStmt;
+import org.ngscript.ast.SpreadExpr;
 import org.ngscript.ast.Stmt;
 import org.ngscript.ast.SwitchCase;
 import org.ngscript.ast.SwitchStmt;
@@ -1048,29 +1049,54 @@ public class NgParser {
 
     private Params parseParamList() throws ParserException {
         List<String> names = new ArrayList<>();
+        List<Expr> defaults = new ArrayList<>();
+        boolean rest = false;
         if (!peekIs("rparen")) {
-            names.add(expect("ident").value);
-            while (peekIs("comma")) {
+            while (true) {
+                if (peekIs("spread")) {
+                    next();
+                    rest = true;
+                    names.add(expect("ident").value);
+                    defaults.add(null);
+                    break; // a rest parameter must be the last one
+                }
+                Token name = expect("ident");
+                names.add(name.value);
+                if (peekIs("assign")) {
+                    next();
+                    defaults.add(parseAssignment());
+                } else {
+                    defaults.add(null);
+                }
+                if (!peekIs("comma")) {
+                    break;
+                }
                 next();
                 if (peekIs("rparen")) {
                     break; // trailing comma
                 }
-                names.add(expect("ident").value);
             }
         }
-        return new Params(names);
+        return new Params(names, defaults, rest);
     }
 
     private List<Expr> parseParams() throws ParserException {
         List<Expr> args = new ArrayList<>();
         if (!peekIs("rparen")) {
-            args.add(parseAssignment());
-            while (peekIs("comma")) {
+            while (true) {
+                if (peekIs("spread")) {
+                    Token t = next();
+                    args.add(new SpreadExpr(parseAssignment(), t.line));
+                } else {
+                    args.add(parseAssignment());
+                }
+                if (!peekIs("comma")) {
+                    break;
+                }
                 next();
                 if (peekIs("rparen")) {
                     break; // trailing comma
                 }
-                args.add(parseAssignment());
             }
         }
         return args;
@@ -1469,59 +1495,16 @@ public class NgParser {
         if (second == null) {
             throw new ParserException("unexpected end of input");
         }
-        if (second.type.equals("rparen")) {
-            // () => ...
-            Token third = peekN(3);
-            if (third != null && third.type.equals("arrow_fn") && third.line == second.line) {
+        if (second.type.equals("rparen") || second.type.equals("ident")) {
+            // probe for an arrow function parameter list: scan to the
+            // matching closing paren (tracking nested parens so default
+            // parameter expressions are skipped) and check for =>
+            if (probeArrow(2)) {
                 next();
-                next();
-                next();
-                return parseArrowRest(new Params(Collections.emptyList()), lparen.line);
-            }
-        } else if (second.type.equals("ident")) {
-            Token third = peekN(3);
-            if (third != null && third.type.equals("rparen")) {
-                // (x) => ...
-                Token fourth = peekN(4);
-                if (fourth != null && fourth.type.equals("arrow_fn") && fourth.line == third.line) {
-                    next();
-                    next();
-                    next();
-                    next();
-                    return parseArrowRest(
-                            new Params(Collections.singletonList(second.value)), lparen.line);
-                }
-            }
-            if (third != null && third.type.equals("comma")) {
-                // probe for the arrow form (x, y, ...) =>: only treat the
-                // parenthesised list as parameters when the closing paren is
-                // followed by => (otherwise it is a comma expression)
-                boolean arrow = false;
-                int n = 3;
-                while (true) {
-                    Token tt = peekN(n);
-                    if (tt == null) {
-                        break;
-                    }
-                    if (tt.type.equals("comma")) {
-                        n += 2;
-                        continue;
-                    }
-                    if (tt.type.equals("rparen")) {
-                        Token nx = peekN(n + 1);
-                        if (nx != null && nx.type.equals("arrow_fn") && nx.line == tt.line) {
-                            arrow = true;
-                        }
-                    }
-                    break;
-                }
-                if (arrow) {
-                    next();
-                    Params params = parseParamList();
-                    expect("rparen");
-                    expect("arrow_fn");
-                    return parseArrowRest(params, lparen.line);
-                }
+                Params params = parseParamList();
+                expect("rparen");
+                expect("arrow_fn");
+                return parseArrowRest(params, lparen.line);
             }
         }
         // plain parenthesized expression
@@ -1529,6 +1512,31 @@ public class NgParser {
         Expr expr = parseExpr();
         expect("rparen");
         return expr;
+    }
+
+    /**
+     * Looks ahead from the current lparen position for a matching rparen
+     * followed by an arrow token on the same line. {@code n} is the lookahead
+     * offset of the first token inside the parens.
+     */
+    private boolean probeArrow(int n) {
+        int depth = 1;
+        while (true) {
+            Token t = peekN(n);
+            if (t == null) {
+                return false;
+            }
+            if (t.type.equals("lparen")) {
+                ++depth;
+            } else if (t.type.equals("rparen")) {
+                --depth;
+                if (depth == 0) {
+                    Token nx = peekN(n + 1);
+                    return nx != null && nx.type.equals("arrow_fn") && nx.line == t.line;
+                }
+            }
+            ++n;
+        }
     }
 
     /**
@@ -1643,6 +1651,9 @@ public class NgParser {
             if (peekIs("comma")) {
                 // an elision: the hole is approximated by undefined
                 items.add(new LiteralExpr(LiteralExpr.Kind.UNDEFINED, null, lsqr.line));
+            } else if (peekIs("spread")) {
+                Token t = next();
+                items.add(new SpreadExpr(parseAssignment(), t.line));
             } else {
                 items.add(parseAssignment());
             }

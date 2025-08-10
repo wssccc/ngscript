@@ -58,7 +58,6 @@ public class JavaMethod implements Invokable {
     public void invoke(Machine vm, Object[] args) throws Exception {
         Class[] types = vm.getParamTypes(1);
         Method properMethod = MethodTypeMap.INSTANCE.getProperMethod(methodName, methods, types);
-        properMethod.setAccessible(true);
         if (properMethod == null) {
             throw new NgScriptRuntimeException(vm,
                     String.format("No matching method found for %s#%s with parameter types %s. Available methods: %s",
@@ -70,6 +69,7 @@ public class JavaMethod implements Invokable {
                                             + Arrays.toString(m.getParameterTypes()) + ")")
                                     .collect(Collectors.joining(", "))));
         }
+        properMethod.setAccessible(true);
         if (properMethod.isVarArgs()) {
             args = VarArgUtils.packVarArgs(args, properMethod.getParameterTypes().length - 1);
         }

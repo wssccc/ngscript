@@ -221,24 +221,7 @@ public class OpObject {
      */
     public static void forof_init(Machine vm, String param, String param_extend) throws Exception {
         Object iterable = vm.eax.read();
-        Object iterator;
-        if (iterable instanceof java.util.Iterator) {
-            // arrays (and Array.prototype[Symbol.iterator]() results)
-            iterator = iterable;
-        } else if (iterable instanceof java.lang.Iterable) {
-            iterator = ((java.lang.Iterable) iterable).iterator();
-        } else if (iterable instanceof String) {
-            // ES iterates strings by code point, not by UTF-16 code unit
-            iterator = new CodePointIterator((String) iterable);
-        } else {
-            // generic ES iterator protocol: iterable[Symbol.iterator]()
-            Object method = OpUtils.getMember(vm, iterable, "@@iterator");
-            if (method == null || method == Undefined.value) {
-                throw new IllegalArgumentException("value is not iterable");
-            }
-            iterator = OpUtils.callValue(vm, method, iterable, new Object[0]);
-        }
-        vm.stack.push(iterator);
+        vm.stack.push(OpUtils.getIterator(vm, iterable));
     }
 
     /**

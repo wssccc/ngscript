@@ -74,4 +74,69 @@ public class OpStack {
         }
         vm.eax.write(args);
     }
+
+    /** Builds the rest parameter array from argument index {@code param}. */
+    public static void rest_args(Machine vm, String param, String param_extend) {
+        int from = Integer.parseInt(param);
+        Object[] args = (Object[]) vm.stack.peek(2);
+        NgsArray arr = new NgsArray((NgsObject) vm.env.read());
+        arr.setPrototype(vm.arrayPrototype);
+        for (int i = from; i < args.length; i++) {
+            arr.set("" + (i - from), args[i]);
+        }
+        vm.eax.write(arr);
+    }
+
+    /** Pushes an empty argument collector (a {@link java.util.ArrayList}). */
+    public static void args_array_new(Machine vm, String param, String param_extend) {
+        vm.stack.push(new java.util.ArrayList<>());
+    }
+
+    /** Appends the current eax value to the collector on the stack top. */
+    public static void args_add(Machine vm, String param, String param_extend) {
+        java.util.ArrayList<Object> list = (java.util.ArrayList<Object>) vm.stack.pop();
+        list.add(vm.eax.read());
+        vm.stack.push(list);
+    }
+
+    /** Spreads the iterable in eax into the collector on the stack top. */
+    public static void args_spread_add(Machine vm, String param, String param_extend) throws Exception {
+        java.util.ArrayList<Object> list = (java.util.ArrayList<Object>) vm.stack.pop();
+        Object iterator = OpUtils.getIterator(vm, vm.eax.read());
+        if (iterator instanceof java.util.Iterator) {
+            java.util.Iterator it = (java.util.Iterator) iterator;
+            while (it.hasNext()) {
+                list.add(it.next());
+            }
+        } else {
+            // generic ES iterator protocol: poll next() until done
+            while (true) {
+                Object method = OpUtils.getMember(vm, iterator, "next");
+                Object result = OpUtils.callValue(vm, method, iterator, new Object[0]);
+                if (result instanceof NgsObject && !OpUtils.testValue(((NgsObject) result).get("done"))) {
+                    list.add(((NgsObject) result).get("value"));
+                } else {
+                    break;
+                }
+            }
+        }
+        vm.stack.push(list);
+    }
+
+    /** Converts the collector to a call argument array. */
+    public static void args_pack(Machine vm, String param, String param_extend) {
+        java.util.ArrayList<?> list = (java.util.ArrayList<?>) vm.stack.pop();
+        vm.eax.write(list.toArray(new Object[0]));
+    }
+
+    /** Converts the collector to an array literal value. */
+    public static void args_to_array(Machine vm, String param, String param_extend) {
+        java.util.ArrayList<?> list = (java.util.ArrayList<?>) vm.stack.pop();
+        NgsArray arr = new NgsArray((NgsObject) vm.env.read());
+        arr.setPrototype(vm.arrayPrototype);
+        for (int i = 0; i < list.size(); i++) {
+            arr.set("" + i, list.get(i));
+        }
+        vm.eax.write(arr);
+    }
 }
