@@ -18,6 +18,7 @@ package org.ngscript.builtins;
 
 import org.ngscript.runtime.Machine;
 import org.ngscript.runtime.NgsArray;
+import org.ngscript.runtime.NgsObject;
 import org.ngscript.value.Invokable;
 import org.ngscript.value.MemRef;
 
@@ -30,6 +31,11 @@ import org.ngscript.value.MemRef;
  * @author wssccc
  */
 public class ArrayCtor implements Invokable {
+
+    /** The shared Array.prototype (for instanceof and prototype access). */
+    public NgsObject getPrototype() {
+        return Builtins.getArrayPrototype();
+    }
 
     @Override
     public void invoke(Machine vm, Object[] args) {

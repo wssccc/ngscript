@@ -33,6 +33,7 @@ import org.ngscript.ast.Block;
 import org.ngscript.ast.BlockStmt;
 import org.ngscript.ast.BreakStmt;
 import org.ngscript.ast.CallExpr;
+import org.ngscript.ast.ClassExpr;
 import org.ngscript.ast.CommaExpr;
 import org.ngscript.ast.CondExpr;
 import org.ngscript.ast.ContinueStmt;
@@ -62,6 +63,8 @@ import org.ngscript.ast.RegExpLiteral;
 import org.ngscript.ast.ReturnStmt;
 import org.ngscript.ast.SpreadExpr;
 import org.ngscript.ast.Stmt;
+import org.ngscript.ast.SuperCallExpr;
+import org.ngscript.ast.SuperMemberExpr;
 import org.ngscript.ast.SwitchCase;
 import org.ngscript.ast.SwitchStmt;
 import org.ngscript.ast.TaggedTemplateExpr;
@@ -506,6 +509,34 @@ public class Compiler {
                 throw compileError("invalid regular expression literal " + re.value);
             }
             assembler.emit("regex_new", re.value.substring(1, lastSlash), re.value.substring(lastSlash + 1));
+        } else if (expr instanceof ClassExpr) {
+            compileClass((ClassExpr) expr);
+        } else if (expr instanceof SuperCallExpr) {
+            SuperCallExpr sc = (SuperCallExpr) expr;
+            // receiver = the current instance, callee = the superclass
+            // constructor (bound as %superclass by the class definition)
+            assembler.emit("deref", "this");
+            assembler.emit("push_eax");
+            assembler.emit("deref", "%superclass");
+            assembler.emit("push_eax");
+            emitArgs(sc.args);
+            assembler.emit("push_env");
+            assembler.emit("call");
+            assembler.emit("pop_env");
+            assembler.emit("pop");//pop params
+            assembler.emit("pop");//pop function body
+            assembler.emit("pop");//pop receiver
+        } else if (expr instanceof SuperMemberExpr) {
+            SuperMemberExpr sm = (SuperMemberExpr) expr;
+            // member resolved on the superclass prototype; the receiver (this)
+            // is pushed by the call compiler, so nothing leaks here
+            assembler.emit("deref", "%superproto");
+            assembler.emit("push_eax");
+            assembler.emit("string", sm.name);
+            assembler.emit("member_ref");
+            if (!byref) {
+                assembler.emit("deref", "%eax");
+            }
         } else if (expr instanceof SpreadExpr) {
             throw compileError("spread is only valid in call arguments and array literals");
         } else if (expr instanceof TemplateExpr) {
@@ -1148,7 +1179,14 @@ public class Compiler {
      */
     private void _compile_funcall(Expr callee, List<Expr> args, boolean isNew) throws CompilerException {
         //receiver (bottom of the call frame)
-        if (callee instanceof MemberExpr && !isNew) {
+        if (callee instanceof SuperMemberExpr) {
+            // super.m(...): push the receiver (the current this), then
+            // resolve the method on the superclass prototype
+            assembler.emit("deref", "this");
+            assembler.emit("push_eax");
+            compileExpr(callee);
+            assembler.emit("push_eax");
+        } else if (callee instanceof MemberExpr && !isNew) {
             MemberExpr member = (MemberExpr) callee;
             compileExpr(member.object);
             assembler.emit("push_eax");
@@ -1171,6 +1209,18 @@ public class Compiler {
             assembler.emit("push_eax");
         }
         //params
+        emitArgs(args);
+
+        assembler.emit("push_env");
+        assembler.emit("call");
+    }
+
+    /**
+     * Emits call argument evaluation: arguments are pushed in reverse order
+     * followed by packargs; spread elements use the dynamic argument
+     * collector instead.
+     */
+    private void emitArgs(List<Expr> args) throws CompilerException {
         boolean hasSpread = false;
         for (Expr a : args) {
             if (a instanceof SpreadExpr) {
@@ -1200,8 +1250,94 @@ public class Compiler {
             assembler.emit("args_pack");
             assembler.emit("push_eax");
         }
+    }
 
-        assembler.emit("push_env");
-        assembler.emit("call");
+    /**
+     * Compiles a class declaration/expression: a TDZ binding for the name,
+     * the constructor (synthesized when absent), the prototype chain for
+     * extends, and the method definitions (instance methods on the
+     * prototype, static methods on the constructor).
+     */
+    private void compileClass(ClassExpr cls) throws CompilerException {
+        if (cls.name != null) {
+            // TDZ binding so `class C extends C` throws like ES
+            assembler.emit("decl_let", cls.name, "0");
+        }
+        if (cls.superClass != null) {
+            compileExpr(cls.superClass);
+            assembler.emit("push_eax");
+            assembler.emit("class_bind_super");
+        }
+        // constructor (synthesized when absent: an empty one, or
+        // constructor(...args) { super(...args); } for derived classes)
+        ClassExpr.MethodDef ctor = null;
+        for (ClassExpr.MethodDef m : cls.methods) {
+            if (m.isCtor) {
+                ctor = m;
+                break;
+            }
+        }
+        Params ctorParams;
+        Block ctorBody;
+        if (ctor != null) {
+            ctorParams = ctor.params;
+            ctorBody = ctor.body;
+        } else if (cls.superClass != null) {
+            ctorParams = new Params(Collections.singletonList("args"), null, true);
+            ctorBody = new Block(Collections.singletonList(new ExprStmt(
+                    new SuperCallExpr(Collections.singletonList(new SpreadExpr(
+                            new IdentExpr("args", cls.line), cls.line)), cls.line), cls.line)), cls.line);
+        } else {
+            ctorParams = new Params(Collections.emptyList());
+            ctorBody = new Block(Collections.emptyList(), cls.line);
+        }
+        String enter = _compile_function_body(ctorParams, ctorBody);
+        assembler.emit("new_closure", enter, "0");
+        assembler.emit("set_func_meta", functionLength(ctorParams) + "",
+                cls.name == null ? "" : cls.name);
+        if (cls.superClass != null) {
+            // [super, ctor]; proto_extend pops both and chains the prototypes
+            assembler.emit("push_eax");
+            assembler.emit("proto_extend");
+        }
+        assembler.emit("push_eax"); // keep the constructor on the stack
+        // instance methods live on the prototype
+        assembler.emit("func_proto");
+        assembler.emit("push_eax"); // [ctor, proto]
+        for (ClassExpr.MethodDef m : cls.methods) {
+            if (m.isCtor || m.isStatic) {
+                continue;
+            }
+            emitMethodDefine(m);
+        }
+        assembler.emit("pop"); // [ctor]
+        // static methods live on the constructor itself
+        for (ClassExpr.MethodDef m : cls.methods) {
+            if (!m.isStatic || m.isCtor) {
+                continue;
+            }
+            emitMethodDefine(m);
+        }
+        assembler.emit("pop_eax"); // eax = ctor, stack clean
+        if (cls.name != null) {
+            emitAssignToName(cls.name);
+        }
+    }
+
+    /**
+     * Defines one method on the object at the stack top (the class prototype
+     * or the constructor): duplicates the object, resolves (or creates) an
+     * own member reference and assigns the compiled method closure.
+     */
+    private void emitMethodDefine(ClassExpr.MethodDef m) throws CompilerException {
+        assembler.emit("peek", "0");
+        assembler.emit("push_eax");
+        assembler.emit("string", m.name);
+        assembler.emit("own_member_ref");
+        assembler.emit("push_eax");
+        String enter = _compile_function_body(m.params, m.body);
+        assembler.emit("new_closure", enter, "0");
+        assembler.emit("set_func_meta", functionLength(m.params) + "", m.name);
+        assembler.emit("assign");
     }
 }

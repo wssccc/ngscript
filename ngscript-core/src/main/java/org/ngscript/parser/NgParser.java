@@ -36,6 +36,7 @@ import org.ngscript.ast.Block;
 import org.ngscript.ast.BlockStmt;
 import org.ngscript.ast.BreakStmt;
 import org.ngscript.ast.CallExpr;
+import org.ngscript.ast.ClassExpr;
 import org.ngscript.ast.CommaExpr;
 import org.ngscript.ast.CondExpr;
 import org.ngscript.ast.ContinueStmt;
@@ -65,6 +66,8 @@ import org.ngscript.ast.RegExpLiteral;
 import org.ngscript.ast.ReturnStmt;
 import org.ngscript.ast.SpreadExpr;
 import org.ngscript.ast.Stmt;
+import org.ngscript.ast.SuperCallExpr;
+import org.ngscript.ast.SuperMemberExpr;
 import org.ngscript.ast.SwitchCase;
 import org.ngscript.ast.SwitchStmt;
 import org.ngscript.ast.TaggedTemplateExpr;
@@ -511,6 +514,11 @@ public class NgParser {
                 return parseTry();
             case "const":
                 return parseLexicalDecl(true);
+            case "class": {
+                Token kw = next();
+                Token name = expect("ident");
+                return new ExprStmt(parseClassTail(name.value, kw), kw.line);
+            }
             case "lcurly":
                 // a bare block used as a statement
                 next();
@@ -623,6 +631,87 @@ public class NgParser {
         LetDeclExpr decl = parseLexicalDeclTail(isConst, next());
         consumeSemicolon();
         return new ExprStmt(decl, decl.line);
+    }
+
+    /**
+     * Parses the rest of a class body after the class keyword (and the name
+     * when present): an optional extends clause and the method definitions.
+     */
+    private Expr parseClassTail(String name, Token kw) throws ParserException {
+        Expr superClass = null;
+        if (peekIs("extends")) {
+            next();
+            superClass = parseExprClass();
+        }
+        expect("lcurly");
+        List<ClassExpr.MethodDef> methods = new ArrayList<>();
+        while (!peekIs("rcurly")) {
+            if (peekIs("semicolon")) {
+                next();
+                continue;
+            }
+            Token t = peek();
+            boolean isStatic = false;
+            if (t != null && t.type.equals("ident") && t.value.equals("static")) {
+                Token nx = peekN(2);
+                if (nx != null && !nx.type.equals("lparen")) {
+                    isStatic = true;
+                    next();
+                    t = peek();
+                }
+            }
+            boolean isGetter = false;
+            boolean isSetter = false;
+            if (t != null && t.type.equals("ident")
+                    && (t.value.equals("get") || t.value.equals("set"))) {
+                Token nx = peekN(2);
+                if (nx != null && nx.type.equals("ident")) {
+                    isGetter = t.value.equals("get");
+                    isSetter = t.value.equals("set");
+                    next();
+                    next();
+                    String mname = nx.value;
+                    expect("lparen");
+                    expect("rparen");
+                    ++functionDepth;
+                    try {
+                        Block body = parseBlock();
+                        methods.add(new ClassExpr.MethodDef(
+                                mname, new Params(Collections.emptyList()), body,
+                                isStatic, isGetter, isSetter, false));
+                    } finally {
+                        --functionDepth;
+                    }
+                    if (peekIs("semicolon")) {
+                        next();
+                    }
+                    continue;
+                }
+            }
+            Token mname = peek();
+            if (mname == null || !isKeyName(mname.type)) {
+                throw new ParserException("expecting a method name but got " + mname,
+                        new org.ngscript.api.Source(null, kw.line));
+            }
+            next();
+            expect("lparen");
+            Params params = parseParamList();
+            expect("rparen");
+            ++functionDepth;
+            try {
+                Block body = parseBlock();
+                boolean isCtor = mname.value.equals("constructor") && !isStatic;
+                methods.add(new ClassExpr.MethodDef(
+                        mname.value, params, body, isStatic, false, false, isCtor));
+            } finally {
+                --functionDepth;
+            }
+            if (peekIs("semicolon")) {
+                next();
+            }
+        }
+        expect("rcurly");
+        return new ClassExpr(name, superClass, methods, kw.line);
     }
 
     /**
@@ -1131,7 +1220,9 @@ public class NgParser {
             next();
             operands.add(parseAssignment());
         }
-        if (first instanceof VarDeclExpr) {
+        if (first instanceof VarDeclExpr
+                || (first instanceof AssignExpr
+                    && ((AssignExpr) first).target instanceof VarDeclExpr)) {
             for (int i = 1; i < operands.size(); i++) {
                 Expr o = operands.get(i);
                 if (o instanceof VarDeclExpr) {
@@ -1634,6 +1725,31 @@ public class NgParser {
                 } finally {
                     --functionDepth;
                 }
+            }
+            case "class": {
+                // a class expression: anonymous or named
+                next();
+                String name = null;
+                if (peekIs("ident")) {
+                    name = next().value;
+                }
+                return parseClassTail(name, t);
+            }
+            case "super": {
+                next();
+                if (peekIs("lparen")) {
+                    next();
+                    List<Expr> args = parseParams();
+                    expect("rparen");
+                    return new SuperCallExpr(args, t.line);
+                }
+                if (peekIs("dot")) {
+                    next();
+                    Token name = expect("ident");
+                    return new SuperMemberExpr(name.value, t.line);
+                }
+                throw new ParserException("invalid use of super",
+                        new org.ngscript.api.Source(null, t.line));
             }
             case "lsqr":
                 return parseArrayLiteral(t);

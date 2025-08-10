@@ -186,9 +186,32 @@ public class OpObject {
         } else if (ctor instanceof Class) {
             // Java classes: ordinary instanceof (e.g. e instanceof Error)
             vm.eax.write(((Class) ctor).isInstance(obj) ? Boolean.TRUE : Boolean.FALSE);
+        } else if (ctor instanceof org.ngscript.builtins.ObjectCtor) {
+            // x instanceof Object: match the shared Object.prototype
+            vm.eax.write(obj instanceof NgsObject
+                    && protoChainContains((NgsObject) obj,
+                            ((org.ngscript.builtins.ObjectCtor) ctor).getPrototype())
+                    ? Boolean.TRUE : Boolean.FALSE);
+        } else if (ctor instanceof org.ngscript.builtins.ArrayCtor) {
+            // x instanceof Array: match the shared Array.prototype
+            vm.eax.write(obj instanceof NgsObject
+                    && protoChainContains((NgsObject) obj,
+                            ((org.ngscript.builtins.ArrayCtor) ctor).getPrototype())
+                    ? Boolean.TRUE : Boolean.FALSE);
         } else {
             throw new NgScriptRuntimeException(vm, "right-hand side of instanceof is not callable");
         }
+    }
+
+    private static boolean protoChainContains(NgsObject obj, NgsObject target) {
+        NgsObject p = obj.getPrototype();
+        while (p != null) {
+            if (p == target) {
+                return true;
+            }
+            p = p.getPrototype();
+        }
+        return false;
     }
 
     /**
@@ -381,6 +404,72 @@ public class OpObject {
     public static void clear_null(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         MemRef m = vm.lookup(param);
         m.write(null);
+    }
+
+    /**
+     * Resolves or creates an OWN member reference: unlike {@link #member_ref}
+     * the prototype chain is not consulted, so defining a method on a class
+     * prototype never overwrites an inherited one (ES assignment creates own
+     * properties).
+     */
+    public static void own_member_ref(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        String member = (String) objs[1];
+        if (objs[0] instanceof NgsObject) {
+            NgsObject env = (NgsObject) objs[0];
+            MemRef ref = env.getRef(member);
+            if (ref == null) {
+                ref = new MemRef(Undefined.value);
+                env.putRef(member, ref);
+            }
+            vm.eax.write(ref);
+            return;
+        }
+        // host objects fall back to the shared hostProps map
+        java.util.Map<String, MemRef> created = vm.hostProps.computeIfAbsent(objs[0],
+                k -> new java.util.HashMap<>());
+        MemRef slot = created.get(member);
+        if (slot == null) {
+            slot = new MemRef(Undefined.value);
+            created.put(member, slot);
+        }
+        vm.eax.write(slot);
+    }
+
+    /**
+     * Binds {@code %superclass} and {@code %superproto} in the active frame
+     * from the superclass constructor in eax (used by class definitions so
+     * derived methods and constructors can reach super).
+     */
+    public static void class_bind_super(Machine vm, String param, String param_extend) {
+        Object sc = vm.eax.read();
+        NgsObject frame = (NgsObject) vm.env.read();
+        frame.putRef("%superclass", new MemRef(sc));
+        if (sc instanceof ScriptFunction) {
+            frame.putRef("%superproto", new MemRef(((ScriptFunction) sc).getPrototypeObject()));
+        }
+    }
+
+    /**
+     * Links the constructor's prototype to the superclass prototype (ES
+     * extends); the stack holds the superclass constructor below the derived
+     * constructor (both popped), the derived constructor stays in eax.
+     */
+    public static void proto_extend(Machine vm, String param, String param_extend) {
+        Object ctor = vm.stack.pop();
+        Object sc = vm.stack.pop();
+        if (ctor instanceof ScriptFunction && sc instanceof ScriptFunction) {
+            ((ScriptFunction) ctor).getPrototypeObject()
+                    .setPrototype(((ScriptFunction) sc).getPrototypeObject());
+        }
+    }
+
+    /** Replaces the function in eax with its prototype object. */
+    public static void func_proto(Machine vm, String param, String param_extend) {
+        Object f = vm.eax.read();
+        if (f instanceof ScriptFunction) {
+            vm.eax.write(((ScriptFunction) f).getPrototypeObject());
+        }
     }
 
     public static void new_op(Machine vm, String param, String param_extend) {

@@ -34,6 +34,11 @@ import org.ngscript.value.Undefined;
  */
 public class ObjectCtor implements Invokable {
 
+    /** The shared Object.prototype (for instanceof and prototype access). */
+    public NgsObject getPrototype() {
+        return Builtins.getObjectPrototype();
+    }
+
     @Override
     public void invoke(Machine vm, Object[] args) {
         NgsObject obj = new NgsObject((NgsObject) vm.env.read());
