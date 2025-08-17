@@ -670,7 +670,7 @@ public class NgParser {
                     isSetter = t.value.equals("set");
                     next();
                     next();
-                    String mname = nx.value;
+                    String mname = tokenName(nx);
                     expect("lparen");
                     expect("rparen");
                     ++functionDepth;
@@ -702,7 +702,7 @@ public class NgParser {
                 Block body = parseBlock();
                 boolean isCtor = mname.value.equals("constructor") && !isStatic;
                 methods.add(new ClassExpr.MethodDef(
-                        mname.value, params, body, isStatic, false, false, isCtor));
+                        tokenName(mname), params, body, isStatic, false, false, isCtor));
             } finally {
                 --functionDepth;
             }
@@ -1457,8 +1457,15 @@ public class NgParser {
             switch (t.type) {
                 case "dot": {
                     next();
-                    Token name = expect("ident");
-                    expr = new MemberExpr(expr, name.value, t.line);
+                    // ES allows keywords as property names: o.if, o.class ...
+                    Token name = peek();
+                    if (name == null || !isKeyName(name.type)) {
+                        throw new ParserException("expecting a member name but got "
+                                + (name == null ? "end of input" : name),
+                                new org.ngscript.api.Source(null, t.line));
+                    }
+                    next();
+                    expr = new MemberExpr(expr, tokenName(name), t.line);
                     break;
                 }
                 case "optional_chain":
@@ -1800,6 +1807,41 @@ public class NgParser {
 
     private Kvp parseKvp() throws ParserException {
         Token name = peek();
+        // computed property names: { [expr]: value }
+        if (name != null && name.type.equals("lsqr")) {
+            next();
+            Expr key = parseExpr();
+            expect("rsqr");
+            expect("colon");
+            Expr value = parseAssignment();
+            return new Kvp(key, value, name.line);
+        }
+        // shorthand and method shorthand: { a } / { a, } / { m() {} } / { m(x) {} }
+        if (name != null && isKeyName(name.type)) {
+            Token second = peekN(2);
+            if (second != null && second.type.equals("lparen")) {
+                // method shorthand
+                next();
+                expect("lparen");
+                Params params = parseParamList();
+                expect("rparen");
+                ++functionDepth;
+                try {
+                    Block body = parseBlock();
+                    String mname = tokenName(name);
+                    return new Kvp(mname,
+                            new LambdaExpr(mname, params, body, name.line), name.line);
+                } finally {
+                    --functionDepth;
+                }
+            }
+            if (second != null && (second.type.equals("comma") || second.type.equals("rcurly"))) {
+                // shorthand property: { a } means { a: a }
+                next();
+                String sname = tokenName(name);
+                return new Kvp(sname, new IdentExpr(sname, name.line), name.line);
+            }
+        }
         // accessor properties: { get x() {...} } / { set x(v) {...} }
         if (name != null && name.type.equals("ident")
                 && (name.value.equals("get") || name.value.equals("set"))) {
@@ -1816,7 +1858,7 @@ public class NgParser {
                 ++functionDepth;
                 try {
                     Block body = parseBlock();
-                    return new Kvp(key.value, new LambdaExpr(name.value, params, body, name.line),
+                    return new Kvp(tokenName(key), new LambdaExpr(name.value, params, body, name.line),
                             name.line, name.value);
                 } finally {
                     --functionDepth;
@@ -1830,7 +1872,16 @@ public class NgParser {
         next();
         expect("colon");
         Expr value = parseAssignment();
-        return new Kvp(name.value, value, name.line);
+        return new Kvp(tokenName(name), value, name.line);
+    }
+
+    /**
+     * The name text of a token usable as a property/method name: identifiers
+     * carry their text in {@code value}, keyword tokens use their type (the
+     * keyword itself, e.g. "if").
+     */
+    private static String tokenName(Token t) {
+        return t.value != null ? t.value : t.type;
     }
 
     /**

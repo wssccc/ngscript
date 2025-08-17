@@ -495,8 +495,14 @@ public class Compiler {
         } else if (expr instanceof ObjectLiteral) {
             ObjectLiteral object = (ObjectLiteral) expr;
             for (Kvp kvp : object.kvps) {
-                assembler.emit("string", kvp.name);
-                assembler.emit("push_eax");
+                if (kvp.keyExpr != null) {
+                    // computed property name: the key is a runtime value
+                    compileExpr(kvp.keyExpr);
+                    assembler.emit("push_eax");
+                } else {
+                    assembler.emit("string", kvp.name);
+                    assembler.emit("push_eax");
+                }
                 compileExpr(kvp.value);
                 assembler.emit("push_eax");
             }

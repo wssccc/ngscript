@@ -17,13 +17,16 @@
 package org.ngscript.ast;
 
 /**
- * A key-value pair of an object literal.
+ * A key-value pair of an object literal. The key is either the static
+ * {@link #name} or the computed {@link #keyExpr} (evaluated at runtime,
+ * ES computed property names).
  *
  * @author wssccc
  */
 public class Kvp extends AstNode {
 
     public final String name;
+    public final Expr keyExpr;
     public final Expr value;
 
     /**
@@ -38,13 +41,24 @@ public class Kvp extends AstNode {
 
     public Kvp(String name, Expr value, int line, String kind) {
         this.name = name;
+        this.keyExpr = null;
         this.value = value;
         this.line = line;
         this.kind = kind;
     }
 
+    /** A computed property name: {@code [expr]: value}. */
+    public Kvp(Expr keyExpr, Expr value, int line) {
+        this.name = null;
+        this.keyExpr = keyExpr;
+        this.value = value;
+        this.line = line;
+        this.kind = null;
+    }
+
     @Override
     protected String toString(int indent) {
-        return childrenToString(indent, "name=" + name + (kind == null ? "" : " kind=" + kind), value);
+        return childrenToString(indent, "name=" + (name != null ? name : "<computed>")
+                + (kind == null ? "" : " kind=" + kind), value);
     }
 }

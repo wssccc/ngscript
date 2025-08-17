@@ -36,10 +36,17 @@ public class OpObject {
         NgsObject sh = new NgsObject((NgsObject) vm.env.read());
         sh.setPrototype(vm.objectPrototype);
         int size = Integer.parseInt(param);
+        Object[] vs = new Object[size];
+        Object[] ks = new Object[size];
         for (int i = 0; i < size; i++) {
-            Object v = vm.stack.pop();
-            String k = (String) vm.stack.pop();
-            sh.set(k, v);
+            vs[i] = vm.stack.pop();
+            ks[i] = vm.stack.pop();
+        }
+        // apply in source order so a later duplicate key wins (ES semantics)
+        for (int i = size - 1; i >= 0; i--) {
+            Object k = ks[i];
+            // computed keys arrive as runtime values (strings/numbers/symbols)
+            sh.set(k instanceof String ? (String) k : OpArray.keyString(k), vs[i]);
         }
         vm.eax.write(sh);
     }
