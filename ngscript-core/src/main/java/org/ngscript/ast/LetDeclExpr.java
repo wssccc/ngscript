@@ -25,17 +25,27 @@ import java.util.List;
  * element means the binding initializes to undefined (const requires an
  * initializer, enforced by the parser).
  *
+ * <p>Destructuring declarators ({@code let [a, b] = arr;}) use the parallel
+ * {@link #patterns} list (non-null) with one element per declarator.</p>
+ *
  * @author wssccc
  */
 public class LetDeclExpr extends Expr {
 
     public final List<String> names;
     public final List<Expr> inits;
+    public final List<Pattern> patterns;
     public final boolean isConst;
 
     public LetDeclExpr(List<String> names, List<Expr> inits, boolean isConst, int line) {
+        this(names, inits, null, isConst, line);
+    }
+
+    public LetDeclExpr(List<String> names, List<Expr> inits, List<Pattern> patterns,
+                       boolean isConst, int line) {
         this.names = names;
         this.inits = inits;
+        this.patterns = patterns;
         this.isConst = isConst;
         this.line = line;
     }

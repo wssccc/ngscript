@@ -17,17 +17,25 @@
 package org.ngscript.ast;
 
 /**
- * A declaration expression: {@code var x} or {@code val x}.
+ * A declaration expression: {@code var x} or {@code val x}. Destructuring
+ * declarators ({@code var [a, b] = arr;}) carry a {@link #pattern} instead
+ * of a name.
  *
  * @author wssccc
  */
 public class VarDeclExpr extends Expr {
 
     public final String name;
+    public final Pattern pattern;
     public final boolean isVal;
 
     public VarDeclExpr(String name, boolean isVal, int line) {
+        this(name, null, isVal, line);
+    }
+
+    public VarDeclExpr(String name, Pattern pattern, boolean isVal, int line) {
         this.name = name;
+        this.pattern = pattern;
         this.isVal = isVal;
         this.line = line;
     }

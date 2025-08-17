@@ -40,6 +40,7 @@ import org.ngscript.ast.ClassExpr;
 import org.ngscript.ast.CommaExpr;
 import org.ngscript.ast.CondExpr;
 import org.ngscript.ast.ContinueStmt;
+import org.ngscript.ast.DestructureExpr;
 import org.ngscript.ast.DoWhileStmt;
 import org.ngscript.ast.Expr;
 import org.ngscript.ast.ExprStmt;
@@ -61,6 +62,7 @@ import org.ngscript.ast.MemberExpr;
 import org.ngscript.ast.NewExpr;
 import org.ngscript.ast.ObjectLiteral;
 import org.ngscript.ast.Params;
+import org.ngscript.ast.Pattern;
 import org.ngscript.ast.Program;
 import org.ngscript.ast.RegExpLiteral;
 import org.ngscript.ast.ReturnStmt;
@@ -596,12 +598,9 @@ public class NgParser {
                 // "let = 1" / "let.x" / "let()" treat it as a plain identifier
                 if (t.type.equals("ident") && t.value.equals("let")) {
                     Token second = peekN(2);
-                    if (second != null && second.type.equals("ident")) {
+                    if (second != null && (second.type.equals("ident")
+                            || second.type.equals("lsqr") || second.type.equals("lcurly"))) {
                         return parseLexicalDecl(false);
-                    }
-                    if (second != null && (second.type.equals("lsqr") || second.type.equals("lcurly"))) {
-                        throw new ParserException("destructuring declarations are not supported yet",
-                                new org.ngscript.api.Source(null, t.line));
                     }
                 }
                 // a label statement: ident followed by a colon
@@ -722,9 +721,24 @@ public class NgParser {
     private LetDeclExpr parseLexicalDeclTail(boolean isConst, Token kw) throws ParserException {
         List<String> names = new ArrayList<>();
         List<Expr> inits = new ArrayList<>();
+        List<Pattern> patterns = null;
         while (true) {
-            Token name = expect("ident");
-            names.add(name.value);
+            Token t = peek();
+            if (t != null && (t.type.equals("lsqr") || t.type.equals("lcurly"))) {
+                // destructuring declarator: let [a, b] = arr;
+                if (patterns == null) {
+                    patterns = new ArrayList<>();
+                }
+                patterns.add(parsePattern(false));
+                names.add(null);
+            } else {
+                if (patterns != null) {
+                    throw new ParserException("mixed destructuring and plain declarators",
+                            new org.ngscript.api.Source(null, t == null ? -1 : t.line));
+                }
+                Token name = expect("ident");
+                names.add(name.value);
+            }
             if (peekIs("assign")) {
                 next();
                 inits.add(parseAssignment());
@@ -732,7 +746,7 @@ public class NgParser {
                 inits.add(null);
                 if (isConst) {
                     throw new ParserException("Missing initializer in const declaration",
-                            new org.ngscript.api.Source(null, name.line));
+                            new org.ngscript.api.Source(null, t == null ? -1 : t.line));
                 }
             }
             if (!peekIs("comma")) {
@@ -740,7 +754,88 @@ public class NgParser {
             }
             next();
         }
-        return new LetDeclExpr(names, inits, isConst, kw.line);
+        return new LetDeclExpr(names, inits, patterns, isConst, kw.line);
+    }
+
+    /**
+     * Parses a destructuring pattern: {@code x}, {@code [a, , ...rest]} or
+     * {@code {p, q: r}} with optional {@code = default} initializers.
+     * {@code allowDefault} is false for the top level of a declaration
+     * pattern (there the following {@code =} is the declarator's own
+     * initializer, per the ES grammar).
+     */
+    private Pattern parsePattern(boolean allowDefault) throws ParserException {
+        Token t = peek();
+        if (t == null) {
+            throw new ParserException("unexpected end of input");
+        }
+        Pattern pattern;
+        if (t.type.equals("lsqr")) {
+            next();
+            List<Pattern> items = new ArrayList<>();
+            while (!peekIs("rsqr")) {
+                if (peekIs("comma")) {
+                    next();
+                    items.add(null); // hole
+                    continue;
+                }
+                if (peekIs("spread")) {
+                    next();
+                    Pattern.ArrayP arr = new Pattern.ArrayP(items, t.line);
+                    arr.rest = parsePattern(true);
+                    expect("rsqr");
+                    return allowDefault ? applyPatternDefault(arr) : arr;
+                }
+                items.add(parsePattern(true));
+                if (!peekIs("comma")) {
+                    break;
+                }
+                next();
+            }
+            expect("rsqr");
+            pattern = new Pattern.ArrayP(items, t.line);
+        } else if (t.type.equals("lcurly")) {
+            next();
+            List<Pattern.Prop> props = new ArrayList<>();
+            while (!peekIs("rcurly")) {
+                Token key = peek();
+                if (key == null || !(isKeyName(key.type) || key.type.equals("string")
+                        || key.type.equals("integer") || key.type.equals("double"))) {
+                    throw new ParserException("expecting object key but got "
+                            + (key == null ? "end of input" : key),
+                            new org.ngscript.api.Source(null, t.line));
+                }
+                next();
+                String keyName = tokenName(key);
+                Pattern inner;
+                if (peekIs("colon")) {
+                    next();
+                    inner = parsePattern(true);
+                } else {
+                    // shorthand: {x} means {x: x} ({x = 1} takes a default)
+                    inner = applyPatternDefault(new Pattern.IdentP(keyName, key.line));
+                }
+                props.add(new Pattern.Prop(keyName, inner));
+                if (!peekIs("comma")) {
+                    break;
+                }
+                next();
+            }
+            expect("rcurly");
+            pattern = new Pattern.ObjectP(props, t.line);
+        } else {
+            Token name = expect("ident");
+            pattern = new Pattern.IdentP(name.value, name.line);
+        }
+        return allowDefault ? applyPatternDefault(pattern) : pattern;
+    }
+
+    private Pattern applyPatternDefault(Pattern pattern) throws ParserException {
+        if (peekIs("assign")) {
+            next();
+            pattern.defaultValue = parseAssignment();
+        }
+        return pattern;
     }
 
     /**
@@ -1253,12 +1348,70 @@ public class NgParser {
         Expr left = parseCond();
         Token t = peek();
         if (t != null && ASSIGN_OPS.contains(t.type)) {
+            // destructuring assignment: [a, b] = ... / ({x} = ...)
+            if (left instanceof ArrayLiteral || left instanceof ObjectLiteral) {
+                Pattern pattern = patternFromLiteral(left);
+                next();
+                // right associative: a = b = c parses as a = (b = c)
+                Expr right = parseAssignment();
+                return new AssignExpr(new DestructureExpr(pattern, left.line), right, t.line, t.type);
+            }
             next();
             // right associative: a = b = c parses as a = (b = c)
             Expr right = parseAssignment();
             return new AssignExpr(left, right, t.line, t.type);
         }
         return left;
+    }
+
+    /**
+     * Converts an array/object literal used as an assignment target into a
+     * destructuring pattern ([a, b] = ... / ({x} = ...)).
+     */
+    private Pattern patternFromLiteral(Expr literal) throws ParserException {
+        if (literal instanceof ArrayLiteral) {
+            ArrayLiteral arr = (ArrayLiteral) literal;
+            List<Pattern> items = new ArrayList<>();
+            Pattern.ArrayP p = new Pattern.ArrayP(items, arr.line);
+            for (Expr item : arr.items) {
+                if (item instanceof SpreadExpr) {
+                    p.rest = patternFromExpr(((SpreadExpr) item).expr);
+                } else if (item instanceof LiteralExpr
+                        && ((LiteralExpr) item).kind == LiteralExpr.Kind.UNDEFINED) {
+                    items.add(null); // hole
+                } else {
+                    items.add(patternFromExpr(item));
+                }
+            }
+            return p;
+        }
+        if (literal instanceof ObjectLiteral) {
+            ObjectLiteral obj = (ObjectLiteral) literal;
+            List<Pattern.Prop> props = new ArrayList<>();
+            for (Kvp kvp : obj.kvps) {
+                props.add(new Pattern.Prop(kvp.name, patternFromExpr(kvp.value)));
+            }
+            return new Pattern.ObjectP(props, obj.line);
+        }
+        throw new ParserException("invalid destructuring target " + literal,
+                new org.ngscript.api.Source(null, literal.line));
+    }
+
+    private Pattern patternFromExpr(Expr e) throws ParserException {
+        if (e instanceof IdentExpr) {
+            return new Pattern.IdentP(((IdentExpr) e).name, e.line);
+        }
+        if (e instanceof ArrayLiteral || e instanceof ObjectLiteral) {
+            return patternFromLiteral(e);
+        }
+        if (e instanceof AssignExpr) {
+            // [a = 1] pattern with a default initializer
+            Pattern inner = patternFromExpr(((AssignExpr) e).target);
+            inner.defaultValue = ((AssignExpr) e).value;
+            return inner;
+        }
+        throw new ParserException("invalid destructuring target " + e,
+                new org.ngscript.api.Source(null, e.line));
     }
 
     private Expr parseCond() throws ParserException {
@@ -1668,6 +1821,11 @@ public class NgParser {
                 return parseNew(t);
             case "var": {
                 next();
+                Token t2 = peek();
+                if (t2 != null && (t2.type.equals("lsqr") || t2.type.equals("lcurly"))) {
+                    // destructuring declaration: var [a, b] = arr;
+                    return new VarDeclExpr(null, parsePattern(false), false, t2.line);
+                }
                 Token name = expect("ident");
                 return new VarDeclExpr(name.value, false, name.line);
             }

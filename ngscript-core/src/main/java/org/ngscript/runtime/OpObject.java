@@ -293,6 +293,65 @@ public class OpObject {
         vm.eax.write(Boolean.FALSE);
     }
 
+    /** Pushes an iterator for the value in eax (destructuring array patterns). */
+    public static void destr_iter_init(Machine vm, String param, String param_extend) throws Exception {
+        vm.stack.push(OpUtils.getIterator(vm, vm.eax.read()));
+    }
+
+    /**
+     * Yields the next iterator value in eax (undefined once exhausted; the
+     * iterator stays on the stack until destr_iter_rest/done).
+     */
+    public static void destr_iter_next(Machine vm, String param, String param_extend) throws Exception {
+        Object iterator = vm.stack.peek(0);
+        if (iterator instanceof java.util.Iterator) {
+            java.util.Iterator it = (java.util.Iterator) iterator;
+            vm.eax.write(it.hasNext() ? it.next() : Undefined.value);
+            return;
+        }
+        Object method = OpUtils.getMember(vm, iterator, "next");
+        if (method == null || method == Undefined.value) {
+            vm.eax.write(Undefined.value);
+            return;
+        }
+        Object result = OpUtils.callValue(vm, method, iterator, new Object[0]);
+        if (result instanceof NgsObject && !OpUtils.testValue(((NgsObject) result).get("done"))) {
+            vm.eax.write(((NgsObject) result).get("value"));
+        } else {
+            vm.eax.write(Undefined.value);
+        }
+    }
+
+    /** Collects the remaining iterator values into an array (rest pattern). */
+    public static void destr_iter_rest(Machine vm, String param, String param_extend) throws Exception {
+        Object iterator = vm.stack.pop();
+        NgsArray arr = new NgsArray((NgsObject) vm.env.read());
+        arr.setPrototype(vm.arrayPrototype);
+        int i = 0;
+        if (iterator instanceof java.util.Iterator) {
+            java.util.Iterator it = (java.util.Iterator) iterator;
+            while (it.hasNext()) {
+                arr.set("" + i++, it.next());
+            }
+        } else {
+            while (true) {
+                Object method = OpUtils.getMember(vm, iterator, "next");
+                Object result = OpUtils.callValue(vm, method, iterator, new Object[0]);
+                if (result instanceof NgsObject && !OpUtils.testValue(((NgsObject) result).get("done"))) {
+                    arr.set("" + i++, ((NgsObject) result).get("value"));
+                } else {
+                    break;
+                }
+            }
+        }
+        vm.eax.write(arr);
+    }
+
+    /** Drops the iterator left on the stack by destr_iter_init. */
+    public static void destr_iter_done(Machine vm, String param, String param_extend) {
+        vm.stack.pop();
+    }
+
     /**
      * A code-point iterator for strings (ES iterates strings by Unicode code
      * point, combining surrogate pairs).

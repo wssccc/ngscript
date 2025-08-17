@@ -37,6 +37,7 @@ import org.ngscript.ast.ClassExpr;
 import org.ngscript.ast.CommaExpr;
 import org.ngscript.ast.CondExpr;
 import org.ngscript.ast.ContinueStmt;
+import org.ngscript.ast.DestructureExpr;
 import org.ngscript.ast.DoWhileStmt;
 import org.ngscript.ast.Expr;
 import org.ngscript.ast.ExprStmt;
@@ -58,6 +59,7 @@ import org.ngscript.ast.MemberExpr;
 import org.ngscript.ast.NewExpr;
 import org.ngscript.ast.ObjectLiteral;
 import org.ngscript.ast.Params;
+import org.ngscript.ast.Pattern;
 import org.ngscript.ast.Program;
 import org.ngscript.ast.RegExpLiteral;
 import org.ngscript.ast.ReturnStmt;
@@ -170,6 +172,16 @@ public class Compiler {
 
     private void compileLetDecl(LetDeclExpr decl) throws CompilerException {
         for (int i = 0; i < decl.names.size(); i++) {
+            if (decl.patterns != null && decl.patterns.get(i) != null) {
+                // destructuring declarator: let [a, b] = arr;
+                Pattern pat = decl.patterns.get(i);
+                declarePatternNames(pat, false);
+                if (decl.inits.get(i) != null) {
+                    compileExpr(decl.inits.get(i));
+                    compilePattern(pat);
+                }
+                continue;
+            }
             assembler.emit("decl_let", decl.names.get(i), decl.isConst ? "1" : "0");
             if (decl.inits.get(i) != null) {
                 assembler.emit("mov_eax", decl.names.get(i));
@@ -181,6 +193,83 @@ public class Compiler {
                 assembler.emit("undefined");
                 emitAssignToName(decl.names.get(i));
             }
+        }
+    }
+
+    /** Declares every name bound by a pattern (let: TDZ bindings, var: set). */
+    private void declarePatternNames(Pattern p, boolean isVar) throws CompilerException {
+        if (p == null) {
+            return;
+        }
+        if (p instanceof Pattern.IdentP) {
+            String name = ((Pattern.IdentP) p).name;
+            if (isVar) {
+                assembler.emit("clear", "%eax");
+                assembler.emit("set", name);
+            } else {
+                assembler.emit("decl_let", name, "0");
+            }
+            return;
+        }
+        if (p instanceof Pattern.ArrayP) {
+            Pattern.ArrayP arr = (Pattern.ArrayP) p;
+            for (Pattern item : arr.items) {
+                declarePatternNames(item, isVar);
+            }
+            declarePatternNames(arr.rest, isVar);
+            return;
+        }
+        if (p instanceof Pattern.ObjectP) {
+            for (Pattern.Prop prop : ((Pattern.ObjectP) p).props) {
+                declarePatternNames(prop.pattern, isVar);
+            }
+        }
+    }
+
+    /**
+     * Compiles a destructuring pattern match: the value to destructure must
+     * be in eax. Array patterns iterate via the ES iterator protocol;
+     * object patterns read members; defaults apply when a value is exactly
+     * undefined.
+     */
+    private void compilePattern(Pattern p) throws CompilerException {
+        if (p == null) {
+            return; // hole
+        }
+        if (p.defaultValue != null) {
+            String skip = assembler.label("pat_default", p);
+            assembler.emit("jnundef", skip);
+            compileExpr(p.defaultValue);
+            emitLabel(skip);
+        }
+        if (p instanceof Pattern.IdentP) {
+            emitAssignToName(((Pattern.IdentP) p).name);
+        } else if (p instanceof Pattern.ArrayP) {
+            Pattern.ArrayP arr = (Pattern.ArrayP) p;
+            assembler.emit("push_eax");
+            assembler.emit("destr_iter_init");
+            for (Pattern item : arr.items) {
+                assembler.emit("destr_iter_next");
+                compilePattern(item);
+            }
+            if (arr.rest != null) {
+                assembler.emit("destr_iter_rest");
+                compilePattern(arr.rest);
+            } else {
+                assembler.emit("destr_iter_done");
+            }
+        } else if (p instanceof Pattern.ObjectP) {
+            Pattern.ObjectP obj = (Pattern.ObjectP) p;
+            assembler.emit("push_eax");
+            for (Pattern.Prop prop : obj.props) {
+                assembler.emit("peek", "0");
+                assembler.emit("push_eax");
+                assembler.emit("string", prop.key);
+                assembler.emit("member_ref");
+                assembler.emit("deref", "%eax");
+                compilePattern(prop.pattern);
+            }
+            assembler.emit("pop");
         }
     }
 
@@ -387,6 +476,12 @@ public class Compiler {
             }
         } else if (expr instanceof VarDeclExpr) {
             VarDeclExpr decl = (VarDeclExpr) expr;
+            if (decl.pattern != null) {
+                // a bare destructuring declaration (no initializer)
+                declarePatternNames(decl.pattern, true);
+                assembler.emit("clear", "%eax");
+                return;
+            }
             assembler.emit("clear", "%eax");
             if (decl.isVal) {
                 assembler.emit("val", decl.name);
@@ -398,6 +493,8 @@ public class Compiler {
             } else {
                 assembler.emit("mov_eax", decl.name);
             }
+        } else if (expr instanceof DestructureExpr) {
+            throw compileError("destructuring patterns are only valid as assignment targets");
         } else if (expr instanceof LetDeclExpr) {
             // a let/const declaration used in statement or for-init position
             compileLetDecl((LetDeclExpr) expr);
@@ -406,6 +503,21 @@ public class Compiler {
             AssignExpr assign = (AssignExpr) expr;
             if (!assign.op.equals("assign")) {
                 compileCompoundAssign(assign);
+            } else if (assign.target instanceof DestructureExpr) {
+                // destructuring assignment: [a, b] = value (expression value = RHS)
+                compileExpr(assign.value);
+                assembler.emit("push_eax");
+                compilePattern(((DestructureExpr) assign.target).pattern);
+                assembler.emit("pop_eax");
+            } else if (assign.target instanceof VarDeclExpr
+                    && ((VarDeclExpr) assign.target).pattern != null) {
+                // var destructuring declaration: var [a, b] = value
+                Pattern pat = ((VarDeclExpr) assign.target).pattern;
+                declarePatternNames(pat, true);
+                compileExpr(assign.value);
+                assembler.emit("push_eax");
+                compilePattern(pat);
+                assembler.emit("pop_eax");
             } else {
                 compileExpr(assign.target, true);
                 assembler.emit("push_eax");
