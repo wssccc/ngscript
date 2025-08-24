@@ -63,6 +63,13 @@ public class ScriptFunction {
      */
     public Object capturedThis;
 
+    /**
+     * Whether this is a generator function ({@code function*}): calling it
+     * returns a {@link org.ngscript.runtime.Generator} iterator instead of
+     * running the body.
+     */
+    public boolean generator;
+
     public ScriptFunction(String functionLabel, NgsObject environment, Machine vm) {
         this.functionLabel = functionLabel;
         this.environment = environment;

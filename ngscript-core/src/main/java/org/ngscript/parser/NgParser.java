@@ -80,6 +80,7 @@ import org.ngscript.ast.UnaryExpr;
 import org.ngscript.ast.VarDeclExpr;
 import org.ngscript.ast.WhileStmt;
 import org.ngscript.ast.WithStmt;
+import org.ngscript.ast.YieldExpr;
 import org.ngscript.compiler.CompilerException;
 import org.ngscript.lexer.Lexer;
 
@@ -186,6 +187,13 @@ public class NgParser {
      * function is an early error.
      */
     private int functionDepth;
+
+    /**
+     * Depth of enclosing generator (function*) bodies; {@code yield} is a
+     * contextual keyword valid only here (elsewhere it stays an ordinary
+     * identifier, e.g. the coroutine extension's yield function).
+     */
+    private int generatorDepth;
 
     /**
      * Lexer-driven mode state: when {@link #parse(String)} is used the lexer
@@ -482,9 +490,12 @@ public class NgParser {
                 next();
                 return null;
             case "function": {
-                // function name(...) is a declaration, function(...) is a lambda expression
+                // function name(...) / function* name(...) is a declaration,
+                // function(...) is a lambda expression
                 Token second = peekN(2);
-                if (second != null && second.type.equals("ident")) {
+                if (second != null && (second.type.equals("ident")
+                        || (second.type.equals("mul") && peekN(3) != null
+                            && peekN(3).type.equals("ident")))) {
                     return parseFunctionDecl();
                 }
                 return parseExprStmt();
@@ -881,16 +892,30 @@ public class NgParser {
 
     private Stmt parseFunctionDecl() throws ParserException {
         Token fn = next();
+        boolean generator = false;
+        if (peekIs("mul")) {
+            // function* name(...)
+            next();
+            generator = true;
+        }
         Token name = expect("ident");
         expect("lparen");
         Params params = parseParamList();
         expect("rparen");
         ++functionDepth;
+        int savedGen = generatorDepth;
+        if (generator) {
+            ++generatorDepth;
+        } else {
+            // a nested plain function has no yield context of its own
+            generatorDepth = 0;
+        }
         try {
             Block body = parseBlock();
-            return new FunctionDecl(name.value, params, body, fn.line);
+            return new FunctionDecl(name.value, params, body, generator, fn.line);
         } finally {
             --functionDepth;
+            generatorDepth = savedGen;
         }
     }
 
@@ -1840,6 +1865,27 @@ public class NgParser {
                     return parseArrowRest(
                             new Params(Collections.singletonList(t.value)), t.line);
                 }
+                if (t.value.equals("yield") && generatorDepth > 0) {
+                    // contextual yield (generators): the operand is optional
+                    // after a line terminator or before a token that cannot
+                    // start an expression
+                    Token nx = peekN(2);
+                    boolean none = nx == null || atLineBreakAfter(t.line)
+                            || nx.type.equals("semicolon") || nx.type.equals("rcurly")
+                            || nx.type.equals("rparen") || nx.type.equals("rsqr")
+                            || nx.type.equals("comma") || nx.type.equals("colon");
+                    if (none) {
+                        next();
+                        return new YieldExpr(null, false, t.line);
+                    }
+                    boolean delegate = nx.type.equals("mul");
+                    next();
+                    if (delegate) {
+                        next();
+                        return new YieldExpr(parseAssignment(), true, t.line);
+                    }
+                    return new YieldExpr(parseAssignment(), false, t.line);
+                }
                 next();
                 if (t.value.equals("val") && peek() != null && peek().type.equals("ident")) {
                     // the ngscript read-only declaration extension: "val x"
@@ -1876,6 +1922,11 @@ public class NgParser {
                 return new RegExpLiteral(t.value, t.line);
             case "function": {
                 next();
+                boolean generator = false;
+                if (peekIs("mul")) {
+                    next();
+                    generator = true;
+                }
                 String name = null;
                 if (peekIs("ident")) {
                     name = next().value;
@@ -1884,11 +1935,20 @@ public class NgParser {
                 Params params = parseParamList();
                 expect("rparen");
                 ++functionDepth;
+                int savedGen = generatorDepth;
+                if (generator) {
+                    ++generatorDepth;
+                } else {
+                    generatorDepth = 0;
+                }
                 try {
                     Block body = parseBlock();
-                    return new LambdaExpr(name, params, body, t.line);
+                    LambdaExpr lambda = new LambdaExpr(name, params, body, t.line);
+                    lambda.generator = generator;
+                    return lambda;
                 } finally {
                     --functionDepth;
+                    generatorDepth = savedGen;
                 }
             }
             case "class": {

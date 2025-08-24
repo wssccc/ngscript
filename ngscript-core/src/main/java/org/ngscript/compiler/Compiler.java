@@ -77,6 +77,7 @@ import org.ngscript.ast.UnaryExpr;
 import org.ngscript.ast.VarDeclExpr;
 import org.ngscript.ast.WhileStmt;
 import org.ngscript.ast.WithStmt;
+import org.ngscript.ast.YieldExpr;
 import org.ngscript.bytecode.Assembler;
 import org.ngscript.bytecode.Instruction;
 
@@ -389,7 +390,11 @@ public class Compiler {
 
     private void compileFunctionDecl(FunctionDecl decl) throws CompilerException {
         String enter = _compile_function_body(decl.params, decl.body);
-        assembler.instructions.add(0, new Instruction("static_func", decl.name, enter));
+        if (decl.generator) {
+            assembler.instructions.add(0, new Instruction("static_func_gen", decl.name, enter));
+        } else {
+            assembler.instructions.add(0, new Instruction("static_func", decl.name, enter));
+        }
         assembler.instructions.add(1,
                 new Instruction("set_func_meta", functionLength(decl.params) + "", decl.name));
     }
@@ -655,6 +660,15 @@ public class Compiler {
             if (!byref) {
                 assembler.emit("deref", "%eax");
             }
+        } else if (expr instanceof YieldExpr) {
+            YieldExpr y = (YieldExpr) expr;
+            if (y.operand != null) {
+                compileExpr(y.operand);
+                assembler.emit(y.delegate ? "yield_delegate" : "yield_op");
+            } else {
+                assembler.emit("undefined");
+                assembler.emit("yield_op");
+            }
         } else if (expr instanceof SpreadExpr) {
             throw compileError("spread is only valid in call arguments and array literals");
         } else if (expr instanceof TemplateExpr) {
@@ -682,7 +696,8 @@ public class Compiler {
                         lambda.line);
             }
             String enter = _compile_function_body(lambda.params, body);
-            assembler.emit("new_closure", enter, lambda.isArrow ? "1" : "0");
+            assembler.emit("new_closure", enter,
+                    lambda.isArrow ? "1" : (lambda.generator ? "2" : "0"));
             assembler.emit("set_func_meta", functionLength(lambda.params) + "",
                     lambda.name == null ? "" : lambda.name);
         } else {
@@ -1078,7 +1093,7 @@ public class Compiler {
         assembler.emit("forof_init");
         emitLabel(testLabel);
         assembler.emit("forof_next");
-        assembler.emit("jz", breakLabel);
+        assembler.emit("jdone", breakLabel);
         if (letTarget) {
             LetDeclExpr decl = (LetDeclExpr) stmt.target;
             assembler.emit("decl_let", decl.names.get(0), decl.isConst ? "1" : "0");

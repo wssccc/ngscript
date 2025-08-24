@@ -18,6 +18,7 @@ package org.ngscript.ast;
 
 /**
  * A function declaration: {@code function name(params) { body }}.
+ * {@link #generator} marks a generator function ({@code function* name}).
  *
  * @author wssccc
  */
@@ -26,11 +27,17 @@ public class FunctionDecl extends Stmt {
     public final String name;
     public final Params params;
     public final Block body;
+    public final boolean generator;
 
     public FunctionDecl(String name, Params params, Block body, int line) {
+        this(name, params, body, false, line);
+    }
+
+    public FunctionDecl(String name, Params params, Block body, boolean generator, int line) {
         this.name = name;
         this.params = params;
         this.body = body;
+        this.generator = generator;
         this.line = line;
     }
 

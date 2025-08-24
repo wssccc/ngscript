@@ -132,6 +132,14 @@ public class OpObject {
         OpScope.set(vm, param, null);
     }
 
+    /** Binds a {@code function*} declaration (a generator function). */
+    public static void static_func_gen(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        OpCall.new_closure(vm, param_extend, null);
+        ((ScriptFunction) vm.eax.read()).generator = true;
+        ((ScriptFunction) vm.eax.read()).name = param;
+        OpScope.set(vm, param, null);
+    }
+
     /**
      * Script-visible value types whose {@code typeof} is reported as their
      * simple class name. Foreign Java classes always report their fully
@@ -255,9 +263,16 @@ public class OpObject {
     }
 
     /**
-     * Advances a for-of loop: yields the next value in eax, or false when
-     * done (popping the iterator). JS iterators are polled via next() and
-     * the result object's done/value properties.
+     * The sentinel marking a completed for-of iteration (so falsy element
+     * values like 0 or "" never terminate the loop early).
+     */
+    private static final Object FOROF_DONE = new Object();
+
+    /**
+     * Advances a for-of loop: yields the next value in eax, or the
+     * {@link #FOROF_DONE} sentinel when done (popping the iterator). JS
+     * iterators are polled via next() and the result object's done/value
+     * properties.
      */
     public static void forof_next(Machine vm, String param, String param_extend) throws Exception {
         Object iterator = vm.stack.peek(0);
@@ -268,14 +283,14 @@ public class OpObject {
                 return;
             }
             vm.stack.pop();
-            vm.eax.write(Boolean.FALSE);
+            vm.eax.write(FOROF_DONE);
             return;
         }
         // generic ES iterator protocol: result = iterator.next()
         Object method = OpUtils.getMember(vm, iterator, "next");
         if (method == null || method == Undefined.value) {
             vm.stack.pop();
-            vm.eax.write(Boolean.FALSE);
+            vm.eax.write(FOROF_DONE);
             return;
         }
         Object result = OpUtils.callValue(vm, method, iterator, new Object[0]);
@@ -283,14 +298,26 @@ public class OpObject {
             Object done = ((NgsObject) result).get("done");
             if (OpUtils.testValue(done)) {
                 vm.stack.pop();
-                vm.eax.write(Boolean.FALSE);
+                vm.eax.write(FOROF_DONE);
                 return;
             }
             vm.eax.write(((NgsObject) result).get("value"));
             return;
         }
         vm.stack.pop();
-        vm.eax.write(Boolean.FALSE);
+        vm.eax.write(FOROF_DONE);
+    }
+
+    /** Jumps when eax holds the for-of done sentinel. */
+    public static void jdone(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        if (vm.eax.read() == FOROF_DONE) {
+            if (vm.labels.containsKey(param)) {
+                int nip = vm.labels.get(param);
+                vm.setEip(nip);
+            } else {
+                throw new NgScriptRuntimeException(vm, "jump to no where");
+            }
+        }
     }
 
     /** Pushes an iterator for the value in eax (destructuring array patterns). */

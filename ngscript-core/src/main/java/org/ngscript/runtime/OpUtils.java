@@ -60,6 +60,11 @@ public class OpUtils {
         if (iterable instanceof java.util.Iterator) {
             return iterable;
         }
+        if (iterable instanceof Generator) {
+            // generators follow the generic ES iterator protocol (next() ->
+            // {value, done}); the for-of ops already poll it that way
+            return iterable;
+        }
         if (iterable instanceof java.lang.Iterable) {
             return ((java.lang.Iterable) iterable).iterator();
         }

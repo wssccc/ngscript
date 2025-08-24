@@ -129,7 +129,64 @@ public class OpControlFlow {
             vm.thisRef.write(top.savedThis);
         }
         vm.callstack.pop();
+        if (nip == -1) {
+            // generator body completion: record the return value before the
+            // run loop pops the saved context
+            try {
+                Object g = ((NgsObject) vm.env.read()).lookup("%generator", vm, false).read();
+                if (g instanceof Generator) {
+                    ((Generator) g).complete(vm.eax.read());
+                }
+            } catch (Throwable ignored) {
+                // plain scripts and go coroutines also return to the -1 halt
+                // sentinel without a %generator binding
+            }
+        }
         vm.setEip(nip);
+    }
+
+    /**
+     * Suspends the running generator body, yielding the value in eax (the
+     * yield expression evaluates to the value passed to the next next()).
+     */
+    public static void yield_op(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        try {
+            Object g = ((NgsObject) vm.env.read()).lookup("%generator", vm, false).read();
+            if (g instanceof Generator) {
+                // drop the generator's callstack entry (resume re-pushes it)
+                vm.callstack.pop();
+                ((Generator) g).suspend(vm.eax.read(), false);
+                vm.setEip(-1);
+                return;
+            }
+        } catch (NgScriptRuntimeException ignored) {
+            // fall through: yield outside a generator
+        }
+        throw new NgScriptRuntimeException(vm, "yield outside a generator");
+    }
+
+    /**
+     * Suspends the generator for a {@code yield*} delegation: resumes pull
+     * values from the delegate iterator (in eax) until it is exhausted.
+     * The first value is yielded immediately.
+     */
+    public static void yield_delegate(Machine vm, String param, String param_extend) throws Exception {
+        Object g = ((NgsObject) vm.env.read()).lookup("%generator", vm, false).read();
+        if (g instanceof Generator) {
+            Generator gen = (Generator) g;
+            vm.callstack.pop();
+            gen.setDelegate(OpUtils.getIterator(vm, vm.eax.read()));
+            Object first = gen.delegateNext();
+            if (first == null) {
+                // empty delegate: continue after the yield* expression
+                vm.eax.write(Undefined.value);
+                return;
+            }
+            gen.suspend(first, true);
+            vm.setEip(-1);
+            return;
+        }
+        throw new NgScriptRuntimeException(vm, "yield* outside a generator");
     }
 
     public static void go(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {

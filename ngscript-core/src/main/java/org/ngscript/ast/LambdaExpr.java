@@ -32,6 +32,12 @@ public class LambdaExpr extends Expr {
     public final Expr bodyExpr;
     public final boolean isArrow;
 
+    /**
+     * Whether this is a generator function ({@code function* ...}): calling
+     * it returns an iterator instead of running the body.
+     */
+    public boolean generator;
+
     public LambdaExpr(Params params, Block body, int line) {
         this(null, params, body, line);
     }

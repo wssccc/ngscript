@@ -40,6 +40,9 @@ public class OpCall {
             // arrow function: capture the lexical this binding
             closure.arrow = true;
             closure.capturedThis = vm.thisRef.read();
+        } else if ("2".equals(param_extend)) {
+            // generator function: calls create a Generator iterator
+            closure.generator = true;
         }
         vm.eax.write(closure);
     }
@@ -73,6 +76,16 @@ public class OpCall {
 
         if (callee instanceof ScriptFunction) {
             ScriptFunction c = (ScriptFunction) callee;
+            if (c.generator) {
+                if (receiver instanceof String) {
+                    // generators are not constructible
+                    throw new IllegalArgumentException(
+                            (c.name == null ? "" : c.name + " ") + "is not a constructor");
+                }
+                // a generator call returns an iterator without running the body
+                vm.eax.write(new Generator(vm, c, args));
+                return;
+            }
             vm.callstack.push(c);
             c.savedThis = vm.thisRef.read();
             //prepare env
