@@ -61,6 +61,8 @@ public class Builtins {
         map.put("Object", new MemRef(new ObjectCtor()));
         map.put("Array", new MemRef(new ArrayCtor()));
         map.put("Symbol", new MemRef(new SymbolCtor()));
+        map.put("Map", new MemRef(new NgsMap.Ctor()));
+        map.put("Set", new MemRef(new NgsSet.Ctor()));
         // ES error constructors map to their Java counterparts (approximate)
         map.put("Error", new MemRef(Error.class));
         map.put("TypeError", new MemRef(IllegalArgumentException.class));

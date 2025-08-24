@@ -583,6 +583,12 @@ public class OpObject {
             cons = vm.stack.pop();
         }
         vm.stack.pop(); //receiver
+        if (cons instanceof Invokable && !(cons instanceof ScriptFunction)) {
+            // builtin constructors (Object/Array/Map/Set): the call already
+            // produced the instance in eax; just restore the environment
+            vm.env.write(oldEnv);
+            return;
+        }
         if (cons instanceof ScriptFunction) {
             ScriptFunction ctor = (ScriptFunction) cons;
             if (newObject instanceof NgsObject) {
