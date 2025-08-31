@@ -1363,7 +1363,7 @@ public class Compiler {
             assembler.emit("push_eax");
         } else {
             if (isNew) {
-                assembler.emit("string", "new");
+                assembler.emit("new_marker");
             } else {
                 assembler.emit("clear_null", "%eax");
             }

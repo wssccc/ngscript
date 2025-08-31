@@ -205,6 +205,27 @@ public class OpUtils {
         if (obj instanceof Long) {
             return Long.toString((Long) obj);
         }
+        if (obj instanceof NgsArray) {
+            // ES: String(array) joins the elements (null/undefined become "")
+            NgsArray arr = (NgsArray) obj;
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < arr.length(); i++) {
+                if (i > 0) {
+                    sb.append(',');
+                }
+                Object v = arr.get("" + i);
+                if (v != null && v != Undefined.value) {
+                    sb.append(toStringValue(v));
+                }
+            }
+            return sb.toString();
+        }
+        if (obj instanceof NgsObject) {
+            return "[object Object]";
+        }
+        if (obj instanceof Character) {
+            return obj.toString();
+        }
         return obj.toString();
     }
 
@@ -285,6 +306,28 @@ public class OpUtils {
         }
         if (isNumber(a) && isNumber(b)) {
             return numericEquals(toNumber(a), toNumber(b));
+        }
+        if (a instanceof String && b instanceof String) {
+            return a.equals(b);
+        }
+        if (a instanceof Boolean && b instanceof Boolean) {
+            return a.equals(b);
+        }
+        return false;
+    }
+
+    /**
+     * ES SameValueZero: like strict equality except NaN equals itself.
+     * Used by Array.prototype.includes and Map/Set membership.
+     */
+    public static boolean sameValueZero(Object a, Object b) {
+        if (a == b) {
+            return true;
+        }
+        if (isNumber(a) && isNumber(b)) {
+            double da = toNumber(a);
+            double db = toNumber(b);
+            return da == db || (Double.isNaN(da) && Double.isNaN(db));
         }
         if (a instanceof String && b instanceof String) {
             return a.equals(b);

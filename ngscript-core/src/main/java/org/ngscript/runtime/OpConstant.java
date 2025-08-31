@@ -48,6 +48,14 @@ public class OpConstant {
     }
 
     /**
+     * Writes the new-expression receiver sentinel (distinguishes
+     * {@code new f()} from method calls on String receivers).
+     */
+    public static void new_marker(Machine vm, String param, String param_extend) {
+        vm.eax.write(OpCall.NEW_RECEIVER);
+    }
+
+    /**
      * Concatenates template literal chunks and substitution values: the
      * stack holds interleaved chunk strings and expression values (odd
      * positions are expressions), pushed chunk-first. Expressions use ES

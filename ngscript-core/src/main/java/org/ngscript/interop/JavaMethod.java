@@ -78,6 +78,10 @@ public class JavaMethod implements Invokable {
             if (val instanceof Long) {
                 val = ((Long) val).intValue();
             }
+            if (val instanceof Character) {
+                // Java char returns become single-char strings (String.prototype.charAt)
+                val = val.toString();
+            }
             if (val instanceof Object[]) {
                 // Java array results become script arrays
                 Object[] src = (Object[]) val;

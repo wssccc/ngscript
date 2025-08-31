@@ -34,6 +34,12 @@ import org.ngscript.value.Undefined;
  */
 public class OpCall {
 
+    /**
+     * The receiver sentinel pushed by new-expression calls (so String
+     * receivers like {@code 'x'.charAt(0)} are not mistaken for it).
+     */
+    public static final Object NEW_RECEIVER = new Object();
+
     public static void new_closure(Machine vm, String param, String param_extend) {
         ScriptFunction closure = new ScriptFunction(param, (NgsObject) vm.env.read(), vm);
         if ("1".equals(param_extend)) {
@@ -77,7 +83,7 @@ public class OpCall {
         if (callee instanceof ScriptFunction) {
             ScriptFunction c = (ScriptFunction) callee;
             if (c.generator) {
-                if (receiver instanceof String) {
+                if (receiver == NEW_RECEIVER) {
                     // generators are not constructible
                     throw new IllegalArgumentException(
                             (c.name == null ? "" : c.name + " ") + "is not a constructor");
@@ -94,7 +100,7 @@ public class OpCall {
             vm.env.write(env);
             //bind this: a method receiver, the constructor frame for "new"
             //(the frame is the instance, per the new_op invariant), else undefined
-            if (receiver instanceof String) {
+            if (receiver == NEW_RECEIVER) {
                 if (c.arrow) {
                     // arrows are not constructible
                     throw new IllegalArgumentException(
@@ -123,7 +129,7 @@ public class OpCall {
         if (callee instanceof Invokable) {
             // native callables (builtins, array methods) see the receiver as this
             Object savedThis = vm.thisRef.read();
-            if (receiver != null && !(receiver instanceof String)) {
+            if (receiver != null && receiver != NEW_RECEIVER) {
                 vm.thisRef.write(receiver);
             }
             try {

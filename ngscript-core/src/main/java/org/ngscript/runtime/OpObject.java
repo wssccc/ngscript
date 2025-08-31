@@ -84,6 +84,34 @@ public class OpObject {
                 return;
             }
         }
+        if (objs[0] instanceof String) {
+            // ES String.prototype methods take precedence over the Java
+            // reflection fallback (charAt/substring/indexOf/... stay native)
+            MemRef ref = org.ngscript.builtins.StringProto.lookup(member, vm);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
+            if (member.equals("length")) {
+                // String.prototype.length is a data property, not a method
+                vm.eax.write(new MemRef(((String) objs[0]).length()));
+                return;
+            }
+        }
+        if (objs[0] instanceof org.ngscript.builtins.StringCtor) {
+            MemRef ref = org.ngscript.builtins.StringCtor.lookup(
+                    (org.ngscript.builtins.StringCtor) objs[0], member, vm);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
+            // fall back to Java static methods (String.format, valueOf, ...)
+            Object jref = NgsObject.lookupNative(String.class, member, vm);
+            if (jref != null) {
+                vm.eax.write(jref);
+                return;
+            }
+        }
         // script-created properties on host objects (e.g. list.customFn = f)
         java.util.Map<String, MemRef> props = vm.hostProps.get(objs[0]);
         if (props != null) {

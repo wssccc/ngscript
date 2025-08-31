@@ -60,6 +60,7 @@ public class Builtins {
         map.put("Coroutine", new MemRef(Coroutine.class));
         map.put("Object", new MemRef(new ObjectCtor()));
         map.put("Array", new MemRef(new ArrayCtor()));
+        map.put("String", new MemRef(new StringCtor()));
         map.put("Symbol", new MemRef(new SymbolCtor()));
         map.put("Map", new MemRef(new NgsMap.Ctor()));
         map.put("Set", new MemRef(new NgsSet.Ctor()));

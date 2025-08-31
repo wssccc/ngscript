@@ -66,8 +66,105 @@ public class ArrayCtor implements Invokable {
                     }
                     vm2.eax.write(out);
                 });
+            case "from":
+                return new MemRef((Invokable) (vm2, args) -> {
+                    // Array.from(iterable[, mapFn[, thisArg]])
+                    Object iterable = args.length > 0 ? args[0] : null;
+                    Object mapFn = args.length > 1 ? args[1] : null;
+                    Object thisArg = args.length > 2 ? args[2] : null;
+                    NgsArray out = new NgsArray(null);
+                    out.setPrototype(vm2.arrayPrototype);
+                    if (iterable == null || iterable == org.ngscript.value.Undefined.value) {
+                        throw new IllegalArgumentException("Array.from: value is not iterable");
+                    }
+                    Object itObj;
+                    try {
+                        itObj = org.ngscript.runtime.OpUtils.getIterator(vm2, iterable);
+                    } catch (Exception e) {
+                        // non-iterable (e.g. a plain number): fall back to
+                        // array-like copying by length, per ES
+                        double lenD = org.ngscript.runtime.OpUtils.toNumber(
+                                org.ngscript.runtime.OpUtils.getMember(vm2, iterable, "length"));
+                        int len = (int) lenD;
+                        for (int i = 0; i < len; i++) {
+                            Object v = org.ngscript.runtime.OpUtils.getMember(vm2, iterable, "" + i);
+                            if (mapFn instanceof org.ngscript.value.Invokable
+                                    || mapFn instanceof org.ngscript.value.ScriptFunction) {
+                                v = vm2.callFunctionSync(mapFn, new Object[]{v, i}, thisArg);
+                            }
+                            out.set("" + i, v);
+                        }
+                        vm2.eax.write(out);
+                        return;
+                    }
+                    java.util.Iterator<Object> it = toJavaIterator(vm2, itObj);
+                    int i = 0;
+                    while (it.hasNext()) {
+                        Object v = it.next();
+                        if (mapFn instanceof org.ngscript.value.Invokable
+                                || mapFn instanceof org.ngscript.value.ScriptFunction) {
+                            v = vm2.callFunctionSync(mapFn, new Object[]{v, i}, thisArg);
+                        }
+                        out.set("" + i++, v);
+                    }
+                    vm2.eax.write(out);
+                });
             default:
                 return null;
         }
+    }
+
+    /** Adapts any ES iterator (Java iterator or {next()} protocol object). */
+    private static java.util.Iterator<Object> toJavaIterator(final Machine vm, final Object itObj) {
+        if (itObj instanceof java.util.Iterator) {
+            @SuppressWarnings("unchecked")
+            java.util.Iterator<Object> it = (java.util.Iterator<Object>) itObj;
+            return it;
+        }
+        // ES iterator protocol: poll next() and read the result object's
+        // done/value properties
+        return new java.util.Iterator<Object>() {
+            private Object next;
+            private boolean done;
+
+            private void advance() {
+                if (done) {
+                    return;
+                }
+                try {
+                    Object method = org.ngscript.runtime.OpUtils.getMember(vm, itObj, "next");
+                    Object result = org.ngscript.runtime.OpUtils.callValue(vm, method, itObj, new Object[0]);
+                    if (result instanceof org.ngscript.runtime.NgsObject
+                            && !org.ngscript.runtime.OpUtils.testValue(((org.ngscript.runtime.NgsObject) result).get("done"))) {
+                        next = ((org.ngscript.runtime.NgsObject) result).get("value");
+                    } else {
+                        done = true;
+                    }
+                } catch (Exception ignored) {
+                    done = true;
+                }
+            }
+
+            @Override
+            public boolean hasNext() {
+                if (!done) {
+                    advance();
+                }
+                return !done;
+            }
+
+            @Override
+            public Object next() {
+                if (!hasNext()) {
+                    throw new java.util.NoSuchElementException();
+                }
+                return next;
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }

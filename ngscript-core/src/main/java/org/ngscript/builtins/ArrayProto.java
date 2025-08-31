@@ -56,6 +56,13 @@ public class ArrayProto {
         register(proto, "reduce", (vm, args) -> reduce(vm, args));
         register(proto, "sort", (vm, args) -> sort(vm, args));
         register(proto, "splice", (vm, args) -> splice(vm, args));
+        register(proto, "find", (vm, args) -> find(vm, args, false));
+        register(proto, "findIndex", (vm, args) -> find(vm, args, true));
+        register(proto, "includes", (vm, args) -> includes(vm, args));
+        register(proto, "fill", (vm, args) -> fill(vm, args));
+        register(proto, "keys", (vm, args) -> keys(vm, args));
+        register(proto, "entries", (vm, args) -> entries(vm, args));
+        register(proto, "copyWithin", (vm, args) -> copyWithin(vm, args));
         register(proto, "toString", (vm, args) -> join(vm, new Object[0]));
         register(proto, "isArray", (vm, args) -> vm.eax.write(
                 args.length > 0 && args[0] instanceof NgsArray));
@@ -352,6 +359,130 @@ public class ArrayProto {
             vm.callFunctionSync(cb, new Object[]{get(arr, i), i, arr}, thisArg);
         }
         vm.eax.write(Undefined.value);
+    }
+
+    //----------------------------------------------------------------------
+    // ES2015+ additions
+    //----------------------------------------------------------------------
+
+    /** ES Array.prototype.find/findIndex (predicate, thisArg). */
+    private static void find(Machine vm, Object[] args, boolean wantIndex) throws Exception {
+        NgsArray arr = self(vm);
+        Object cb = args.length > 0 ? args[0] : null;
+        Object thisArg = args.length > 1 ? args[1] : null;
+        if (!(cb instanceof Invokable) && !(cb instanceof org.ngscript.value.ScriptFunction)) {
+            throw new NgScriptRuntimeException(vm, "callback is not a function");
+        }
+        int len = lengthOf(arr);
+        for (int i = 0; i < len; i++) {
+            Object v = get(arr, i);
+            Object r = vm.callFunctionSync(cb, new Object[]{v, i, arr}, thisArg);
+            if (OpUtils.testValue(r)) {
+                vm.eax.write(wantIndex ? (Integer) i : v);
+                return;
+            }
+        }
+        vm.eax.write(wantIndex ? -1 : Undefined.value);
+    }
+
+    /** ES Array.prototype.includes (SameValueZero). */
+    private static void includes(Machine vm, Object[] args) throws Exception {
+        NgsArray arr = self(vm);
+        Object target = args.length > 0 ? args[0] : null;
+        int len = lengthOf(arr);
+        int from = args.length > 1 ? toIndex(args[1], len) : 0;
+        for (int i = from; i < len; i++) {
+            if (OpUtils.sameValueZero(get(arr, i), target)) {
+                vm.eax.write(true);
+                return;
+            }
+        }
+        vm.eax.write(false);
+    }
+
+    /** ES Array.prototype.fill(value, start, end). */
+    private static void fill(Machine vm, Object[] args) throws Exception {
+        NgsArray arr = self(vm);
+        Object value = args.length > 0 ? args[0] : null;
+        int len = lengthOf(arr);
+        int start = args.length > 1 ? toIndex(args[1], len) : 0;
+        int end = args.length > 2 ? toIndex(args[2], len) : len;
+        for (int i = start; i < end; i++) {
+            set(arr, i, value);
+        }
+        vm.eax.write(arr);
+    }
+
+    /** ES Array.prototype.keys(): an iterator over the indices. */
+    private static void keys(Machine vm, Object[] args) throws Exception {
+        NgsArray arr = self(vm);
+        final int len = lengthOf(arr);
+        vm.eax.write(new java.util.Iterator<Object>() {
+            private int i;
+
+            @Override
+            public boolean hasNext() {
+                return i < len;
+            }
+
+            @Override
+            public Object next() {
+                return i++;
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+        });
+    }
+
+    /** ES Array.prototype.entries(): an iterator over [index, value] pairs. */
+    private static void entries(Machine vm, Object[] args) throws Exception {
+        NgsArray arr = self(vm);
+        final int len = lengthOf(arr);
+        vm.eax.write(new java.util.Iterator<Object>() {
+            private int i;
+
+            @Override
+            public boolean hasNext() {
+                return i < len;
+            }
+
+            @Override
+            public Object next() {
+                NgsArray pair = new NgsArray(null);
+                pair.set("0", i);
+                pair.set("1", get(arr, i));
+                ++i;
+                return pair;
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+        });
+    }
+
+    /** ES Array.prototype.copyWithin(target, start, end). */
+    private static void copyWithin(Machine vm, Object[] args) throws Exception {
+        NgsArray arr = self(vm);
+        int len = lengthOf(arr);
+        int target = args.length > 0 ? toIndex(args[0], len) : 0;
+        int start = args.length > 1 ? toIndex(args[1], len) : 0;
+        int end = args.length > 2 ? toIndex(args[2], len) : len;
+        if (target < start) {
+            for (int i = start; i < end; i++) {
+                set(arr, target + (i - start), get(arr, i));
+            }
+        } else {
+            int count = Math.max(0, end - start);
+            for (int i = count - 1; i >= 0; i--) {
+                set(arr, target + i, get(arr, start + i));
+            }
+        }
+        vm.eax.write(arr);
     }
 
     private static void reduce(Machine vm, Object[] args) throws Exception {
