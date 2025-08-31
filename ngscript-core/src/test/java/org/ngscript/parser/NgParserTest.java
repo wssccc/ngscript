@@ -51,6 +51,7 @@ import org.ngscript.ast.LiteralExpr;
 import org.ngscript.ast.MemberExpr;
 import org.ngscript.ast.NewExpr;
 import org.ngscript.ast.ObjectLiteral;
+import org.ngscript.ast.Pattern;
 import org.ngscript.ast.Program;
 import org.ngscript.ast.ReturnStmt;
 import org.ngscript.ast.Stmt;
@@ -232,6 +233,43 @@ public class NgParserTest {
         LambdaExpr arrow = (LambdaExpr) assign.value;
         assertEquals(2, arrow.params.names.size());
         assertEquals(1, arrow.body.statements.size());
+    }
+
+    @Test
+    public void testParameterDestructuring() throws Exception {
+        // object pattern parameter with shorthand and defaulted inner binding
+        FunctionDecl decl = (FunctionDecl) parse("function f({a, b = 1}) {}").statements.get(0);
+        assertEquals(1, decl.params.names.size());
+        Pattern.ObjectP obj = (Pattern.ObjectP) decl.params.patterns.get(0);
+        assertEquals(2, obj.props.size());
+        assertEquals("a", obj.props.get(0).key);
+        assertEquals("a", ((Pattern.IdentP) obj.props.get(0).pattern).name);
+        assertNotNull(obj.props.get(1).pattern.defaultValue);
+
+        // array pattern parameter with a whole-pattern default
+        decl = (FunctionDecl) parse("function g([x, , ...rest] = []) {}").statements.get(0);
+        Pattern.ArrayP arr = (Pattern.ArrayP) decl.params.patterns.get(0);
+        assertEquals(2, arr.items.size());
+        assertNull(arr.items.get(1)); // hole
+        assertNotNull(arr.rest);
+        assertNotNull(arr.defaultValue);
+
+        // mixed plain and pattern parameters
+        decl = (FunctionDecl) parse("function h(a, {b}, [c]) {}").statements.get(0);
+        assertEquals(3, decl.params.names.size());
+        assertNull(decl.params.patterns.get(0));
+        assertTrue(decl.params.patterns.get(1) instanceof Pattern.ObjectP);
+        assertTrue(decl.params.patterns.get(2) instanceof Pattern.ArrayP);
+
+        // rest binding pattern
+        decl = (FunctionDecl) parse("function k(...[a, b]) {}").statements.get(0);
+        assertTrue(decl.params.rest);
+        assertTrue(decl.params.patterns.get(0) instanceof Pattern.ArrayP);
+
+        // arrow with a pattern parameter
+        LambdaExpr arrow = (LambdaExpr) exprOf("(({x}) => x);");
+        assertEquals(1, arrow.params.names.size());
+        assertTrue(arrow.params.patterns.get(0) instanceof Pattern.ObjectP);
     }
 
     @Test

@@ -21,7 +21,10 @@ import java.util.List;
 /**
  * Formal parameter list of a function or lambda. {@link #defaults} is
  * parallel to {@link #names} (null = no default); {@link #rest} marks the
- * last parameter as a rest parameter ({@code function f(a, ...rest)}).
+ * last parameter as a rest parameter ({@code function f(a, ...rest)});
+ * {@link #patterns} is parallel to {@link #names} and holds the
+ * destructuring pattern when a slot binds one
+ * ({@code function f({a}, [b])}).
  *
  * @author wssccc
  */
@@ -30,14 +33,20 @@ public class Params {
     public final List<String> names;
     public final List<Expr> defaults;
     public final boolean rest;
+    public final List<Pattern> patterns;
 
     public Params(List<String> names) {
-        this(names, null, false);
+        this(names, null, false, null);
     }
 
     public Params(List<String> names, List<Expr> defaults, boolean rest) {
+        this(names, defaults, rest, null);
+    }
+
+    public Params(List<String> names, List<Expr> defaults, boolean rest, List<Pattern> patterns) {
         this.names = names;
         this.defaults = defaults;
         this.rest = rest;
+        this.patterns = patterns;
     }
 }

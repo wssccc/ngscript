@@ -259,6 +259,8 @@ public class Compiler {
             } else {
                 assembler.emit("destr_iter_done");
             }
+            // the pushed array itself (destr_iter_* only drops the iterator)
+            assembler.emit("pop");
         } else if (p instanceof Pattern.ObjectP) {
             Pattern.ObjectP obj = (Pattern.ObjectP) p;
             assembler.emit("push_eax");
@@ -401,7 +403,8 @@ public class Compiler {
 
     /**
      * The ES Function.length: the parameter count, stopping before the first
-     * parameter with a default and excluding a rest parameter.
+     * parameter with a default (including a pattern carrying one) and
+     * excluding a rest parameter.
      */
     private int functionLength(Params params) {
         int length = params.names.size();
@@ -411,6 +414,15 @@ public class Compiler {
         if (params.defaults != null) {
             for (int i = 0; i < params.defaults.size(); i++) {
                 if (params.defaults.get(i) != null) {
+                    length = Math.min(length, i);
+                    break;
+                }
+            }
+        }
+        if (params.patterns != null) {
+            for (int i = 0; i < params.patterns.size(); i++) {
+                Pattern p = params.patterns.get(i);
+                if (p != null && p.defaultValue != null) {
                     length = Math.min(length, i);
                     break;
                 }
@@ -430,6 +442,24 @@ public class Compiler {
         blockDepth = 0;
         try {
             for (int i = 0; i < params.names.size(); i++) {
+                Pattern pat = params.patterns != null ? params.patterns.get(i) : null;
+                if (pat != null) {
+                    // destructuring parameter: function f({a}, [b, c]) — the
+                    // bound names become var bindings of the function scope,
+                    // then the argument (or undefined) is matched against the
+                    // pattern, with the pattern's own default applied on
+                    // undefined.
+                    declarePatternNames(pat, true);
+                    if (params.rest && i == params.names.size() - 1) {
+                        // rest pattern: function f(...[a, b]) matches the
+                        // remaining arguments collected into an array
+                        assembler.emit("rest_args", i + "");
+                    } else {
+                        assembler.emit("pickarg", i + "");
+                    }
+                    compilePattern(pat);
+                    continue;
+                }
                 assembler.emit("pickarg", i + "");
                 assembler.emit("set", params.names.get(i), "%eax");
                 if (params.rest && i == params.names.size() - 1) {

@@ -1259,23 +1259,42 @@ public class NgParser {
     private Params parseParamList() throws ParserException {
         List<String> names = new ArrayList<>();
         List<Expr> defaults = new ArrayList<>();
+        List<Pattern> patterns = new ArrayList<>();
         boolean rest = false;
         if (!peekIs("rparen")) {
             while (true) {
                 if (peekIs("spread")) {
                     next();
                     rest = true;
-                    names.add(expect("ident").value);
+                    // a rest parameter may be a binding pattern: function f(...[a, b])
+                    Token t = peek();
+                    if (t != null && (t.type.equals("lsqr") || t.type.equals("lcurly"))) {
+                        patterns.add(parsePattern(true));
+                        names.add(null);
+                    } else {
+                        Token name = expect("ident");
+                        names.add(name.value);
+                        patterns.add(null);
+                    }
                     defaults.add(null);
                     break; // a rest parameter must be the last one
                 }
-                Token name = expect("ident");
-                names.add(name.value);
-                if (peekIs("assign")) {
-                    next();
-                    defaults.add(parseAssignment());
+                Token t = peek();
+                if (t != null && (t.type.equals("lsqr") || t.type.equals("lcurly"))) {
+                    // destructuring parameter: function f({a}, [b] = [1])
+                    patterns.add(parsePattern(true));
+                    names.add(null);
+                    defaults.add(null); // the pattern carries its own default
                 } else {
-                    defaults.add(null);
+                    Token name = expect("ident");
+                    names.add(name.value);
+                    patterns.add(null);
+                    if (peekIs("assign")) {
+                        next();
+                        defaults.add(parseAssignment());
+                    } else {
+                        defaults.add(null);
+                    }
                 }
                 if (!peekIs("comma")) {
                     break;
@@ -1286,7 +1305,7 @@ public class NgParser {
                 }
             }
         }
-        return new Params(names, defaults, rest);
+        return new Params(names, defaults, rest, patterns);
     }
 
     private List<Expr> parseParams() throws ParserException {
@@ -1771,10 +1790,12 @@ public class NgParser {
         if (second == null) {
             throw new ParserException("unexpected end of input");
         }
-        if (second.type.equals("rparen") || second.type.equals("ident")) {
+        if (second.type.equals("rparen") || second.type.equals("ident")
+                || second.type.equals("lsqr") || second.type.equals("lcurly")) {
             // probe for an arrow function parameter list: scan to the
             // matching closing paren (tracking nested parens so default
             // parameter expressions are skipped) and check for =>
+            // (pattern parameters: ({a}) => a, ([a, b]) => a + b)
             if (probeArrow(2)) {
                 next();
                 Params params = parseParamList();
