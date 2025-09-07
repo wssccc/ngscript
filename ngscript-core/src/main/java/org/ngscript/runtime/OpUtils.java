@@ -170,7 +170,7 @@ public class OpUtils {
     //----------------------------------------------------------------------
 
     /** Whether a value is an internal numeric representation (a JS Number). */
-    static boolean isNumber(Object obj) {
+    public static boolean isNumber(Object obj) {
         return obj instanceof Integer || obj instanceof Double || obj instanceof Long;
     }
 
@@ -287,7 +287,7 @@ public class OpUtils {
     }
 
     /** ES Number::toString (shortest decimal, no trailing .0 for integers). */
-    static String numberToString(double d) {
+    public static String numberToString(double d) {
         if (Double.isNaN(d)) {
             return "NaN";
         }
@@ -307,7 +307,7 @@ public class OpUtils {
      * Keeps the internal Integer representation when a double result is an
      * integral value within the int range (like V8's Smi optimization).
      */
-    static Object normalize(double d) {
+    public static Object normalize(double d) {
         if (!Double.isInfinite(d) && d == Math.floor(d) && d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE) {
             return (int) d;
         }

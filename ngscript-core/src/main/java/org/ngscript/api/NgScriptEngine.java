@@ -63,6 +63,14 @@ public class NgScriptEngine {
         this.compiler = new Compiler(configuration);
         this.parser = new NgParser();
         this.parser.setStatementListener(stmt -> compileAndRun(stmt, ""));
+        // the global eval() builtin runs scripts against this engine
+        Machine.evalHook = code -> {
+            try {
+                return eval(code);
+            } catch (NgScriptException e) {
+                throw e;
+            }
+        };
     }
 
     /**

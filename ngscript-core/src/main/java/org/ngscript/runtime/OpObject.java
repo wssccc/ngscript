@@ -120,6 +120,14 @@ public class OpObject {
                 return;
             }
         }
+        if (objs[0] instanceof org.ngscript.builtins.JSONBuiltins.Json) {
+            MemRef ref = org.ngscript.builtins.JSONBuiltins.lookup(
+                    (org.ngscript.builtins.JSONBuiltins.Json) objs[0], member, vm);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
+        }
         // script-created properties on host objects (e.g. list.customFn = f)
         java.util.Map<String, MemRef> props = vm.hostProps.get(objs[0]);
         if (props != null) {

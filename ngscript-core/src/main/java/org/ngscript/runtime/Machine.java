@@ -91,6 +91,18 @@ public class Machine {
     NgsObject initialEnv;
 
     /**
+     * The shared global object (the builtins baseline), for globalThis.
+     * Static so builtins can reach it without an instance reference.
+     */
+    public static volatile NgsObject globalThis;
+
+    /**
+     * The eval hook installed by NgScriptEngine: evaluates a source string
+     * and returns its value (null when no engine is attached).
+     */
+    public static volatile java.util.function.Function<String, Object> evalHook;
+
+    /**
      * The ES microtask queue (Promise reactions): tasks are drained when
      * the outermost run loop completes. Nested synchronous calls must not
      * drain (they would flush the queue mid-call).
@@ -129,6 +141,7 @@ public class Machine {
         ((NgsObject) env.read()).functionScope = true;
         ((NgsObject) env.read()).registerBuiltins(out);
         initialEnv = (NgsObject) env.read();
+        Machine.globalThis = initialEnv;
     }
 
     /**

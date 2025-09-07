@@ -477,6 +477,11 @@ public class Compiler {
                     emitLabel(skip);
                 }
             }
+            // the arguments object: a snapshot of the actual arguments
+            // (ES gives it the parameter names as accessor properties; the
+            // snapshot approximation covers length/index reads)
+            assembler.emit("rest_args", "0");
+            assembler.emit("set", "arguments", "%eax");
             compileBlock(body);
             //default return void (pop any open block frames first)
             while (blockDepth > 0) {

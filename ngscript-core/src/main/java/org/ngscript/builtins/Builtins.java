@@ -57,6 +57,7 @@ public class Builtins {
         ConsoleBuiltins.register(map, out);
         AssertBuiltins.register(map);
         ObjectBuiltins.register(map);
+        GlobalBuiltins.register(map, out);
         map.put("Coroutine", new MemRef(Coroutine.class));
         map.put("Object", new MemRef(new ObjectCtor()));
         map.put("Array", new MemRef(new ArrayCtor()));
@@ -67,6 +68,7 @@ public class Builtins {
         map.put("WeakMap", new MemRef(new NgsWeakMap.Ctor()));
         map.put("WeakSet", new MemRef(new NgsWeakSet.Ctor()));
         map.put("Promise", new MemRef(new PromiseBuiltins.Ctor()));
+        map.put("JSON", new MemRef(new JSONBuiltins.Json()));
         // ES error constructors map to their Java counterparts (approximate)
         map.put("Error", new MemRef(Error.class));
         map.put("TypeError", new MemRef(IllegalArgumentException.class));
