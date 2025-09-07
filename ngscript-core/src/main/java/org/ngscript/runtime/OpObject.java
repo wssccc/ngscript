@@ -296,6 +296,20 @@ public class OpObject {
                     && protoChainContains((NgsObject) obj,
                             ((org.ngscript.builtins.ArrayCtor) ctor).getPrototype())
                     ? Boolean.TRUE : Boolean.FALSE);
+        } else if (ctor instanceof org.ngscript.builtins.NgsMap.Ctor) {
+            vm.eax.write(obj instanceof org.ngscript.builtins.NgsMap);
+        } else if (ctor instanceof org.ngscript.builtins.NgsSet.Ctor) {
+            vm.eax.write(obj instanceof org.ngscript.builtins.NgsSet);
+        } else if (ctor instanceof org.ngscript.builtins.NgsWeakMap.Ctor) {
+            vm.eax.write(obj instanceof org.ngscript.builtins.NgsWeakMap);
+        } else if (ctor instanceof org.ngscript.builtins.NgsWeakSet.Ctor) {
+            vm.eax.write(obj instanceof org.ngscript.builtins.NgsWeakSet);
+        } else if (ctor instanceof org.ngscript.builtins.PromiseBuiltins.Ctor) {
+            vm.eax.write(obj instanceof org.ngscript.builtins.PromiseBuiltins.PromiseValue);
+        } else if (ctor instanceof org.ngscript.builtins.SymbolCtor) {
+            vm.eax.write(obj instanceof org.ngscript.value.SymbolValue);
+        } else if (ctor instanceof org.ngscript.builtins.StringCtor) {
+            vm.eax.write(obj instanceof String);
         } else {
             throw new NgScriptRuntimeException(vm, "right-hand side of instanceof is not callable");
         }

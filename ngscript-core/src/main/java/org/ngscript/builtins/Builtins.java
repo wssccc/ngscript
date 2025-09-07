@@ -64,6 +64,8 @@ public class Builtins {
         map.put("Symbol", new MemRef(new SymbolCtor()));
         map.put("Map", new MemRef(new NgsMap.Ctor()));
         map.put("Set", new MemRef(new NgsSet.Ctor()));
+        map.put("WeakMap", new MemRef(new NgsWeakMap.Ctor()));
+        map.put("WeakSet", new MemRef(new NgsWeakSet.Ctor()));
         map.put("Promise", new MemRef(new PromiseBuiltins.Ctor()));
         // ES error constructors map to their Java counterparts (approximate)
         map.put("Error", new MemRef(Error.class));
