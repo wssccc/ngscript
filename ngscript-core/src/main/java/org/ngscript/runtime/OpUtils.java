@@ -79,6 +79,63 @@ public class OpUtils {
     }
 
     /**
+     * Adapts any ES iterator (a Java iterator or a {@code {next()}} protocol
+     * object) to a java.util.Iterator for use from builtins.
+     */
+    public static java.util.Iterator<Object> toJavaIterator(final Machine vm, final Object itObj) {
+        if (itObj instanceof java.util.Iterator) {
+            @SuppressWarnings("unchecked")
+            java.util.Iterator<Object> it = (java.util.Iterator<Object>) itObj;
+            return it;
+        }
+        // ES iterator protocol: poll next() and read the result object's
+        // done/value properties
+        return new java.util.Iterator<Object>() {
+            private Object next;
+            private boolean done;
+
+            private void advance() {
+                if (done) {
+                    return;
+                }
+                try {
+                    Object method = getMember(vm, itObj, "next");
+                    Object result = callValue(vm, method, itObj, new Object[0]);
+                    if (result instanceof NgsObject
+                            && !testValue(((NgsObject) result).get("done"))) {
+                        next = ((NgsObject) result).get("value");
+                    } else {
+                        done = true;
+                    }
+                } catch (Exception ignored) {
+                    done = true;
+                }
+            }
+
+            @Override
+            public boolean hasNext() {
+                if (!done) {
+                    advance();
+                }
+                return !done;
+            }
+
+            @Override
+            public Object next() {
+                if (!hasNext()) {
+                    throw new java.util.NoSuchElementException();
+                }
+                return next;
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
+    /**
      * Calls a value with a receiver and arguments, synchronously for script
      * functions (so iterator polling works from opcodes).
      */

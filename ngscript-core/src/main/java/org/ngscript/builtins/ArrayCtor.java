@@ -97,7 +97,8 @@ public class ArrayCtor implements Invokable {
                         vm2.eax.write(out);
                         return;
                     }
-                    java.util.Iterator<Object> it = toJavaIterator(vm2, itObj);
+                    java.util.Iterator<Object> it =
+                            org.ngscript.runtime.OpUtils.toJavaIterator(vm2, itObj);
                     int i = 0;
                     while (it.hasNext()) {
                         Object v = it.next();
@@ -112,59 +113,5 @@ public class ArrayCtor implements Invokable {
             default:
                 return null;
         }
-    }
-
-    /** Adapts any ES iterator (Java iterator or {next()} protocol object). */
-    private static java.util.Iterator<Object> toJavaIterator(final Machine vm, final Object itObj) {
-        if (itObj instanceof java.util.Iterator) {
-            @SuppressWarnings("unchecked")
-            java.util.Iterator<Object> it = (java.util.Iterator<Object>) itObj;
-            return it;
-        }
-        // ES iterator protocol: poll next() and read the result object's
-        // done/value properties
-        return new java.util.Iterator<Object>() {
-            private Object next;
-            private boolean done;
-
-            private void advance() {
-                if (done) {
-                    return;
-                }
-                try {
-                    Object method = org.ngscript.runtime.OpUtils.getMember(vm, itObj, "next");
-                    Object result = org.ngscript.runtime.OpUtils.callValue(vm, method, itObj, new Object[0]);
-                    if (result instanceof org.ngscript.runtime.NgsObject
-                            && !org.ngscript.runtime.OpUtils.testValue(((org.ngscript.runtime.NgsObject) result).get("done"))) {
-                        next = ((org.ngscript.runtime.NgsObject) result).get("value");
-                    } else {
-                        done = true;
-                    }
-                } catch (Exception ignored) {
-                    done = true;
-                }
-            }
-
-            @Override
-            public boolean hasNext() {
-                if (!done) {
-                    advance();
-                }
-                return !done;
-            }
-
-            @Override
-            public Object next() {
-                if (!hasNext()) {
-                    throw new java.util.NoSuchElementException();
-                }
-                return next;
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
     }
 }

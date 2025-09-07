@@ -204,6 +204,14 @@ public class OpCall {
             Object ex = vm.exception.read();
             if (ex instanceof NgScriptRuntimeException) {
                 throw (NgScriptRuntimeException) ex;
+            } else if (ex instanceof RuntimeException) {
+                // let the original exception through: catch clauses see the
+                // real TypeError/RangeError/... (`e.message`, `instanceof`)
+                throw (RuntimeException) ex;
+            } else if (ex instanceof Error) {
+                throw (Error) ex;
+            } else if (ex instanceof Throwable) {
+                throw new NgScriptRuntimeException((Throwable) ex);
             } else {
                 throw new NgScriptRuntimeException(vm, ex.toString());
             }

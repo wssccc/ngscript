@@ -112,6 +112,14 @@ public class OpObject {
                 return;
             }
         }
+        if (objs[0] instanceof org.ngscript.builtins.PromiseBuiltins.Ctor) {
+            MemRef ref = org.ngscript.builtins.PromiseBuiltins.lookup(
+                    (org.ngscript.builtins.PromiseBuiltins.Ctor) objs[0], member, vm);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
+        }
         // script-created properties on host objects (e.g. list.customFn = f)
         java.util.Map<String, MemRef> props = vm.hostProps.get(objs[0]);
         if (props != null) {
@@ -127,6 +135,36 @@ public class OpObject {
             vm.eax.write(ref);
             return;
         }
+        // Java bean property access: e.message -> e.getMessage() (a
+        // capitalized getter is tried whenever the plain member lookup
+        // missed); also maps the ES error name for thrown Java exceptions
+        if (!(objs[0] instanceof NgsObject)) {
+            if (objs[0] instanceof Throwable && member.equals("name")) {
+                vm.eax.write(new MemRef(errorName((Throwable) objs[0])));
+                return;
+            }
+            String getterName = "get" + Character.toUpperCase(member.charAt(0)) + member.substring(1);
+            if (!getterName.equals(member)) {
+                Object getter = NgsObject.lookupNative(objs[0], getterName, vm);
+                if (getter instanceof MemRef) {
+                    Object val = ((MemRef) getter).read();
+                    if (val instanceof org.ngscript.interop.JavaMethod) {
+                        // direct reflection: JavaMethod.invoke expects a call
+                        // frame on the stack, which a property read has not
+                        try {
+                            java.lang.reflect.Method m = objs[0].getClass().getMethod(getterName);
+                            vm.eax.write(new MemRef(m.invoke(objs[0])));
+                            return;
+                        } catch (Exception ignored) {
+                            // fall through to the undefined slot below
+                        }
+                    } else if (val != null && val != Undefined.value) {
+                        vm.eax.write(new MemRef(val));
+                        return;
+                    }
+                }
+            }
+        }
         // an unset property of a host object reads/writes as undefined
         java.util.Map<String, MemRef> created = vm.hostProps.computeIfAbsent(objs[0],
                 k -> new java.util.HashMap<>());
@@ -136,6 +174,23 @@ public class OpObject {
             created.put(member, slot);
         }
         vm.eax.write(slot);
+    }
+
+    /** The ES error name for the Java exception class mapping. */
+    private static String errorName(Throwable t) {
+        if (t instanceof IllegalArgumentException) {
+            return "TypeError";
+        }
+        if (t instanceof IndexOutOfBoundsException) {
+            return "RangeError";
+        }
+        if (t instanceof IllegalStateException) {
+            return "SyntaxError";
+        }
+        if (t instanceof java.net.URISyntaxException) {
+            return "URIError";
+        }
+        return t.getClass().getSimpleName();
     }
 
     /**

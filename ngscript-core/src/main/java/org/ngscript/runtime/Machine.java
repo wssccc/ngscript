@@ -90,6 +90,30 @@ public class Machine {
      */
     NgsObject initialEnv;
 
+    /**
+     * The ES microtask queue (Promise reactions): tasks are drained when
+     * the outermost run loop completes. Nested synchronous calls must not
+     * drain (they would flush the queue mid-call).
+     */
+    private final java.util.ArrayDeque<Runnable> microtasks = new java.util.ArrayDeque<>();
+
+    /** Enqueues a microtask (Promise reaction). */
+    public void enqueueMicrotask(Runnable task) {
+        microtasks.addLast(task);
+    }
+
+    /** Runs every queued microtask (new ones included, FIFO). */
+    private void drainMicrotasks() {
+        while (!microtasks.isEmpty()) {
+            Runnable task = microtasks.pollFirst();
+            try {
+                task.run();
+            } catch (Throwable ignored) {
+                // unhandled rejection / broken reaction: swallow for now
+            }
+        }
+    }
+
     PrintWriter out;
     PrintWriter err;
 
@@ -209,6 +233,12 @@ public class Machine {
                     Context lastContext = contextStack.pop();
                     lastContext.restore(this);
                 } else {
+                    // the outermost run completes: flush any queued Promise
+                    // microtasks before returning to the caller
+                    if (!microtasks.isEmpty()) {
+                        drainMicrotasks();
+                        continue;
+                    }
                     return;
                 }
             }
