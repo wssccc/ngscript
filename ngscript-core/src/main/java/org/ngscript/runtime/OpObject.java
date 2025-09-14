@@ -32,21 +32,66 @@ import org.ngscript.value.Undefined;
  */
 public class OpObject {
 
+    /**
+     * The stack marker pushed by object spreads ({@code {...expr}}):
+     * object_new expands its keys in place, keeping source order.
+     */
+    public static class ObjSpread {
+        public final Object value;
+
+        public ObjSpread(Object value) {
+            this.value = value;
+        }
+    }
+
+    /** The stack sentinel marking the bottom of one object literal. */
+    public static final Object OBJ_START = new Object();
+
+    /** Pushes the object literal bottom sentinel. */
+    public static void obj_start(Machine vm, String param, String param_extend) {
+        vm.stack.push(OBJ_START);
+    }
+
+    /** Pushes the current eax value as an object spread element. */
+    public static void obj_spread(Machine vm, String param, String param_extend) {
+        vm.stack.push(new ObjSpread(vm.eax.read()));
+    }
+
     public static void object_new(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         NgsObject sh = new NgsObject((NgsObject) vm.env.read());
         sh.setPrototype(vm.objectPrototype);
-        int size = Integer.parseInt(param);
-        Object[] vs = new Object[size];
-        Object[] ks = new Object[size];
-        for (int i = 0; i < size; i++) {
-            vs[i] = vm.stack.pop();
-            ks[i] = vm.stack.pop();
+        // collect everything down to the OBJ_START sentinel: spreads expand
+        // in place, explicit pairs pop value-then-key; the resulting list is
+        // in reverse source order, so applying it backwards makes a later
+        // duplicate key win (ES semantics)
+        java.util.List<Object> keys = new java.util.ArrayList<>();
+        java.util.List<Object> vals = new java.util.ArrayList<>();
+        while (!vm.stack.isEmpty()) {
+            Object top = vm.stack.pop();
+            if (top == OBJ_START) {
+                break;
+            }
+            if (top instanceof ObjSpread) {
+                Object value = ((ObjSpread) top).value;
+                if (value instanceof NgsObject) {
+                    for (String k : ((NgsObject) value).keys()) {
+                        keys.add(k);
+                        vals.add(((NgsObject) value).get(k));
+                    }
+                } else if (value != null && value != Undefined.value) {
+                    throw new NgScriptRuntimeException(vm,
+                            "spread of a non-object value is not supported");
+                }
+            } else {
+                // explicit pair: value on top, key below
+                Object key = vm.stack.pop();
+                keys.add(key);
+                vals.add(top);
+            }
         }
-        // apply in source order so a later duplicate key wins (ES semantics)
-        for (int i = size - 1; i >= 0; i--) {
-            Object k = ks[i];
-            // computed keys arrive as runtime values (strings/numbers/symbols)
-            sh.set(k instanceof String ? (String) k : OpArray.keyString(k), vs[i]);
+        for (int i = keys.size() - 1; i >= 0; i--) {
+            sh.set(keys.get(i) instanceof String ? (String) keys.get(i)
+                    : OpArray.keyString(keys.get(i)), vals.get(i));
         }
         vm.eax.write(sh);
     }

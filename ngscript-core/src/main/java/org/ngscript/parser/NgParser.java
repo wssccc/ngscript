@@ -1467,8 +1467,13 @@ public class NgParser {
         if (literal instanceof ObjectLiteral) {
             ObjectLiteral obj = (ObjectLiteral) literal;
             List<Pattern.Prop> props = new ArrayList<>();
-            for (Kvp kvp : obj.kvps) {
-                props.add(new Pattern.Prop(kvp.name, patternFromExpr(kvp.value)));
+            for (Object item : obj.items) {
+                if (item instanceof Kvp) {
+                    Kvp kvp = (Kvp) item;
+                    props.add(new Pattern.Prop(kvp.name, patternFromExpr(kvp.value)));
+                }
+                // spread elements are not valid in object destructuring
+                // patterns (ES early error); ignore them here
             }
             return new Pattern.ObjectP(props, obj.line);
         }
@@ -2066,9 +2071,15 @@ public class NgParser {
 
     private Expr parseObjectLiteral(Token lcurly) throws ParserException {
         next();
-        List<Kvp> kvps = new ArrayList<>();
+        List<Object> items = new ArrayList<>();
         while (!peekIs("rcurly")) {
-            kvps.add(parseKvp());
+            if (peekIs("spread")) {
+                // object spread: {...expr}
+                Token s = next();
+                items.add(new SpreadExpr(parseAssignment(), s.line));
+            } else {
+                items.add(parseKvp());
+            }
             if (peekIs("comma")) {
                 next();
             } else {
@@ -2076,7 +2087,7 @@ public class NgParser {
             }
         }
         expect("rcurly");
-        return new ObjectLiteral(kvps, lcurly.line);
+        return new ObjectLiteral(items, lcurly.line);
     }
 
     private Kvp parseKvp() throws ParserException {

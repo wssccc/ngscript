@@ -199,8 +199,8 @@ public class NgParserTest {
 
         AssignExpr assign = (AssignExpr) exprOf("var o = {a: 1, \"b\": 2};");
         ObjectLiteral object = (ObjectLiteral) assign.value;
-        assertEquals(2, object.kvps.size());
-        Kvp kvp = object.kvps.get(0);
+        assertEquals(2, object.items.size());
+        Kvp kvp = (Kvp) object.items.get(0);
         assertEquals("a", kvp.name);
         lit(kvp.value, "1");
     }

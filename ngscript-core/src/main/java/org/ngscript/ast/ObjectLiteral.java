@@ -19,21 +19,26 @@ package org.ngscript.ast;
 import java.util.List;
 
 /**
- * An object literal: {@code {key: value, ...}}.
+ * An object literal: {@code {key: value, ...}}. {@link #items} holds the
+ * elements in source order: {@link Kvp} pairs and {@link SpreadExpr}
+ * operands... actually raw {@link Expr} spread sources, marked by
+ * {@link #isSpread} parity is lost, so spreads are wrapped as
+ * {@link SpreadExpr} nodes (a bare expression with spread=true).
  *
  * @author wssccc
  */
 public class ObjectLiteral extends Expr {
 
-    public final List<Kvp> kvps;
+    /** The elements in source order: Kvp or Expr (spread source). */
+    public final List<Object> items;
 
-    public ObjectLiteral(List<Kvp> kvps, int line) {
-        this.kvps = kvps;
+    public ObjectLiteral(List<Object> items, int line) {
+        this.items = items;
         this.line = line;
     }
 
     @Override
     protected String toString(int indent) {
-        return childrenToString(indent, kvps);
+        return childrenToString(indent, items);
     }
 }
