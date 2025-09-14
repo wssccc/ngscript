@@ -89,10 +89,12 @@ public class OpUtils {
             return it;
         }
         // ES iterator protocol: poll next() and read the result object's
-        // done/value properties
+        // done/value properties (advance happens once per element, on the
+        // first hasNext/next call after the previous element was consumed)
         return new java.util.Iterator<Object>() {
             private Object next;
             private boolean done;
+            private boolean advanced;
 
             private void advance() {
                 if (done) {
@@ -114,8 +116,9 @@ public class OpUtils {
 
             @Override
             public boolean hasNext() {
-                if (!done) {
+                if (!advanced) {
                     advance();
+                    advanced = true;
                 }
                 return !done;
             }
@@ -125,6 +128,7 @@ public class OpUtils {
                 if (!hasNext()) {
                     throw new java.util.NoSuchElementException();
                 }
+                advanced = false;
                 return next;
             }
 

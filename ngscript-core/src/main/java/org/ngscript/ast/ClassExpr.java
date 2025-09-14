@@ -36,9 +36,17 @@ public class ClassExpr extends Expr {
         public final boolean isGetter;
         public final boolean isSetter;
         public final boolean isCtor;
+        public final boolean generator;
+        public final org.ngscript.ast.Expr computedKey;
 
         public MethodDef(String name, Params params, Block body, boolean isStatic,
                          boolean isGetter, boolean isSetter, boolean isCtor) {
+            this(name, params, body, isStatic, isGetter, isSetter, isCtor, false, null);
+        }
+
+        public MethodDef(String name, Params params, Block body, boolean isStatic,
+                         boolean isGetter, boolean isSetter, boolean isCtor,
+                         boolean generator, org.ngscript.ast.Expr computedKey) {
             this.name = name;
             this.params = params;
             this.body = body;
@@ -46,6 +54,8 @@ public class ClassExpr extends Expr {
             this.isGetter = isGetter;
             this.isSetter = isSetter;
             this.isCtor = isCtor;
+            this.generator = generator;
+            this.computedKey = computedKey;
         }
     }
 

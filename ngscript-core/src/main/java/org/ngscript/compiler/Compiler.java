@@ -1500,12 +1500,18 @@ public class Compiler {
     private void emitMethodDefine(ClassExpr.MethodDef m) throws CompilerException {
         assembler.emit("peek", "0");
         assembler.emit("push_eax");
-        assembler.emit("string", m.name);
+        if (m.computedKey != null) {
+            compileExpr(m.computedKey);
+            assembler.emit("to_string");
+        } else {
+            assembler.emit("string", m.name);
+        }
         assembler.emit("own_member_ref");
         assembler.emit("push_eax");
         String enter = _compile_function_body(m.params, m.body);
-        assembler.emit("new_closure", enter, "0");
-        assembler.emit("set_func_meta", functionLength(m.params) + "", m.name);
+        assembler.emit("new_closure", enter, m.generator ? "2" : "0");
+        assembler.emit("set_func_meta", functionLength(m.params) + "",
+                m.name == null ? "" : m.name);
         assembler.emit("assign");
     }
 }

@@ -261,6 +261,16 @@ public class OpObject {
         vm.eax.write(Undefined.value);
     }
 
+    /** Converts the current eax value to a property key string. */
+    public static void to_string(Machine vm, String param, String param_extend) {
+        Object v = vm.eax.read();
+        if (v instanceof org.ngscript.value.SymbolValue) {
+            vm.eax.write(((org.ngscript.value.SymbolValue) v).getId());
+        } else {
+            vm.eax.write(OpUtils.toStringValue(v));
+        }
+    }
+
     public static void in(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
         Object obj = objs[1];

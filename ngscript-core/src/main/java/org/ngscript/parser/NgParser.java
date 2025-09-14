@@ -699,22 +699,57 @@ public class NgParser {
                 }
             }
             Token mname = peek();
-            if (mname == null || !isKeyName(mname.type)) {
+            boolean isGenerator = false;
+            Expr computedKey = null;
+            if (mname != null && mname.type.equals("mul")) {
+                // generator method: *m() {}
+                isGenerator = true;
+                next();
+                mname = peek();
+                if (mname != null && mname.type.equals("lsqr")) {
+                    next();
+                    computedKey = parseExpr();
+                    expect("rsqr");
+                    mname = null;
+                }
+            } else if (mname != null && mname.type.equals("lsqr")) {
+                // computed method name: [expr]() {}
+                next();
+                computedKey = parseExpr();
+                expect("rsqr");
+                mname = null;
+            }
+            if (mname == null && computedKey == null) {
+                throw new ParserException("expecting a method name but got " + peek(),
+                        new org.ngscript.api.Source(null, kw.line));
+            }
+            if (mname != null && !isKeyName(mname.type)) {
                 throw new ParserException("expecting a method name but got " + mname,
                         new org.ngscript.api.Source(null, kw.line));
             }
-            next();
+            if (mname != null) {
+                next();
+            }
             expect("lparen");
             Params params = parseParamList();
             expect("rparen");
             ++functionDepth;
+            int savedGen = generatorDepth;
+            if (isGenerator) {
+                ++generatorDepth;
+            } else {
+                generatorDepth = 0;
+            }
             try {
                 Block body = parseBlock();
-                boolean isCtor = mname.value.equals("constructor") && !isStatic;
+                boolean isCtor = mname != null && mname.value.equals("constructor")
+                        && !isStatic && !isGenerator;
                 methods.add(new ClassExpr.MethodDef(
-                        tokenName(mname), params, body, isStatic, false, false, isCtor));
+                        mname == null ? null : tokenName(mname), params, body,
+                        isStatic, false, false, isCtor, isGenerator, computedKey));
             } finally {
                 --functionDepth;
+                generatorDepth = savedGen;
             }
             if (peekIs("semicolon")) {
                 next();
@@ -2046,14 +2081,54 @@ public class NgParser {
 
     private Kvp parseKvp() throws ParserException {
         Token name = peek();
-        // computed property names: { [expr]: value }
+        // computed property names: { [expr]: value } / { [expr]() {} }
         if (name != null && name.type.equals("lsqr")) {
             next();
             Expr key = parseExpr();
             expect("rsqr");
+            if (peekIs("lparen")) {
+                // computed-key method shorthand
+                expect("lparen");
+                Params params = parseParamList();
+                expect("rparen");
+                ++functionDepth;
+                try {
+                    Block body = parseBlock();
+                    return new Kvp(key, new LambdaExpr(null, params, body, name.line),
+                            name.line);
+                } finally {
+                    --functionDepth;
+                }
+            }
             expect("colon");
             Expr value = parseAssignment();
             return new Kvp(key, value, name.line);
+        }
+        // generator method shorthand: { *m() {} }
+        if (name != null && name.type.equals("mul")) {
+            Token star = next();
+            Token mname = peek();
+            if (mname == null || !isKeyName(mname.type)) {
+                throw new ParserException("expecting a method name but got "
+                        + (mname == null ? "end of input" : mname),
+                        new org.ngscript.api.Source(null, star.line));
+            }
+            next();
+            expect("lparen");
+            Params params = parseParamList();
+            expect("rparen");
+            ++functionDepth;
+            int savedGen = generatorDepth;
+            ++generatorDepth;
+            try {
+                Block body = parseBlock();
+                LambdaExpr lambda = new LambdaExpr(tokenName(mname), params, body, star.line);
+                lambda.generator = true;
+                return new Kvp(tokenName(mname), lambda, star.line);
+            } finally {
+                --functionDepth;
+                generatorDepth = savedGen;
+            }
         }
         // shorthand and method shorthand: { a } / { a, } / { m() {} } / { m(x) {} }
         if (name != null && isKeyName(name.type)) {
