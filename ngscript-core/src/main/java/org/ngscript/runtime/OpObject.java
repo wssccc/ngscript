@@ -247,7 +247,7 @@ public class OpObject {
     }
 
     /**
-     * ES function object properties: prototype, name, length.
+     * ES function object properties: prototype, name, length, call, apply.
      */
     private static MemRef functionMember(ScriptFunction fn, String member, Machine vm) {
         switch (member) {
@@ -257,6 +257,38 @@ public class OpObject {
                 return new MemRef(fn.name == null ? "" : fn.name);
             case "length":
                 return new MemRef(fn.params);
+            case "call":
+                return new MemRef((Invokable) (vm2, args) -> {
+                    Object thisArg = args.length > 0 ? args[0] : null;
+                    Object recv = (thisArg == null || thisArg == Undefined.value)
+                            ? Undefined.value : thisArg;
+                    Object[] callArgs = new Object[Math.max(0, args.length - 1)];
+                    System.arraycopy(args, 1, callArgs, 0, callArgs.length);
+                    try {
+                        vm2.eax.write(OpUtils.callValue(vm2, fn, recv, callArgs));
+                    } catch (Exception e) {
+                        throw new NgScriptRuntimeException(vm2, e.getMessage());
+                    }
+                });
+            case "apply":
+                return new MemRef((Invokable) (vm2, args) -> {
+                    Object thisArg = args.length > 0 ? args[0] : null;
+                    Object recv = (thisArg == null || thisArg == Undefined.value)
+                            ? Undefined.value : thisArg;
+                    Object[] callArgs = new Object[0];
+                    if (args.length > 1 && args[1] instanceof NgsArray) {
+                        NgsArray a = (NgsArray) args[1];
+                        callArgs = new Object[a.length()];
+                        for (int i = 0; i < callArgs.length; i++) {
+                            callArgs[i] = a.get("" + i);
+                        }
+                    }
+                    try {
+                        vm2.eax.write(OpUtils.callValue(vm2, fn, recv, callArgs));
+                    } catch (Exception e) {
+                        throw new NgScriptRuntimeException(vm2, e.getMessage());
+                    }
+                });
             default:
                 return null;
         }
