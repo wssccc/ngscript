@@ -1273,17 +1273,22 @@ public class Compiler {
         if (inHookedBlock) {
             _compile_call_finally();
         }
+        if (stmt.expr != null) {
+            // evaluate the expression before popping block frames: the
+            // bindings (let/const) may live in a block frame
+            compileExpr(stmt.expr);
+            assembler.emit("push_eax");
+        } else {
+            assembler.emit("clear", "%eax");
+        }
         // returning pops any block frames the body may have opened
         while (blockDepth > 0) {
             leaveBlock();
         }
         if (stmt.expr != null) {
-            compileExpr(stmt.expr);
-            assembler.emit("ret");
-        } else {
-            assembler.emit("clear", "%eax");
-            assembler.emit("ret");
+            assembler.emit("pop_eax");
         }
+        assembler.emit("ret");
     }
 
     private void compileBreak(BreakStmt stmt) throws CompilerException {

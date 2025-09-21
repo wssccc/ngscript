@@ -77,6 +77,38 @@ public class ObjectCtor implements Invokable {
                     NgsObject p = o.getPrototype();
                     vm2.eax.write(p == null ? Undefined.value : p);
                 });
+            case "getOwnPropertyDescriptor":
+                return new MemRef((Invokable) (vm2, args) -> {
+                    NgsObject o = objectArg(vm2, args, 0);
+                    String name = args.length > 1 ? args[1].toString() : "undefined";
+                    Object v = o.get(name);
+                    if (v == null && !o.has(name)) {
+                        vm2.eax.write(Undefined.value);
+                        return;
+                    }
+                    NgsObject desc = new NgsObject((NgsObject) vm2.env.read());
+                    desc.setPrototype(vm2.objectPrototype);
+                    desc.set("value", v == null ? Undefined.value : v);
+                    desc.set("writable", Boolean.TRUE);
+                    desc.set("enumerable", Boolean.TRUE);
+                    desc.set("configurable", Boolean.TRUE);
+                    vm2.eax.write(desc);
+                });
+            case "getOwnPropertyNames":
+                return new MemRef((Invokable) (vm2, args) -> {
+                    NgsObject o = objectArg(vm2, args, 0);
+                    NgsArray out = new NgsArray(null);
+                    int i = 0;
+                    for (String k : o.keys()) {
+                        out.set("" + i++, k);
+                    }
+                    if (o instanceof org.ngscript.runtime.NgsArray
+                            && !o.has("length")) {
+                        out.set("" + i++, "length");
+                    }
+                    out.setPrototype(vm2.arrayPrototype);
+                    vm2.eax.write(out);
+                });
             case "defineProperty":
                 return new MemRef((Invokable) (vm2, args) -> {
                     NgsObject o = objectArg(vm2, args, 0);
