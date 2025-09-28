@@ -287,6 +287,13 @@ public class Test262Runner {
                     ++es5Total;
                     ++es5Passed;
                 }
+            } else if (("parse".equals(negativePhase) || "early".equals(negativePhase))
+                    && (e instanceof org.ngscript.parser.ParserException
+                            || e instanceof org.ngscript.compiler.CompilerException
+                            || e instanceof org.ngscript.api.NgScriptException)) {
+                // a negative parse/early-error case: compile failing is the
+                // expected outcome
+                ++passed;
             } else {
                 fail(file, id, "execution failed: " + firstLine(e.getMessage()));
             }
