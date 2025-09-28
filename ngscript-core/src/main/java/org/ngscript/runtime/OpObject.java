@@ -157,6 +157,14 @@ public class OpObject {
                 return;
             }
         }
+        if (objs[0] instanceof org.ngscript.builtins.NumberCtor) {
+            MemRef ref = org.ngscript.builtins.NumberCtor.lookup(
+                    (org.ngscript.builtins.NumberCtor) objs[0], member, vm);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
+        }
         if (objs[0] instanceof org.ngscript.builtins.PromiseBuiltins.Ctor) {
             MemRef ref = org.ngscript.builtins.PromiseBuiltins.lookup(
                     (org.ngscript.builtins.PromiseBuiltins.Ctor) objs[0], member, vm);

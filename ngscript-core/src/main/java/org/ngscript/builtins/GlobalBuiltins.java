@@ -85,6 +85,16 @@ public class GlobalBuiltins {
     // parseInt / parseFloat (ES semantics)
     //----------------------------------------------------------------------
 
+    /** ES parseInt (shared with Number.parseInt). */
+    public static Object parseIntValue(Object value, Object radixArg) {
+        return parseInt(value, radixArg);
+    }
+
+    /** ES parseFloat (shared with Number.parseFloat). */
+    public static Object parseFloatValue(Object value) {
+        return parseFloat(value);
+    }
+
     private static Object parseInt(Object value, Object radixArg) {
         String s = OpUtils.toStringValue(value).trim();
         int sign = 1;

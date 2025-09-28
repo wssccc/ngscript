@@ -62,6 +62,8 @@ public class Builtins {
         map.put("Object", new MemRef(new ObjectCtor()));
         map.put("Array", new MemRef(new ArrayCtor()));
         map.put("String", new MemRef(new StringCtor()));
+        map.put("Number", new MemRef(new NumberCtor()));
+        map.put("Boolean", new MemRef(new BooleanCtor()));
         map.put("Symbol", new MemRef(new SymbolCtor()));
         map.put("Map", new MemRef(new NgsMap.Ctor()));
         map.put("Set", new MemRef(new NgsSet.Ctor()));
