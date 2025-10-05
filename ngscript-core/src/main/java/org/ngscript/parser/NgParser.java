@@ -1579,8 +1579,21 @@ public class NgParser {
      * Exponentiation, right associative: {@code a ** b ** c} is {@code a ** (b ** c)}.
      */
     private Expr parseExp() throws ParserException {
+        // ES: the exponentiation operator's left operand must not start with
+        // a unary operator (-2 ** 2 is a SyntaxError; 2 ** -2 and (-2) ** 2
+        // are fine)
+        Token t0 = peek();
+        boolean unaryStart = t0 != null && (t0.type.equals("sub") || t0.type.equals("add")
+                || t0.type.equals("not") || t0.type.equals("bit_not")
+                || t0.type.equals("typeof") || t0.type.equals("void")
+                || t0.type.equals("delete") || t0.type.equals("inc") || t0.type.equals("dec"));
         Expr base = parseUnary();
         if (peekIs("exp")) {
+            if (unaryStart) {
+                throw new ParserException(
+                        "unary expression cannot be the left operand of **",
+                        new org.ngscript.api.Source(null, t0.line));
+            }
             Token t = next();
             Expr right = parseExp();
             return new BinaryExpr(BinaryExpr.Op.EXP, base, right, t.line);
