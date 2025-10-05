@@ -61,6 +61,7 @@ import org.ngscript.ast.LiteralExpr;
 import org.ngscript.ast.MemberExpr;
 import org.ngscript.ast.NewExpr;
 import org.ngscript.ast.ObjectLiteral;
+import org.ngscript.ast.OptionalChainExpr;
 import org.ngscript.ast.Params;
 import org.ngscript.ast.Pattern;
 import org.ngscript.ast.Program;
@@ -1718,9 +1719,39 @@ public class NgParser {
                     expr = new MemberExpr(expr, tokenName(name), t.line);
                     break;
                 }
-                case "optional_chain":
-                    throw new ParserException("optional chaining is not supported yet",
-                            new org.ngscript.api.Source(null, t.line));
+                case "optional_chain": {
+                    // optional chaining: a?.b, a?.[i], a?.(args). The chain
+                    // keeps ordinary Member/Call/Index wrappers; the
+                    // compiler flattens everything into one short-circuit
+                    // chain (a?.b.c skips the whole tail when a is nullish)
+                    next();
+                    Token nx = peek();
+                    if (nx == null) {
+                        throw new ParserException("unexpected end of input after ?.",
+                                new org.ngscript.api.Source(null, t.line));
+                    }
+                    if (nx.type.equals("lsqr")) {
+                        next();
+                        Expr index = parseExpr();
+                        expect("rsqr");
+                        expr = new OptionalChainExpr.Index(expr, index, t.line);
+                        break;
+                    }
+                    if (nx.type.equals("lparen")) {
+                        next();
+                        List<Expr> args = parseParams();
+                        expect("rparen");
+                        expr = new OptionalChainExpr.Call(expr, args, t.line);
+                        break;
+                    }
+                    if (!isKeyName(nx.type)) {
+                        throw new ParserException("expecting a member name after ?. but got "
+                                + nx, new org.ngscript.api.Source(null, t.line));
+                    }
+                    next();
+                    expr = new OptionalChainExpr.Member(expr, tokenName(nx), t.line);
+                    break;
+                }
                 case "lparen":
                     if (!allowCall) {
                         return expr;

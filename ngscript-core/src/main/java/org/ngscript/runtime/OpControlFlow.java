@@ -111,6 +111,23 @@ public class OpControlFlow {
         }
     }
 
+    /**
+     * Jumps when eax is null or undefined, writing undefined to eax first
+     * (the ES optional-chaining short-circuit value).
+     */
+    public static void jnullish(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object v = vm.eax.read();
+        if (v == null || v == Undefined.value) {
+            vm.eax.write(Undefined.value);
+            if (vm.labels.containsKey(param)) {
+                int nip = vm.labels.get(param);
+                vm.setEip(nip);
+            } else {
+                throw new NgScriptRuntimeException(vm, "jump to no where");
+            }
+        }
+    }
+
     public static void label(Machine vm, String param, String param_extend) {
         //
     }

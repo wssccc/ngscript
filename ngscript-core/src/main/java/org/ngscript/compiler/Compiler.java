@@ -58,6 +58,7 @@ import org.ngscript.ast.LiteralExpr;
 import org.ngscript.ast.MemberExpr;
 import org.ngscript.ast.NewExpr;
 import org.ngscript.ast.ObjectLiteral;
+import org.ngscript.ast.OptionalChainExpr;
 import org.ngscript.ast.Params;
 import org.ngscript.ast.Pattern;
 import org.ngscript.ast.Program;
@@ -589,32 +590,51 @@ public class Compiler {
             emitLabel(exitLabel);
         } else if (expr instanceof MemberExpr) {
             MemberExpr member = (MemberExpr) expr;
-            compileExpr(member.object);
-            assembler.emit("push_eax");
-            assembler.emit("string", member.name);
-            assembler.emit("member_ref");
-            if (!byref) {
-                assembler.emit("deref", "%eax");
+            if (hasOptionalChain(member.object)) {
+                // the member is part of an optional chain (a?.b.c): flatten
+                compileOptionalChain(expr);
+            } else {
+                compileExpr(member.object);
+                assembler.emit("push_eax");
+                assembler.emit("string", member.name);
+                assembler.emit("member_ref");
+                if (!byref) {
+                    assembler.emit("deref", "%eax");
+                }
             }
+        } else if (expr instanceof OptionalChainExpr) {
+            // a?.b / a?.[i] / a?.(...) and longer chains: flatten the chain
+            // and compile it as one short-circuit unit
+            compileOptionalChain(expr);
         } else if (expr instanceof CallExpr) {
             CallExpr call = (CallExpr) expr;
-            _compile_funcall(call.callee, call.args);
-            assembler.emit("pop_env");
-            assembler.emit("pop");//pop params
-            assembler.emit("pop");//pop function body
-            assembler.emit("pop");//pop receiver
+            if (hasOptionalChain(call.callee)) {
+                // a?.b(...) / a?.()(...): the call is part of the chain and
+                // must be skipped when the chain short-circuits
+                compileOptionalChain(expr);
+            } else {
+                _compile_funcall(call.callee, call.args);
+                assembler.emit("pop_env");
+                assembler.emit("pop");//pop params
+                assembler.emit("pop");//pop function body
+                assembler.emit("pop");//pop receiver
+            }
         } else if (expr instanceof NewExpr) {
             NewExpr newExpr = (NewExpr) expr;
             _compile_funcall(newExpr.callee, newExpr.args, true);
             assembler.emit("new_op");
         } else if (expr instanceof IndexExpr) {
             IndexExpr indexExpr = (IndexExpr) expr;
-            compileExpr(indexExpr.object);
-            assembler.emit("push_eax");
-            compileExpr(indexExpr.index);
-            assembler.emit("array_ref");
-            if (!byref) {
-                assembler.emit("deref", "%eax");
+            if (hasOptionalChain(indexExpr.object)) {
+                compileOptionalChain(expr);
+            } else {
+                compileExpr(indexExpr.object);
+                assembler.emit("push_eax");
+                compileExpr(indexExpr.index);
+                assembler.emit("array_ref");
+                if (!byref) {
+                    assembler.emit("deref", "%eax");
+                }
             }
         } else if (expr instanceof ArrayLiteral) {
             ArrayLiteral array = (ArrayLiteral) expr;
@@ -832,6 +852,188 @@ public class Compiler {
             case UNDEFINED:
                 assembler.emit("undefined");
                 break;
+        }
+    }
+
+    /** Whether an expression contains an optional-chaining segment. */
+    private static boolean hasOptionalChain(Expr e) {
+        if (e instanceof OptionalChainExpr) {
+            return true;
+        }
+        if (e instanceof MemberExpr) {
+            return hasOptionalChain(((MemberExpr) e).object);
+        }
+        if (e instanceof IndexExpr) {
+            return hasOptionalChain(((IndexExpr) e).object);
+        }
+        if (e instanceof CallExpr) {
+            return hasOptionalChain(((CallExpr) e).callee);
+        }
+        return false;
+    }
+
+    /**
+     * Compiles an optional chaining expression ({@code a?.b}, {@code a?.[i]},
+     * {@code a?.(...)}, and longer chains like {@code a?.b.c()}) as one
+     * flattened short-circuit unit: when any optional segment's base value
+     * is null or undefined the whole chain evaluates to undefined without
+     * touching the remaining segments.
+     */
+    private void compileOptionalChain(Expr expr) throws CompilerException {
+        // collect the chain segments outward, then reverse into source order
+        List<Object> segments = new java.util.ArrayList<>();
+        Expr base = expr;
+        while (true) {
+            if (base instanceof MemberExpr) {
+                segments.add(new Seg.Member(((MemberExpr) base).name, false));
+                base = ((MemberExpr) base).object;
+            } else if (base instanceof IndexExpr) {
+                segments.add(new Seg.Index(((IndexExpr) base).index, false));
+                base = ((IndexExpr) base).object;
+            } else if (base instanceof CallExpr) {
+                segments.add(new Seg.Call(((CallExpr) base).args, false));
+                base = ((CallExpr) base).callee;
+            } else if (base instanceof OptionalChainExpr.Member) {
+                segments.add(new Seg.Member(((OptionalChainExpr.Member) base).name, true));
+                base = ((OptionalChainExpr.Member) base).object;
+            } else if (base instanceof OptionalChainExpr.Index) {
+                segments.add(new Seg.Index(((OptionalChainExpr.Index) base).index, true));
+                base = ((OptionalChainExpr.Index) base).object;
+            } else if (base instanceof OptionalChainExpr.Call) {
+                segments.add(new Seg.Call(((OptionalChainExpr.Call) base).args, true));
+                base = ((OptionalChainExpr.Call) base).object;
+            } else {
+                break;
+            }
+        }
+        Collections.reverse(segments);
+        int size = segments.size();
+        // stack residue at the chain end: base + one value per non-final
+        // segment, minus the receiver (and func when not duplicated) consumed
+        // by each call segment
+        int residue = 1;
+        for (int i = 0; i < size; i++) {
+            boolean isCall = segments.get(i) instanceof Seg.Call;
+            if (isCall) {
+                // a first-segment call duplicates its callee (pops 1 from
+                // the accumulation); later calls consume receiver + func (2)
+                residue -= (i == 0) ? 1 : 2;
+                if (i < size - 1) {
+                    ++residue;
+                }
+            } else if (i < size - 1) {
+                ++residue;
+            }
+        }
+        // short-circuit labels, one per optional segment: each pops exactly
+        // what has been pushed so far (base + i segment results) and joins
+        // the chain end (the normal path pops the full residue there)
+        String[] shortLabels = new String[size];
+        boolean anyOptional = false;
+        for (int i = 0; i < size; i++) {
+            if (((Seg) segments.get(i)).optional) {
+                shortLabels[i] = assembler.label("opt_short_" + i, expr);
+                anyOptional = true;
+            }
+        }
+        String done = assembler.label("opt_done", expr);
+        compileExpr(base);
+        assembler.emit("push_eax");
+        for (int i = 0; i < size; i++) {
+            Seg seg = (Seg) segments.get(i);
+            if (seg.optional) {
+                // short-circuit when the segment's base value is nullish
+                assembler.emit("peek", "0");
+                assembler.emit("jnullish", shortLabels[i]);
+            }
+            if (seg instanceof Seg.Member) {
+                assembler.emit("peek", "0");
+                assembler.emit("push_eax");
+                assembler.emit("string", ((Seg.Member) seg).name);
+                assembler.emit("member_ref");
+                assembler.emit("deref", "%eax");
+            } else if (seg instanceof Seg.Index) {
+                assembler.emit("peek", "0");
+                assembler.emit("push_eax");
+                compileExpr(((Seg.Index) seg).index);
+                assembler.emit("array_ref");
+                assembler.emit("deref", "%eax");
+            } else {
+                // call segment: the callee is the stack top. When this is
+                // the first segment the base is both receiver and callee, so
+                // duplicate it to build [receiver, func, args, env];
+                // otherwise receiver and func are already on the stack
+                Seg.Call c = (Seg.Call) seg;
+                if (i == 0) {
+                    assembler.emit("peek", "0");
+                    assembler.emit("push_eax");
+                }
+                emitArgs(c.args);
+                assembler.emit("push_env");
+                assembler.emit("call");
+                assembler.emit("pop_env");
+                assembler.emit("pop");
+                assembler.emit("pop");
+                assembler.emit("pop");
+            }
+            if (i < size - 1) {
+                assembler.emit("push_eax");
+            }
+        }
+        // normal path: drop the accumulated chain objects and finish
+        for (int i = 0; i < residue; i++) {
+            assembler.emit("pop");
+        }
+        if (anyOptional) {
+            assembler.emit("jmp", done);
+            // short-circuit paths: undefined is already in eax; drop what
+            // was pushed up to (and including) the checked segment
+            for (int i = 0; i < size; i++) {
+                if (shortLabels[i] != null) {
+                    assembler.emit("label", shortLabels[i]);
+                    for (int j = 0; j <= i; j++) {
+                        assembler.emit("pop");
+                    }
+                    assembler.emit("jmp", done);
+                }
+            }
+        }
+        assembler.emit("label", done);
+    }
+
+    /** One segment of an optional chain. */
+    private abstract static class Seg {
+        final boolean optional;
+
+        Seg(boolean optional) {
+            this.optional = optional;
+        }
+
+        static class Member extends Seg {
+            final String name;
+
+            Member(String name, boolean optional) {
+                super(optional);
+                this.name = name;
+            }
+        }
+
+        static class Index extends Seg {
+            final Expr index;
+
+            Index(Expr index, boolean optional) {
+                super(optional);
+                this.index = index;
+            }
+        }
+
+        static class Call extends Seg {
+            final List<Expr> args;
+
+            Call(List<Expr> args, boolean optional) {
+                super(optional);
+                this.args = args;
+            }
         }
     }
 

@@ -20,6 +20,7 @@ import java.util.ArrayList;
 
 import org.ngscript.value.MemRef;
 import org.ngscript.value.SymbolValue;
+import org.ngscript.value.Undefined;
 
 /**
  * Array opcodes: literal construction and indexed access.
@@ -65,6 +66,17 @@ public class OpArray {
             int member = (int) Double.parseDouble("" + objs[1]);
             MemRef ref = (MemRef) env.get(member);
             vm.eax.write(ref);
+            return;
+        }
+        if (objs[0] instanceof String) {
+            // string indexing by code unit ('xyz'[1] === 'y')
+            String s = (String) objs[0];
+            int idx = (int) Double.parseDouble("" + objs[1]);
+            if (idx >= 0 && idx < s.length()) {
+                vm.eax.write(new MemRef(s.substring(idx, idx + 1)));
+            } else {
+                vm.eax.write(new MemRef(Undefined.value));
+            }
             return;
         }
         throw new NgScriptRuntimeException(vm, "not an array object");
