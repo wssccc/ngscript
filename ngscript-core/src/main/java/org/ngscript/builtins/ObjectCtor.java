@@ -90,7 +90,8 @@ public class ObjectCtor implements Invokable {
                     desc.setPrototype(vm2.objectPrototype);
                     desc.set("value", v == null ? Undefined.value : v);
                     desc.set("writable", Boolean.TRUE);
-                    desc.set("enumerable", Boolean.TRUE);
+                    // callee/length (arrays and arguments) are not enumerable
+                    desc.set("enumerable", !("callee".equals(name) || "length".equals(name)));
                     desc.set("configurable", Boolean.TRUE);
                     vm2.eax.write(desc);
                 });

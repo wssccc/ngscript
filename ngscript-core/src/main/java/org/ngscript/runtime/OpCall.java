@@ -54,6 +54,17 @@ public class OpCall {
     }
 
     /**
+     * Sets the {@code callee} property on the arguments object in eax (the
+     * currently executing function, from the call stack).
+     */
+    public static void bind_callee(Machine vm, String param, String param_extend) {
+        Object argsObj = vm.eax.read();
+        if (argsObj instanceof NgsObject && !vm.callstack.isEmpty()) {
+            ((NgsObject) argsObj).set("callee", vm.callstack.peek());
+        }
+    }
+
+    /**
      * Sets the function metadata (name/length) on the function value in eax;
      * emitted right after new_closure or static_func.
      */
