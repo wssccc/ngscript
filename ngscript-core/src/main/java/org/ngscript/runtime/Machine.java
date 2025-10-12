@@ -236,10 +236,19 @@ public class Machine {
         }
     }
 
+    /**
+     * Instruction budget protecting against runaway loops (infinite
+     * while/for/generator loops): when >= 0 the run loop aborts after that
+     * many executed instructions. The runner sets it per case; normal
+     * scripting leaves it at -1.
+     */
+    public long runBudget = -1;
+
     public void run() throws NgScriptRuntimeException {
         //initial
         exception.write(null);
         eax.write(null);
+        long budget = runBudget;
         while (true) {
             if (getEip() < 0 || getEip() >= instructions.length) {
                 if (!contextStack.isEmpty()) {
@@ -256,6 +265,10 @@ public class Machine {
                 }
             }
 
+            if (budget >= 0 && --budget < 0) {
+                throw new NgScriptRuntimeException(this,
+                        "instruction budget exceeded (possible infinite loop)");
+            }
             OpBinding instruction = instructions[getEip()];
             setEip(getEip() + 1);
             if (instruction.op.equals("//")) {

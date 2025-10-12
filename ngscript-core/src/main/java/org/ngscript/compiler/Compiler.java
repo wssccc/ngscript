@@ -287,6 +287,13 @@ public class Compiler {
         return false;
     }
 
+    /**
+     * Stack depths of the for-in/for-of loops currently being compiled (2
+     * for for-in keys+index, 1 for the for-of iterator); return statements
+     * pop them so the return address is not corrupted.
+     */
+    private final Deque<Integer> loopPopDepths = new ArrayDeque<>();
+
     public Compiler(Configuration configuration) {
         this.configuration = configuration;
     }
@@ -1281,6 +1288,7 @@ public class Compiler {
         String testLabel = assembler.label("test", stmt);
         String continueLabel = assembler.label("continue", stmt);
         String breakLabel = assembler.label("break", stmt);
+        String doneLabel = assembler.label("done", stmt);
         String afterLabel = null;
         boolean letTarget = stmt.target instanceof LetDeclExpr;
         if (letTarget) {
@@ -1292,11 +1300,12 @@ public class Compiler {
         }
         breakLabels.push(breakLabel);
         continueLabels.push(continueLabel);
+        loopPopDepths.push(2); // keys + index left on the stack
         compileExpr(stmt.object);
         assembler.emit("forin_init");
         emitLabel(testLabel);
         assembler.emit("forin_next");
-        assembler.emit("jz", breakLabel);
+        assembler.emit("jz", doneLabel);
         if (letTarget) {
             // for (let x in obj): a fresh TDZ binding per scope, assigned the key
             LetDeclExpr decl = (LetDeclExpr) stmt.target;
@@ -1313,6 +1322,11 @@ public class Compiler {
         emitLabel(continueLabel);
         emitJump(testLabel);
         emitLabel(breakLabel);
+        // an explicit break leaves the keys + index on the stack
+        assembler.emit("pop");
+        assembler.emit("pop");
+        emitLabel(doneLabel);
+        loopPopDepths.pop();
         if (letTarget) {
             leaveBlock();
             emitLabel(afterLabel);
@@ -1325,6 +1339,7 @@ public class Compiler {
         String testLabel = assembler.label("test", stmt);
         String continueLabel = assembler.label("continue", stmt);
         String breakLabel = assembler.label("break", stmt);
+        String doneLabel = assembler.label("done", stmt);
         String afterLabel = null;
         boolean letTarget = stmt.target instanceof LetDeclExpr;
         if (letTarget) {
@@ -1336,11 +1351,12 @@ public class Compiler {
         }
         breakLabels.push(breakLabel);
         continueLabels.push(continueLabel);
+        loopPopDepths.push(1); // the iterator left on the stack
         compileExpr(stmt.object);
         assembler.emit("forof_init");
         emitLabel(testLabel);
         assembler.emit("forof_next");
-        assembler.emit("jdone", breakLabel);
+        assembler.emit("jdone", doneLabel);
         if (letTarget) {
             LetDeclExpr decl = (LetDeclExpr) stmt.target;
             assembler.emit("decl_let", decl.names.get(0), decl.isConst ? "1" : "0");
@@ -1356,6 +1372,10 @@ public class Compiler {
         emitLabel(continueLabel);
         emitJump(testLabel);
         emitLabel(breakLabel);
+        // an explicit break leaves the iterator on the stack
+        assembler.emit("pop");
+        emitLabel(doneLabel);
+        loopPopDepths.pop();
         if (letTarget) {
             leaveBlock();
             emitLabel(afterLabel);
@@ -1475,6 +1495,13 @@ public class Compiler {
     private void compileReturn(ReturnStmt stmt) throws CompilerException {
         if (inHookedBlock) {
             _compile_call_finally();
+        }
+        // returning out of open for-in/for-of loops drops their iteration
+        // state (keys + index / iterator) left on the stack
+        for (int depth : loopPopDepths) {
+            for (int i = 0; i < depth; i++) {
+                assembler.emit("pop");
+            }
         }
         if (stmt.expr != null) {
             // evaluate the expression before popping block frames: the

@@ -73,6 +73,11 @@ public class NgScriptEngine {
         };
     }
 
+    /** Sets the per-execution instruction budget (see Machine.runBudget). */
+    public void setRunBudget(long budget) {
+        vm.runBudget = budget;
+    }
+
     /**
      * Compiles a script without executing it. The returned {@link Script}
      * can be executed any number of times; each execution is isolated from
