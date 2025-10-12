@@ -165,6 +165,16 @@ public class OpObject {
                 return;
             }
         }
+        if (objs[0] instanceof org.ngscript.builtins.FunctionCtor) {
+            if (member.equals("prototype")) {
+                // the shared Function.prototype: a placeholder function whose
+                // call/apply/bind use the runtime this as the target
+                ScriptFunction proto = new ScriptFunction(null, null, vm);
+                proto.placeholder = true;
+                vm.eax.write(new MemRef(proto));
+                return;
+            }
+        }
         if (objs[0] instanceof org.ngscript.builtins.PromiseBuiltins.Ctor) {
             MemRef ref = org.ngscript.builtins.PromiseBuiltins.lookup(
                     (org.ngscript.builtins.PromiseBuiltins.Ctor) objs[0], member, vm);
@@ -255,7 +265,10 @@ public class OpObject {
     }
 
     /**
-     * ES function object properties: prototype, name, length, call, apply.
+     * ES function object properties: prototype, name, length, call, apply,
+     * bind. call/apply/bind return generic placeholder functions (the
+     * runtime this binding is the target function when they are invoked),
+     * so they chain like real functions (Function.prototype.call.bind(...)).
      */
     private static MemRef functionMember(ScriptFunction fn, String member, Machine vm) {
         switch (member) {
@@ -266,37 +279,12 @@ public class OpObject {
             case "length":
                 return new MemRef(fn.params);
             case "call":
-                return new MemRef((Invokable) (vm2, args) -> {
-                    Object thisArg = args.length > 0 ? args[0] : null;
-                    Object recv = (thisArg == null || thisArg == Undefined.value)
-                            ? Undefined.value : thisArg;
-                    Object[] callArgs = new Object[Math.max(0, args.length - 1)];
-                    System.arraycopy(args, 1, callArgs, 0, callArgs.length);
-                    try {
-                        vm2.eax.write(OpUtils.callValue(vm2, fn, recv, callArgs));
-                    } catch (Exception e) {
-                        throw new NgScriptRuntimeException(vm2, e.getMessage());
-                    }
-                });
             case "apply":
-                return new MemRef((Invokable) (vm2, args) -> {
-                    Object thisArg = args.length > 0 ? args[0] : null;
-                    Object recv = (thisArg == null || thisArg == Undefined.value)
-                            ? Undefined.value : thisArg;
-                    Object[] callArgs = new Object[0];
-                    if (args.length > 1 && args[1] instanceof NgsArray) {
-                        NgsArray a = (NgsArray) args[1];
-                        callArgs = new Object[a.length()];
-                        for (int i = 0; i < callArgs.length; i++) {
-                            callArgs[i] = a.get("" + i);
-                        }
-                    }
-                    try {
-                        vm2.eax.write(OpUtils.callValue(vm2, fn, recv, callArgs));
-                    } catch (Exception e) {
-                        throw new NgScriptRuntimeException(vm2, e.getMessage());
-                    }
-                });
+            case "bind":
+                ScriptFunction generic = new ScriptFunction(null, null, vm);
+                generic.placeholder = true;
+                generic.callMode = member;
+                return new MemRef(generic);
             default:
                 return null;
         }

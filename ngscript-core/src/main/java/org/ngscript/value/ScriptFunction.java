@@ -70,6 +70,28 @@ public class ScriptFunction {
      */
     public boolean generator;
 
+    /**
+     * Bound-function state ({@code Function.prototype.bind}): the fixed
+     * this binding and the leading bound arguments. The bound function has
+     * no body of its own; calls delegate to the target (a ScriptFunction or
+     * an Invokable).
+     */
+    public Object boundTarget;
+    public Object boundThis;
+    public Object[] boundArgs;
+
+    /**
+     * True for the Function.prototype placeholder: it has no body, and its
+     * call/apply/bind use the runtime this binding as the target function.
+     */
+    public boolean placeholder;
+
+    /**
+     * For placeholder functions: "call", "apply" or "bind" (the generic
+     * method they represent).
+     */
+    public String callMode;
+
     public ScriptFunction(String functionLabel, NgsObject environment, Machine vm) {
         this.functionLabel = functionLabel;
         this.environment = environment;

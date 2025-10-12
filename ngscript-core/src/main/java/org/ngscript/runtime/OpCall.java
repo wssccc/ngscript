@@ -82,6 +82,83 @@ public class OpCall {
 
         if (callee instanceof ScriptFunction) {
             ScriptFunction c = (ScriptFunction) callee;
+            if (c.placeholder) {
+                // generic Function.prototype call/apply/bind: the runtime
+                // this binding is the target function; the current receiver
+                // is that target (bound via the method call)
+                Object target = receiver;
+                try {
+                    if ("bind".equals(c.callMode)) {
+                        Object thisArg = args.length > 0 ? args[0] : null;
+                        Object[] bound = new Object[Math.max(0, args.length - 1)];
+                        System.arraycopy(args, 1, bound, 0, bound.length);
+                        ScriptFunction bf = new ScriptFunction(null,
+                                (NgsObject) vm.env.read(), vm);
+                        bf.name = target instanceof ScriptFunction
+                                ? ((ScriptFunction) target).name : null;
+                        bf.boundTarget = target;
+                        bf.boundThis = (thisArg == null || thisArg == Undefined.value)
+                                ? Undefined.value : thisArg;
+                        bf.boundArgs = bound;
+                        vm.eax.write(bf);
+                    } else if ("apply".equals(c.callMode)) {
+                        Object thisArg = args.length > 0 ? args[0] : null;
+                        Object recv = (thisArg == null || thisArg == Undefined.value)
+                                ? Undefined.value : thisArg;
+                        Object[] callArgs = new Object[0];
+                        if (args.length > 1 && args[1] instanceof NgsArray) {
+                            NgsArray a = (NgsArray) args[1];
+                            callArgs = new Object[a.length()];
+                            for (int i = 0; i < callArgs.length; i++) {
+                                callArgs[i] = a.get("" + i);
+                            }
+                        }
+                        vm.eax.write(OpUtils.callValue(vm, target, recv, callArgs));
+                    } else {
+                        // call: args[0] is the thisArg, the rest are arguments
+                        Object thisArg = args.length > 0 ? args[0] : null;
+                        Object recv = (thisArg == null || thisArg == Undefined.value)
+                                ? Undefined.value : thisArg;
+                        Object[] callArgs = new Object[Math.max(0, args.length - 1)];
+                        System.arraycopy(args, 1, callArgs, 0, callArgs.length);
+                        vm.eax.write(OpUtils.callValue(vm, target, recv, callArgs));
+                    }
+                } catch (Exception e) {
+                    throw new NgScriptRuntimeException(vm, e.getMessage() == null
+                            ? e.toString() : e.getMessage());
+                }
+                return;
+            }
+            if (c.boundTarget != null) {
+                // bound function: fix the this binding and prepend the bound
+                // arguments, then delegate to the target
+                Object[] all = new Object[(c.boundArgs == null ? 0 : c.boundArgs.length) + args.length];
+                if (c.boundArgs != null) {
+                    System.arraycopy(c.boundArgs, 0, all, 0, c.boundArgs.length);
+                }
+                System.arraycopy(args, 0, all, c.boundArgs == null ? 0 : c.boundArgs.length, args.length);
+                Object target = c.boundTarget;
+                if (target instanceof ScriptFunction) {
+                    // replace the current call frame (top-down offsets):
+                    // [receiver=3, func=2, args=1, env=0]
+                    vm.stack.setFromTop(1, all);
+                    vm.stack.setFromTop(2, target);
+                    vm.stack.setFromTop(3, c.boundThis);
+                    call(vm, param, param_extend);
+                    return;
+                }
+                if (target instanceof Invokable) {
+                    Object savedThis = vm.thisRef.read();
+                    vm.thisRef.write(c.boundThis);
+                    try {
+                        ((Invokable) target).invoke(vm, all);
+                    } finally {
+                        vm.thisRef.write(savedThis);
+                    }
+                    return;
+                }
+                throw new NgScriptRuntimeException(vm, "bound target is not callable");
+            }
             if (c.generator) {
                 if (receiver == NEW_RECEIVER) {
                     // generators are not constructible

@@ -74,6 +74,22 @@ public class FastStack<T> {
         return elements[i];
     }
 
+    /** Replaces the element at index i (0 = bottom of the stack). */
+    public void set(int i, T e) {
+        if (i < 0 || i >= size) {
+            throw new IndexOutOfBoundsException("Index: " + i + ", Size: " + size);
+        }
+        elements[i] = e;
+    }
+
+    /** Replaces the element at {@code offset} from the top (0 = top). */
+    public void setFromTop(int offset, T e) {
+        if (offset < 0 || offset >= size) {
+            throw new IndexOutOfBoundsException("Offset: " + offset + ", Size: " + size);
+        }
+        elements[size - 1 - offset] = e;
+    }
+
     public int size() {
         return size;
     }
