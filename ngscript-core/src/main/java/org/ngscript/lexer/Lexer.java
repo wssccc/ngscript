@@ -418,6 +418,15 @@ public class Lexer {
                             if (text.indexOf('_') >= 0) {
                                 text = text.replace("_", "");
                             }
+                            if ("integer".equals(type)) {
+                                // an integer literal that does not fit in a
+                                // Java int is an ES Number (IEEE-754 double)
+                                try {
+                                    Integer.parseInt(text);
+                                } catch (NumberFormatException e) {
+                                    type = "double";
+                                }
+                            }
                             return token(type, text);
                         }
                     }

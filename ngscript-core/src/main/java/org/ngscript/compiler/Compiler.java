@@ -1147,6 +1147,13 @@ public class Compiler {
                     assembler.emit("push_eax");
                     assembler.emit("string", member.name);
                     assembler.emit("delete_op");
+                } else if (unary.operand instanceof IndexExpr) {
+                    // delete obj[key]: compile the key expression too
+                    IndexExpr index = (IndexExpr) unary.operand;
+                    compileExpr(index.object);
+                    assembler.emit("push_eax");
+                    compileExpr(index.index);
+                    assembler.emit("delete_op");
                 } else {
                     // deleting a plain variable binding yields false in ES
                     compileExpr(unary.operand);

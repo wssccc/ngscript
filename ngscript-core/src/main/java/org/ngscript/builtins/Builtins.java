@@ -72,6 +72,9 @@ public class Builtins {
         map.put("Promise", new MemRef(new PromiseBuiltins.Ctor()));
         map.put("Function", new MemRef(new FunctionCtor()));
         map.put("JSON", new MemRef(new JSONBuiltins.Json()));
+        map.put("Proxy", new MemRef(new ProxyBuiltins.ProxyCtor()));
+        map.put("Reflect", new MemRef(ProxyBuiltins.createReflect()));
+        TypedArrayBuiltins.registerConstructors(map);
         // ES error constructors map to their Java counterparts (approximate)
         map.put("Error", new MemRef(Error.class));
         map.put("TypeError", new MemRef(IllegalArgumentException.class));

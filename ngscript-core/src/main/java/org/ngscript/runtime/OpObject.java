@@ -191,6 +191,25 @@ public class OpObject {
                 return;
             }
         }
+        if (objs[0] instanceof org.ngscript.builtins.ProxyBuiltins.ProxyCtor) {
+            if (member.equals("revocable")) {
+                vm.eax.write(new MemRef(new org.ngscript.builtins.ProxyBuiltins.Revocable()));
+                return;
+            }
+        }
+        if (objs[0] instanceof org.ngscript.builtins.TypedArrayBuiltins.TypedArrayCtor) {
+            org.ngscript.builtins.TypedArrayBuiltins.TypedArrayCtor ctor =
+                    (org.ngscript.builtins.TypedArrayBuiltins.TypedArrayCtor) objs[0];
+            if (member.equals("BYTES_PER_ELEMENT")) {
+                vm.eax.write(new MemRef(TypedArrayValue.elementSize(ctor.kind)));
+                return;
+            }
+            if (member.equals("prototype")) {
+                vm.eax.write(new MemRef(
+                        org.ngscript.builtins.TypedArrayBuiltins.getTypedArrayPrototype(ctor.kind)));
+                return;
+            }
+        }
         // script-created properties on host objects (e.g. list.customFn = f)
         java.util.Map<String, MemRef> props = vm.hostProps.get(objs[0]);
         if (props != null) {
@@ -321,7 +340,14 @@ public class OpObject {
         Object[] objs = OpUtils.get2OpParam(vm);
         Object obj = objs[0];
         String key = objs[1].toString();
-        if (obj instanceof NgsObject) {
+        if (obj instanceof ProxyValue) {
+            try {
+                vm.eax.write(((ProxyValue) obj).proxyDelete(vm, key) ? 1 : 0);
+            } catch (Exception e) {
+                throw new NgScriptRuntimeException(vm, e.getMessage() == null
+                        ? e.toString() : e.getMessage());
+            }
+        } else if (obj instanceof NgsObject) {
             vm.eax.write(((NgsObject) obj).remove(key) ? 1 : 0);
         } else if (obj instanceof NgsArray) {
             vm.eax.write(((NgsArray) obj).remove(key) ? 1 : 0);
@@ -348,7 +374,14 @@ public class OpObject {
         Object[] objs = OpUtils.get2OpParam(vm);
         Object obj = objs[1];
         String key = objs[0].toString();
-        if (obj instanceof NgsObject) {
+        if (obj instanceof ProxyValue) {
+            try {
+                vm.eax.write(((ProxyValue) obj).proxyHas(vm, key) ? Boolean.TRUE : Boolean.FALSE);
+            } catch (Exception e) {
+                throw new NgScriptRuntimeException(vm, e.getMessage() == null
+                        ? e.toString() : e.getMessage());
+            }
+        } else if (obj instanceof NgsObject) {
             vm.eax.write(((NgsObject) obj).has(key) ? Boolean.TRUE : Boolean.FALSE);
         } else if (obj instanceof String) {
             try {
@@ -754,6 +787,31 @@ public class OpObject {
     }
 
     public static void new_op(Machine vm, String param, String param_extend) {
+        // ES proxy [[Construct]]: the call path leaves the stack untouched
+        // ([env, args[], func, receiver] from the top), so inspect the
+        // function slot before popping anything.
+        Object consPeek = vm.stack.size() > 2 ? vm.stack.peek(2) : null;
+        if (consPeek instanceof ProxyValue) {
+            ProxyValue proxy = (ProxyValue) consPeek;
+            if (!proxy.callable) {
+                throw new NgScriptRuntimeException(vm, "proxy target is not a constructor");
+            }
+            Object[] ctorArgs = vm.stack.size() > 1
+                    ? (Object[]) vm.stack.peek(1) : new Object[0];
+            NgsObject oldEnv = (NgsObject) vm.stack.peek(0);
+            vm.stack.pop(); //env
+            vm.stack.pop(); //args
+            vm.stack.pop(); //func
+            vm.stack.pop(); //receiver
+            vm.env.write(oldEnv);
+            try {
+                vm.eax.write(proxy.proxyConstruct(vm, ctorArgs));
+            } catch (Exception e) {
+                throw new NgScriptRuntimeException(vm, e.getMessage() == null
+                        ? e.toString() : e.getMessage());
+            }
+            return;
+        }
         //identify native object and script object
         Object newObject = vm.env.read();
         NgsObject oldEnv;

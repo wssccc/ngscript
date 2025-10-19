@@ -91,6 +91,27 @@ public class OpCall {
         Object[] args = (Object[]) vm.stack.peek(1);
         Object receiver = vm.stack.size() > 3 ? vm.stack.peek(3) : null;
 
+        if (callee instanceof ProxyValue) {
+            if (receiver == NEW_RECEIVER) {
+                // new proxy(...): leave the stack untouched for new_op,
+                // which runs the construct trap
+                return;
+            }
+            // ES proxy [[Call]]: consult the apply trap when present
+            ProxyValue proxy = (ProxyValue) callee;
+            if (!proxy.callable) {
+                throw new NgScriptRuntimeException(vm, "proxy target is not callable");
+            }
+            Object thisArg = (receiver == null)
+                    ? Undefined.value : receiver;
+            try {
+                vm.eax.write(proxy.proxyApply(vm, thisArg, args));
+            } catch (Exception e) {
+                throw new NgScriptRuntimeException(vm, e.getMessage() == null
+                        ? e.toString() : e.getMessage());
+            }
+            return;
+        }
         if (callee instanceof ScriptFunction) {
             ScriptFunction c = (ScriptFunction) callee;
             if (c.placeholder) {
