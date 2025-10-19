@@ -21,8 +21,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -45,6 +47,7 @@ public class Test262Runner {
     private static final Pattern FLAGS = Pattern.compile("flags: \\[(.*?)\\]");
     private static final Pattern NEGATIVE = Pattern.compile("negative:\\s*\\r?\\n\\s*phase: (\\w+)\\s*\\r?\\n\\s*type: (\\S+)");
     private static final Pattern FEATURES = Pattern.compile("features: \\[(.*?)\\]");
+    private static final Pattern INCLUDES = Pattern.compile("includes: \\[(.*?)\\]");
     private static final Pattern ES5ID = Pattern.compile("es5id: (\\S+)");
     private static final Pattern EXCLUDE_ID = Pattern.compile("<test id=\"([^\"]+)\"");
 
@@ -179,6 +182,7 @@ public class Test262Runner {
         String negativePhase = null;
         String negativeType = null;
         Set<String> features = new HashSet<>();
+        List<String> includes = new ArrayList<>();
         boolean es5 = false;
         // frontmatter is a /*--- ... ---*/ block; copyright comments may precede it
         int fmStart = source.indexOf("/*---");
@@ -205,6 +209,12 @@ public class Test262Runner {
                         features.add(f.trim());
                     }
                 }
+                Matcher ic = INCLUDES.matcher(meta);
+                if (ic.find()) {
+                    for (String f : ic.group(1).split(",")) {
+                        includes.add(f.trim());
+                    }
+                }
             }
         }
         if (flags.contains("module")) {
@@ -228,7 +238,7 @@ public class Test262Runner {
             return;
         }
         if (execMode) {
-            runExecutableCase(file, id, source, body, flags, negativePhase, negativeType, es5);
+            runExecutableCase(file, id, source, body, includes, flags, negativePhase, negativeType, es5);
             return;
         }
         // parse-only judgement
@@ -254,14 +264,15 @@ public class Test262Runner {
      * onlyStrict tests are excluded; the body runs against the harness.
      */
     private void runExecutableCase(File file, String id, String source, String body,
-                                   Set<String> flags, String negativePhase, String negativeType, boolean es5)
+                                   List<String> includes, Set<String> flags,
+                                   String negativePhase, String negativeType, boolean es5)
             throws IOException {
         if (flags.contains("onlyStrict") || flags.contains("async")) {
             ++excluded;
             return;
         }
         boolean expectedRuntimeFail = "runtime".equals(negativePhase);
-        String harnessed = harnessPrelude + body.replace("$DONOTEVALUATE();", "");
+        String harnessed = harnessPrelude + buildIncludes(includes) + body.replace("$DONOTEVALUATE();", "");
         try {
             // a shared engine is reused across cases: each eval compiles and
             // executes in an isolated root scope, so no state leaks between tests
@@ -270,6 +281,8 @@ public class Test262Runner {
                 sharedEngine = new org.ngscript.api.NgScriptEngine(
                         new org.ngscript.api.Configuration(), sink, sink);
             }
+            // guard against runaway loops in test bodies
+            sharedEngine.setRunBudget(50_000_000L);
             sharedEngine.eval(harnessed);
             if (expectedRuntimeFail) {
                 fail(file, id, "expected runtime " + negativeType + " but execution succeeded");
@@ -306,6 +319,33 @@ public class Test262Runner {
         }
         int i = s.indexOf('\n');
         return i > 0 ? s.substring(0, i).trim() : s.trim();
+    }
+
+    /**
+     * Loads the harness helper files listed in the test's includes field
+     * (propertyHelper.js, compareArray.js, ...), cached per name.
+     */
+    private final Map<String, String> includeCache = new HashMap<>();
+
+    private String buildIncludes(List<String> includes) {
+        if (includes == null || includes.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String name : includes) {
+            String cached = includeCache.get(name);
+            if (cached == null) {
+                try {
+                    cached = new String(Files.readAllBytes(
+                            new File(harnessDir, name).toPath()), StandardCharsets.UTF_8) + "\n";
+                } catch (IOException e) {
+                    cached = "";
+                }
+                includeCache.put(name, cached);
+            }
+            sb.append(cached);
+        }
+        return sb.toString();
     }
 
     /**
