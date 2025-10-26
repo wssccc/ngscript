@@ -147,10 +147,11 @@ public class OpControlFlow {
         }
         vm.callstack.pop();
         if (nip == -1) {
-            // generator body completion: record the return value before the
-            // run loop pops the saved context
+            // generator/async body completion: record the return value
+            // before the run loop pops the saved context
+            NgsObject env = (NgsObject) vm.env.read();
             try {
-                Object g = ((NgsObject) vm.env.read()).lookup("%generator", vm, false).read();
+                Object g = env.lookup("%generator", vm, false).read();
                 if (g instanceof Generator) {
                     ((Generator) g).complete(vm.eax.read());
                 }
@@ -158,8 +159,95 @@ public class OpControlFlow {
                 // plain scripts and go coroutines also return to the -1 halt
                 // sentinel without a %generator binding
             }
+            try {
+                Object a = env.lookup("%async", vm, false).read();
+                if (a instanceof AsyncContext) {
+                    ((AsyncContext) a).complete(vm.eax.read());
+                }
+            } catch (Throwable ignored) {
+                // not an async body
+            }
         }
         vm.setEip(nip);
+    }
+
+    /**
+     * Awaits the value in eax inside an async function body: a pending
+     * promise suspends the body (the frame is saved; a microtask resumes it
+     * with the settled value as the await expression's value); an already
+     * settled promise or a plain value continues immediately.
+     */
+    public static void await_op(Machine vm, String param, String param_extend) throws Exception {
+        Object v = vm.eax.read();
+        Object a = null;
+        try {
+            a = ((NgsObject) vm.env.read()).lookup("%async", vm, false).read();
+        } catch (NgScriptRuntimeException ignored) {
+            // not inside an async body
+        }
+        if (v instanceof org.ngscript.builtins.PromiseBuiltins.PromiseValue) {
+            org.ngscript.builtins.PromiseBuiltins.PromiseValue p =
+                    (org.ngscript.builtins.PromiseBuiltins.PromiseValue) v;
+            if (p.state == org.ngscript.builtins.PromiseBuiltins.PENDING) {
+                if (a instanceof AsyncContext) {
+                    AsyncContext ctx = (AsyncContext) a;
+                    // when the awaited promise settles, resume the body with
+                    // its value; the reaction runs as a microtask
+                    vm.callstack.pop();
+                    ctx.suspend();
+                    p.attach(null, null,
+                            value -> {
+                                try {
+                                    ctx.resume(value);
+                                } catch (Throwable ignored2) {
+                                    // settle path handles rejection
+                                }
+                            },
+                            reason -> {
+                                try {
+                                    Throwable t = reason instanceof Throwable
+                                            ? (Throwable) reason
+                                            : new NgScriptRuntimeException(vm,
+                                                    reason == null ? "rejected" : reason.toString());
+                                    ctx.resumeThrowing(t);
+                                } catch (Throwable ignored2) {
+                                    // already handled
+                                }
+                            }, false);
+                    vm.setEip(-1);
+                    return;
+                }
+            } else if (p.state == org.ngscript.builtins.PromiseBuiltins.REJECTED) {
+                // an already-rejected promise: throw at the await expression
+                // (an enclosing try/catch in the body catches it; otherwise
+                // the async promise rejects with the same reason)
+                Object reason = p.value;
+                Throwable t = reason instanceof Throwable
+                        ? (Throwable) reason
+                        : new NgScriptRuntimeException(vm, reason == null ? "rejected" : reason.toString());
+                if (a instanceof AsyncContext) {
+                    AsyncContext ctx = (AsyncContext) a;
+                    vm.callstack.pop();
+                    ctx.suspend();
+                    vm.setEip(-1);
+                    vm.enqueueMicrotask(() -> ctx.resumeThrowing(t));
+                    return;
+                }
+                if (t instanceof RuntimeException) {
+                    throw (RuntimeException) t;
+                }
+                if (t instanceof Error) {
+                    throw (Error) t;
+                }
+                throw new NgScriptRuntimeException(vm, t.getMessage() == null
+                        ? t.toString() : t.getMessage());
+            } else {
+                // already fulfilled: the await expression is the value
+                vm.eax.write(p.value);
+                return;
+            }
+        }
+        // plain value (or no async context): the await is a no-op
     }
 
     /**

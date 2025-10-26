@@ -78,6 +78,7 @@ import org.ngscript.ast.UnaryExpr;
 import org.ngscript.ast.VarDeclExpr;
 import org.ngscript.ast.WhileStmt;
 import org.ngscript.ast.WithStmt;
+import org.ngscript.ast.AwaitExpr;
 import org.ngscript.ast.YieldExpr;
 import org.ngscript.bytecode.Assembler;
 import org.ngscript.bytecode.Instruction;
@@ -402,6 +403,8 @@ public class Compiler {
         String enter = _compile_function_body(decl.params, decl.body);
         if (decl.generator) {
             assembler.instructions.add(0, new Instruction("static_func_gen", decl.name, enter));
+        } else if (decl.async) {
+            assembler.instructions.add(0, new Instruction("static_func_async", decl.name, enter));
         } else {
             assembler.instructions.add(0, new Instruction("static_func", decl.name, enter));
         }
@@ -741,6 +744,12 @@ public class Compiler {
                 assembler.emit("undefined");
                 assembler.emit("yield_op");
             }
+        } else if (expr instanceof AwaitExpr) {
+            // await operand: evaluate the operand, then suspend until the
+            // awaited promise settles (await_op handles the suspension)
+            AwaitExpr a = (AwaitExpr) expr;
+            compileExpr(a.operand);
+            assembler.emit("await_op");
         } else if (expr instanceof SpreadExpr) {
             throw compileError("spread is only valid in call arguments and array literals");
         } else if (expr instanceof TemplateExpr) {
@@ -769,7 +778,8 @@ public class Compiler {
             }
             String enter = _compile_function_body(lambda.params, body);
             assembler.emit("new_closure", enter,
-                    lambda.isArrow ? "1" : (lambda.generator ? "2" : "0"));
+                    lambda.async ? (lambda.isArrow ? "4" : "3")
+                            : (lambda.isArrow ? "1" : (lambda.generator ? "2" : "0")));
             assembler.emit("set_func_meta", functionLength(lambda.params) + "",
                     lambda.name == null ? "" : lambda.name);
         } else {

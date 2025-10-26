@@ -71,6 +71,13 @@ public class ScriptFunction {
     public boolean generator;
 
     /**
+     * Whether this is an async function ({@code async function ...}):
+     * calling it returns a Promise; the body runs until the first await
+     * suspends it, then resumes from a microtask.
+     */
+    public boolean async;
+
+    /**
      * Bound-function state ({@code Function.prototype.bind}): the fixed
      * this binding and the leading bound arguments. The bound function has
      * no body of its own; calls delegate to the target (a ScriptFunction or

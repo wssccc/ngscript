@@ -81,6 +81,7 @@ import org.ngscript.ast.UnaryExpr;
 import org.ngscript.ast.VarDeclExpr;
 import org.ngscript.ast.WhileStmt;
 import org.ngscript.ast.WithStmt;
+import org.ngscript.ast.AwaitExpr;
 import org.ngscript.ast.YieldExpr;
 import org.ngscript.compiler.CompilerException;
 import org.ngscript.lexer.Lexer;
@@ -195,6 +196,13 @@ public class NgParser {
      * identifier, e.g. the coroutine extension's yield function).
      */
     private int generatorDepth;
+
+    /**
+     * Depth of enclosing async function bodies; {@code await} is a
+     * contextual keyword valid only here (elsewhere it stays an ordinary
+     * identifier).
+     */
+    private int asyncDepth;
 
     /**
      * Lexer-driven mode state: when {@link #parse(String)} is used the lexer
@@ -498,6 +506,22 @@ public class NgParser {
                         || (second.type.equals("mul") && peekN(3) != null
                             && peekN(3).type.equals("ident")))) {
                     return parseFunctionDecl();
+                }
+                return parseExprStmt();
+            }
+            case "ident": {
+                // async function name(...) is an async function declaration
+                // (async must be followed by function on the same line)
+                Token second = peekN(2);
+                if (second != null && second.type.equals("function")
+                        && second.line == t.line
+                        && t.value.equals("async")) {
+                    Token third = peekN(3);
+                    if (third != null && (third.type.equals("ident")
+                            || (third.type.equals("mul") && peekN(4) != null
+                                && peekN(4).type.equals("ident")))) {
+                        return parseAsyncFunctionDecl(t);
+                    }
                 }
                 return parseExprStmt();
             }
@@ -940,18 +964,50 @@ public class NgParser {
         expect("rparen");
         ++functionDepth;
         int savedGen = generatorDepth;
+        int savedAsync = asyncDepth;
         if (generator) {
             ++generatorDepth;
         } else {
             // a nested plain function has no yield context of its own
             generatorDepth = 0;
         }
+        asyncDepth = 0;
         try {
             Block body = parseBlock();
             return new FunctionDecl(name.value, params, body, generator, fn.line);
         } finally {
             --functionDepth;
             generatorDepth = savedGen;
+            asyncDepth = savedAsync;
+        }
+    }
+
+    /** Parses an async function declaration (the 'async' token is current). */
+    private Stmt parseAsyncFunctionDecl(Token asyncTok) throws ParserException {
+        next(); // async
+        expect("function");
+        boolean generator = false;
+        if (peekIs("mul")) {
+            next();
+            generator = true;
+        }
+        Token name = expect("ident");
+        expect("lparen");
+        Params params = parseParamList();
+        expect("rparen");
+        ++functionDepth;
+        int savedGen = generatorDepth;
+        int savedAsync = asyncDepth;
+        generatorDepth = 0;
+        ++asyncDepth;
+        try {
+            Block body = parseBlock();
+            FunctionDecl decl = new FunctionDecl(name.value, params, body, generator, true, asyncTok.line);
+            return decl;
+        } finally {
+            --functionDepth;
+            generatorDepth = savedGen;
+            asyncDepth = savedAsync;
         }
     }
 
@@ -1787,6 +1843,33 @@ public class NgParser {
         if (t == null) {
             throw new ParserException("unexpected end of input");
         }
+        if (t.type.equals("ident") && t.value.equals("async")) {
+            // async function expressions and async arrows: async function
+            // name? (...) / async (...) => / async x =>
+            Token second = peekN(2);
+            if (second != null && second.type.equals("function") && second.line == t.line) {
+                return parseAsyncFunctionExpr(t);
+            }
+            if (second != null && second.type.equals("lparen") && second.line == t.line
+                    && probeArrow(3)) {
+                next(); // async
+                next(); // lparen
+                Params params = parseParamList();
+                expect("rparen");
+                expect("arrow_fn");
+                return parseAsyncArrowRest(params, t.line);
+            }
+            if (second != null && second.type.equals("ident") && second.line == t.line) {
+                Token third = peekN(3);
+                if (third != null && third.type.equals("arrow_fn") && third.line == second.line) {
+                    next(); // async
+                    next(); // ident
+                    next(); // =>
+                    return parseAsyncArrowRest(
+                            new Params(Collections.singletonList(second.value)), t.line);
+                }
+            }
+        }
         if (t.type.equals("new")) {
             return parseNew(t);
         }
@@ -1940,6 +2023,65 @@ public class NgParser {
         }
     }
 
+    /** Parses an async function expression: async function name?(...). */
+    private Expr parseAsyncFunctionExpr(Token asyncTok) throws ParserException {
+        next(); // async
+        expect("function");
+        boolean generator = false;
+        if (peekIs("mul")) {
+            next();
+            generator = true;
+        }
+        String name = null;
+        if (peekIs("ident")) {
+            name = next().value;
+        }
+        expect("lparen");
+        Params params = parseParamList();
+        expect("rparen");
+        ++functionDepth;
+        int savedGen = generatorDepth;
+        int savedAsync = asyncDepth;
+        generatorDepth = 0;
+        ++asyncDepth;
+        try {
+            Block body = parseBlock();
+            LambdaExpr lambda = new LambdaExpr(name, params, body, asyncTok.line);
+            lambda.generator = generator;
+            lambda.async = true;
+            return lambda;
+        } finally {
+            --functionDepth;
+            generatorDepth = savedGen;
+            asyncDepth = savedAsync;
+        }
+    }
+
+    /** Parses the body of an async arrow function after the arrow token. */
+    private Expr parseAsyncArrowRest(Params params, int line) throws ParserException {
+        ++functionDepth;
+        int savedGen = generatorDepth;
+        int savedAsync = asyncDepth;
+        generatorDepth = 0;
+        ++asyncDepth;
+        try {
+            LambdaExpr lambda;
+            if (peekIs("lcurly")) {
+                Block body = parseBlock();
+                lambda = new LambdaExpr(params, null, body, line, true);
+            } else {
+                Expr body = parseAssignment();
+                lambda = new LambdaExpr(params, body, null, line, true);
+            }
+            lambda.async = true;
+            return lambda;
+        } finally {
+            --functionDepth;
+            generatorDepth = savedGen;
+            asyncDepth = savedAsync;
+        }
+    }
+
     private Expr parseExpr9() throws ParserException {
         Token t = peek();
         if (t == null) {
@@ -1990,6 +2132,11 @@ public class NgParser {
                         return new YieldExpr(parseAssignment(), true, t.line);
                     }
                     return new YieldExpr(parseAssignment(), false, t.line);
+                }
+                if (t.value.equals("await") && asyncDepth > 0) {
+                    // contextual await (async functions): await expr
+                    next();
+                    return new AwaitExpr(parseAssignment(), t.line);
                 }
                 next();
                 if (t.value.equals("val") && peek() != null && peek().type.equals("ident")) {

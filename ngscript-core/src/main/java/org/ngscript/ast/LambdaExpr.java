@@ -38,6 +38,13 @@ public class LambdaExpr extends Expr {
      */
     public boolean generator;
 
+    /**
+     * Whether this is an async function ({@code async function ...} /
+     * {@code async () => ...}): calling it returns a Promise and the body
+     * may contain await expressions.
+     */
+    public boolean async;
+
     public LambdaExpr(Params params, Block body, int line) {
         this(null, params, body, line);
     }

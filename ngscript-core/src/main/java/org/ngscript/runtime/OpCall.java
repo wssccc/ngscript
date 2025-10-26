@@ -49,6 +49,14 @@ public class OpCall {
         } else if ("2".equals(param_extend)) {
             // generator function: calls create a Generator iterator
             closure.generator = true;
+        } else if ("3".equals(param_extend)) {
+            // async function: calls create a Promise
+            closure.async = true;
+        } else if ("4".equals(param_extend)) {
+            // async arrow: lexical this + async
+            closure.arrow = true;
+            closure.capturedThis = vm.thisRef.read();
+            closure.async = true;
         }
         vm.eax.write(closure);
     }
@@ -199,6 +207,24 @@ public class OpCall {
                 }
                 // a generator call returns an iterator without running the body
                 vm.eax.write(new Generator(vm, c, args));
+                return;
+            }
+            if (c.async) {
+                if (receiver == NEW_RECEIVER) {
+                    // async functions are not constructible
+                    throw new IllegalArgumentException(
+                            (c.name == null ? "" : c.name + " ") + "is not a constructor");
+                }
+                // an async call returns a promise and runs the body
+                // synchronously until the first await
+                try {
+                    AsyncContext ctx = new AsyncContext(vm, c, args);
+                    ctx.start();
+                    vm.eax.write(ctx.promise);
+                } catch (Exception e) {
+                    throw new NgScriptRuntimeException(vm, e.getMessage() == null
+                            ? e.toString() : e.getMessage());
+                }
                 return;
             }
             vm.callstack.push(c);

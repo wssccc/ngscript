@@ -81,17 +81,17 @@ public class PromiseBuiltins {
      */
     public static class PromiseValue extends NgsObject {
         final Machine vm;
-        int state = PENDING;
-        Object value;
+        public int state = PENDING;
+        public Object value;
         List<Reaction> reactions;
 
-        PromiseValue(Machine vm) {
+        public PromiseValue(Machine vm) {
             super((NgsObject) vm.env.read());
             this.vm = vm;
             setPrototype(getPromisePrototype());
         }
 
-        void resolve(Object v) {
+        public void resolve(Object v) {
             if (state != PENDING) {
                 return;
             }
@@ -149,7 +149,7 @@ public class PromiseBuiltins {
             return fwd;
         }
 
-        void reject(Object reason) {
+        public void reject(Object reason) {
             if (state != PENDING) {
                 return;
             }
@@ -197,7 +197,7 @@ public class PromiseBuiltins {
          * return value is discarded (Promise.all/race observers settle the
          * output promise explicitly).
          */
-        PromiseValue attach(Object onFulfilled, Object onRejected, Consumer<Object> resolve,
+        public PromiseValue attach(Object onFulfilled, Object onRejected, Consumer<Object> resolve,
                             Consumer<Object> reject, boolean propagateResult) {
             Reaction r = new Reaction();
             r.onFulfilled = onFulfilled;

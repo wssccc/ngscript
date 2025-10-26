@@ -323,6 +323,14 @@ public class OpObject {
         OpScope.set(vm, param, null);
     }
 
+    /** Binds an {@code async function} declaration. */
+    public static void static_func_async(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        OpCall.new_closure(vm, param_extend, null);
+        ((ScriptFunction) vm.eax.read()).async = true;
+        ((ScriptFunction) vm.eax.read()).name = param;
+        OpScope.set(vm, param, null);
+    }
+
     /**
      * Script-visible value types whose {@code typeof} is reported as their
      * simple class name. Foreign Java classes always report their fully

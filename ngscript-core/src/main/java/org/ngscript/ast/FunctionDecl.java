@@ -18,7 +18,8 @@ package org.ngscript.ast;
 
 /**
  * A function declaration: {@code function name(params) { body }}.
- * {@link #generator} marks a generator function ({@code function* name}).
+ * {@link #generator} marks a generator function ({@code function* name}),
+ * {@link #async} an async function ({@code async function name}).
  *
  * @author wssccc
  */
@@ -28,16 +29,23 @@ public class FunctionDecl extends Stmt {
     public final Params params;
     public final Block body;
     public final boolean generator;
+    public boolean async;
 
     public FunctionDecl(String name, Params params, Block body, int line) {
-        this(name, params, body, false, line);
+        this(name, params, body, false, false, line);
     }
 
     public FunctionDecl(String name, Params params, Block body, boolean generator, int line) {
+        this(name, params, body, generator, false, line);
+    }
+
+    public FunctionDecl(String name, Params params, Block body, boolean generator,
+                        boolean async, int line) {
         this.name = name;
         this.params = params;
         this.body = body;
         this.generator = generator;
+        this.async = async;
         this.line = line;
     }
 
