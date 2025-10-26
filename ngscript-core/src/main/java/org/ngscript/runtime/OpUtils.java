@@ -178,6 +178,36 @@ public class OpUtils {
         return obj instanceof Integer || obj instanceof Double || obj instanceof Long;
     }
 
+    /** Whether a value is a JS BigInt. */
+    public static boolean isBigInt(Object obj) {
+        return obj instanceof org.ngscript.value.BigIntValue;
+    }
+
+    /**
+     * ES ToBigInt for the arithmetic paths: a BigInt stays, an integer-like
+     * Number converts exactly, a non-integral Number throws (ES requires a
+     * TypeError when mixing BigInt with a Number).
+     */
+    public static java.math.BigInteger toBigInt(Object obj) {
+        if (obj instanceof org.ngscript.value.BigIntValue) {
+            return ((org.ngscript.value.BigIntValue) obj).value;
+        }
+        if (obj instanceof Integer) {
+            return java.math.BigInteger.valueOf((Integer) obj);
+        }
+        if (obj instanceof Long) {
+            return java.math.BigInteger.valueOf((Long) obj);
+        }
+        if (obj instanceof Double) {
+            double d = (Double) obj;
+            if (d != Math.floor(d) || Double.isInfinite(d) || Double.isNaN(d)) {
+                throw new RuntimeException("Cannot convert a Number to BigInt: " + d);
+            }
+            return java.math.BigDecimal.valueOf(d).toBigInteger();
+        }
+        throw new RuntimeException("Cannot convert " + (obj == null ? "null" : obj.getClass().getSimpleName()) + " to BigInt");
+    }
+
     /** ES ToNumber. Objects require ToPrimitive (arrives with the object model). */
     public static double toNumber(Object obj) {
         if (obj instanceof Integer) {
@@ -266,6 +296,9 @@ public class OpUtils {
         if (obj instanceof Long) {
             return Long.toString((Long) obj);
         }
+        if (obj instanceof org.ngscript.value.BigIntValue) {
+            return ((org.ngscript.value.BigIntValue) obj).value.toString();
+        }
         if (obj instanceof NgsArray) {
             // ES: String(array) joins the elements (null/undefined become "")
             NgsArray arr = (NgsArray) obj;
@@ -338,6 +371,15 @@ public class OpUtils {
         if (isNumber(a) && isNumber(b)) {
             return numericEquals(toNumber(a), toNumber(b));
         }
+        if (isBigInt(a) && isBigInt(b)) {
+            return toBigInt(a).equals(toBigInt(b));
+        }
+        if (isNumber(a) && isBigInt(b)) {
+            return bigIntNumberEquals(toBigInt(b), toNumber(a));
+        }
+        if (isBigInt(a) && isNumber(b)) {
+            return bigIntNumberEquals(toBigInt(a), toNumber(b));
+        }
         if (a instanceof String && b instanceof String) {
             return a.equals(b);
         }
@@ -360,6 +402,15 @@ public class OpUtils {
         return false;
     }
 
+    /** BigInt == Number: numerically equal only when the Number is integral. */
+    private static boolean bigIntNumberEquals(java.math.BigInteger big, double d) {
+        if (Double.isNaN(d) || Double.isInfinite(d)) {
+            return false;
+        }
+        return new java.math.BigDecimal(d).toBigInteger().equals(big)
+                && d == new java.math.BigDecimal(big).doubleValue();
+    }
+
     /** ES {@code ===} (strict equality). Integer and Double are the same JS type. */
     public static boolean strictEquals(Object a, Object b) {
         if (a == b) {
@@ -368,6 +419,21 @@ public class OpUtils {
         if (isNumber(a) && isNumber(b)) {
             return numericEquals(toNumber(a), toNumber(b));
         }
+        if (isBigInt(a) && isBigInt(b)) {
+            return toBigInt(a).equals(toBigInt(b));
+        }
+        if (isNumber(a) && isBigInt(b)) {
+            // BigInt === Number compares numerically when the Number is
+            // integral (e.g. 1n === 1 is true, 1.5n is impossible)
+            double d = toNumber(a);
+            if (d != Math.floor(d) || Double.isInfinite(d) || Double.isNaN(d)) {
+                return false;
+            }
+            return BigDecimalEquals(d, toBigInt(b));
+        }
+        if (isBigInt(a) && isNumber(b)) {
+            return strictEquals(b, a);
+        }
         if (a instanceof String && b instanceof String) {
             return a.equals(b);
         }
@@ -375,6 +441,12 @@ public class OpUtils {
             return a.equals(b);
         }
         return false;
+    }
+
+    /** Whether a double equals a BigInteger exactly. */
+    private static boolean BigDecimalEquals(double d, java.math.BigInteger big) {
+        return new java.math.BigDecimal(d).toBigInteger().equals(big)
+                && d == new java.math.BigDecimal(big).doubleValue();
     }
 
     /**
@@ -423,6 +495,8 @@ public class OpUtils {
             val = d != 0 && !Double.isNaN(d); // -0 and NaN are falsy
         } else if (testObj instanceof Undefined) {
             val = false;
+        } else if (testObj instanceof org.ngscript.value.BigIntValue) {
+            val = ((org.ngscript.value.BigIntValue) testObj).value.signum() != 0;
         } else {
             //is an object
             val = true;
@@ -437,12 +511,18 @@ public class OpUtils {
     static void addEax(Machine vm, int num, boolean rewrite) {
         MemRef addr = (MemRef) vm.eax.read();
         Object val = addr.read();
-        double d = toNumber(val) + num;
-        Object result = normalize(d);
+        Object result;
+        if (val instanceof org.ngscript.value.BigIntValue) {
+            java.math.BigInteger big = ((org.ngscript.value.BigIntValue) val).value;
+            result = new org.ngscript.value.BigIntValue(big.add(java.math.BigInteger.valueOf(num)));
+        } else {
+            result = normalize(toNumber(val) + num);
+        }
         addr.write(result);
         if (rewrite) {
             // postfix: the expression value is the old value (as a number)
-            vm.eax.write(normalize(toNumber(val)));
+            vm.eax.write(val instanceof org.ngscript.value.BigIntValue
+                    ? val : normalize(toNumber(val)));
         } else {
             vm.eax.write(result);
         }

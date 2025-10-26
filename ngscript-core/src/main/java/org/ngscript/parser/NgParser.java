@@ -2166,6 +2166,9 @@ public class NgParser {
             case "integer":
                 next();
                 return new LiteralExpr(LiteralExpr.Kind.INTEGER, t.value, t.line);
+            case "bigint":
+                next();
+                return new LiteralExpr(LiteralExpr.Kind.BIGINT, t.value, t.line);
             case "string":
                 next();
                 return new LiteralExpr(LiteralExpr.Kind.STRING, t.value, t.line);

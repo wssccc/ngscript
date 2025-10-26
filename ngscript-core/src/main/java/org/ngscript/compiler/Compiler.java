@@ -852,6 +852,9 @@ public class Compiler {
             case INTEGER:
                 assembler.emit("integer", lit.value);
                 break;
+            case BIGINT:
+                assembler.emit("bigint", lit.value);
+                break;
             case STRING:
                 assembler.emit("string", lit.value);
                 break;

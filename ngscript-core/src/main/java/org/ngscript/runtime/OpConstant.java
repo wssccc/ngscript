@@ -29,6 +29,10 @@ public class OpConstant {
         vm.eax.write(Integer.parseInt(param));
     }
 
+    public static void bigint(Machine vm, String param, String param_extend) {
+        vm.eax.write(new org.ngscript.value.BigIntValue(new java.math.BigInteger(param)));
+    }
+
     public static void bool(Machine vm, String param, String param_extend) {
         vm.eax.write(Boolean.parseBoolean(param));
     }

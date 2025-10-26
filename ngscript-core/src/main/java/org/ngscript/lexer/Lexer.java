@@ -413,6 +413,18 @@ public class Lexer {
                             reader.forward();
                         } else if (isNumeric(chr)) {
                             reader.forward();
+                        } else if (chr == 'n') {
+                            // BigInt literal suffix: only valid on integer
+                            // literals (no decimal point or exponent)
+                            if (!"integer".equals(type)) {
+                                throw new LexerException("invalid BigInt literal");
+                            }
+                            reader.forward();
+                            String text = substr(marker, reader.position - 1);
+                            if (text.indexOf('_') >= 0) {
+                                text = text.replace("_", "");
+                            }
+                            return token("bigint", text);
                         } else {
                             String text = substr(marker, reader.position);
                             if (text.indexOf('_') >= 0) {
@@ -549,6 +561,11 @@ public class Lexer {
         }
         if (!any) {
             throw new LexerException("invalid number format: missing digits after 0" + prefix);
+        }
+        if (reader.peek() == 'n') {
+            // BigInt suffix: 0x10n / 0o17n / 0b101n
+            reader.forward();
+            return token("bigint", new BigInteger(stringBuilder.toString(), radix).toString(10));
         }
         BigInteger big = new BigInteger(stringBuilder.toString(), radix);
         String dec = big.toString(10);

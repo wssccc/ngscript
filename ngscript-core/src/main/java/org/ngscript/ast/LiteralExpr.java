@@ -23,7 +23,7 @@ package org.ngscript.ast;
  */
 public class LiteralExpr extends Expr {
 
-    public enum Kind { INTEGER, DOUBLE, STRING, TRUE, FALSE, NULL, UNDEFINED }
+    public enum Kind { INTEGER, DOUBLE, STRING, TRUE, FALSE, NULL, UNDEFINED, BIGINT }
 
     public final Kind kind;
     public final String value;

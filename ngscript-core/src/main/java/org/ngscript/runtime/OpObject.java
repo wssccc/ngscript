@@ -197,6 +197,18 @@ public class OpObject {
                 return;
             }
         }
+        if (objs[0] instanceof org.ngscript.builtins.BigIntBuiltins.Ctor) {
+            if (member.equals("asIntN")) {
+                vm.eax.write(new MemRef((org.ngscript.value.Invokable) (m, a) ->
+                        org.ngscript.builtins.BigIntBuiltins.asIntNPublic(m, a)));
+                return;
+            }
+            if (member.equals("asUintN")) {
+                vm.eax.write(new MemRef((org.ngscript.value.Invokable) (m, a) ->
+                        org.ngscript.builtins.BigIntBuiltins.asUintNPublic(m, a)));
+                return;
+            }
+        }
         if (objs[0] instanceof org.ngscript.builtins.TypedArrayBuiltins.TypedArrayCtor) {
             org.ngscript.builtins.TypedArrayBuiltins.TypedArrayCtor ctor =
                     (org.ngscript.builtins.TypedArrayBuiltins.TypedArrayCtor) objs[0];
@@ -216,6 +228,15 @@ public class OpObject {
             MemRef dynamic = props.get(member);
             if (dynamic != null) {
                 vm.eax.write(dynamic);
+                return;
+            }
+        }
+        if (objs[0] instanceof org.ngscript.value.BigIntValue) {
+            // BigInt.prototype methods (the primitive is not an NgsObject)
+            MemRef ref2 = org.ngscript.builtins.BigIntBuiltins.lookupPrimitive(
+                    (org.ngscript.value.BigIntValue) objs[0], member, vm);
+            if (ref2 != null) {
+                vm.eax.write(ref2);
                 return;
             }
         }
@@ -688,6 +709,10 @@ public class OpObject {
         }
         if (obj instanceof org.ngscript.value.SymbolValue) {
             vm.eax.write("symbol");
+            return;
+        }
+        if (obj instanceof org.ngscript.value.BigIntValue) {
+            vm.eax.write("bigint");
             return;
         }
         if (obj instanceof Invokable) {

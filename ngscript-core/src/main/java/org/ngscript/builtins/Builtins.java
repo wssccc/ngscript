@@ -75,6 +75,7 @@ public class Builtins {
         map.put("Proxy", new MemRef(new ProxyBuiltins.ProxyCtor()));
         map.put("Reflect", new MemRef(ProxyBuiltins.createReflect()));
         TypedArrayBuiltins.registerConstructors(map);
+        map.put("BigInt", new MemRef(new BigIntBuiltins.Ctor()));
         // ES error constructors map to their Java counterparts (approximate)
         map.put("Error", new MemRef(Error.class));
         map.put("TypeError", new MemRef(IllegalArgumentException.class));
