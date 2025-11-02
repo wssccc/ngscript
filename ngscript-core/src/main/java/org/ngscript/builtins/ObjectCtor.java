@@ -136,6 +136,51 @@ public class ObjectCtor implements Invokable {
                     }
                     vm2.eax.write(target);
                 });
+            case "entries":
+                return new MemRef((Invokable) (vm2, args) -> {
+                    NgsObject o = objectArg(vm2, args, 0);
+                    NgsArray out = new NgsArray(null);
+                    int i = 0;
+                    for (String k : o.keys()) {
+                        NgsArray pair = new NgsArray(null);
+                        pair.setPrototype(vm2.arrayPrototype);
+                        pair.set("0", k);
+                        pair.set("1", o.get(k));
+                        out.set("" + i++, pair);
+                    }
+                    out.setPrototype(vm2.arrayPrototype);
+                    vm2.eax.write(out);
+                });
+            case "values":
+                return new MemRef((Invokable) (vm2, args) -> {
+                    NgsObject o = objectArg(vm2, args, 0);
+                    NgsArray out = new NgsArray(null);
+                    int i = 0;
+                    for (String k : o.keys()) {
+                        out.set("" + i++, o.get(k));
+                    }
+                    out.setPrototype(vm2.arrayPrototype);
+                    vm2.eax.write(out);
+                });
+            case "fromEntries":
+                return new MemRef((Invokable) (vm2, args) -> {
+                    NgsObject out = new NgsObject((NgsObject) vm2.env.read());
+                    out.setPrototype(vm2.objectPrototype);
+                    Object entries = args.length > 0 ? args[0] : null;
+                    if (entries instanceof NgsArray) {
+                        NgsArray arr = (NgsArray) entries;
+                        for (int i = 0; i < arr.length(); i++) {
+                            Object pair = arr.get("" + i);
+                            if (pair instanceof NgsObject) {
+                                NgsObject p = (NgsObject) pair;
+                                Object k = p.get("0");
+                                Object v = p.get("1");
+                                out.set(k == null ? "undefined" : k.toString(), v);
+                            }
+                        }
+                    }
+                    vm2.eax.write(out);
+                });
             default:
                 return null;
         }

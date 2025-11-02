@@ -75,6 +75,8 @@ public abstract class Pattern extends AstNode {
     /** An object pattern: {@code {x, y: a}}. */
     public static class ObjectP extends Pattern {
         public final List<Prop> props;
+        /** The rest pattern ({@code {...rest}}), or null. */
+        public Pattern rest;
 
         public ObjectP(List<Prop> props, int line) {
             this.props = props;

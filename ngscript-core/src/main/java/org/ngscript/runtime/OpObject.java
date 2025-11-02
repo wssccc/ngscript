@@ -630,6 +630,40 @@ public class OpObject {
     }
 
     /**
+     * Collects the remaining own keys of the object at the stack top (the
+     * ones not yet destructured) into a fresh object; the result is the
+     * rest pattern's value. The object itself stays on the stack (the
+     * caller pops it). {@code param} lists the already-consumed keys.
+     */
+    public static void destr_obj_rest(Machine vm, String param, String param_extend) {
+        Object obj = vm.stack.peek(0);
+        NgsObject rest = new NgsObject((NgsObject) vm.env.read());
+        rest.setPrototype(vm.objectPrototype);
+        java.util.Set<String> consumed = new java.util.HashSet<>();
+        if (param != null && !param.isEmpty()) {
+            for (String k : param.split(",")) {
+                consumed.add(k);
+            }
+        }
+        if (obj instanceof NgsObject) {
+            for (String key : ((NgsObject) obj).keys()) {
+                if (!consumed.contains(key)) {
+                    rest.set(key, ((NgsObject) obj).get(key));
+                }
+            }
+        } else if (obj instanceof NgsArray) {
+            NgsArray arr = (NgsArray) obj;
+            for (int i = 0; i < arr.length(); i++) {
+                String key = "" + i;
+                if (!consumed.contains(key)) {
+                    rest.set(key, arr.get(key));
+                }
+            }
+        }
+        vm.eax.write(rest);
+    }
+
+    /**
      * A code-point iterator for strings (ES iterates strings by Unicode code
      * point, combining surrogate pairs).
      */

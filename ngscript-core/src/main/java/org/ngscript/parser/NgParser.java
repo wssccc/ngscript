@@ -869,6 +869,14 @@ public class NgParser {
             next();
             List<Pattern.Prop> props = new ArrayList<>();
             while (!peekIs("rcurly")) {
+                if (peekIs("spread")) {
+                    // object rest: {a, ...rest}
+                    next();
+                    Pattern.ObjectP op = new Pattern.ObjectP(props, t.line);
+                    op.rest = parsePattern(true);
+                    expect("rcurly");
+                    return allowDefault ? applyPatternDefault(op) : op;
+                }
                 Token key = peek();
                 if (key == null || !(isKeyName(key.type) || key.type.equals("string")
                         || key.type.equals("integer") || key.type.equals("double"))) {

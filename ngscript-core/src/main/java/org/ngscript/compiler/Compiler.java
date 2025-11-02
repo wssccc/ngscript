@@ -223,9 +223,11 @@ public class Compiler {
             return;
         }
         if (p instanceof Pattern.ObjectP) {
-            for (Pattern.Prop prop : ((Pattern.ObjectP) p).props) {
+            Pattern.ObjectP obj = (Pattern.ObjectP) p;
+            for (Pattern.Prop prop : obj.props) {
                 declarePatternNames(prop.pattern, isVar);
             }
+            declarePatternNames(obj.rest, isVar);
         }
     }
 
@@ -266,6 +268,7 @@ public class Compiler {
         } else if (p instanceof Pattern.ObjectP) {
             Pattern.ObjectP obj = (Pattern.ObjectP) p;
             assembler.emit("push_eax");
+            StringBuilder consumed = new StringBuilder();
             for (Pattern.Prop prop : obj.props) {
                 assembler.emit("peek", "0");
                 assembler.emit("push_eax");
@@ -273,6 +276,16 @@ public class Compiler {
                 assembler.emit("member_ref");
                 assembler.emit("deref", "%eax");
                 compilePattern(prop.pattern);
+                if (consumed.length() > 0) {
+                    consumed.append(',');
+                }
+                consumed.append(prop.key);
+            }
+            if (obj.rest != null) {
+                // collect the remaining own keys (minus the destructured
+                // ones) into a fresh object for the rest pattern
+                assembler.emit("destr_obj_rest", consumed.toString());
+                compilePattern(obj.rest);
             }
             assembler.emit("pop");
         }
