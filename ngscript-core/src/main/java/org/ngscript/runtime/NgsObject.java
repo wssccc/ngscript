@@ -50,6 +50,47 @@ public class NgsObject implements Scope {
     private NgsObject proto;
 
     /**
+     * Accessor properties (Object.defineProperty with get/set): name to the
+     * getter/setter functions. Reads and writes consult these before the
+     * plain data map.
+     */
+    private java.util.Map<String, Object[]> accessors;
+
+    public Object getAccessor(String name, String which) {
+        if (accessors == null) {
+            return null;
+        }
+        Object[] pair = accessors.get(name);
+        return pair == null ? null : ("get".equals(which) ? pair[0] : pair[1]);
+    }
+
+    public void defineAccessor(String name, Object getter, Object setter) {
+        if (accessors == null) {
+            accessors = new java.util.HashMap<>();
+        }
+        accessors.put(name, new Object[]{getter, setter});
+        // an accessor shadows the plain data slot
+        data.remove(name);
+    }
+
+    /** Writes through an accessor's setter (called from the lookup MemRef). */
+    private void setAccessor(String name, Object value, Machine vm) {
+        Object setter = getAccessor(name, "set");
+        if (setter != null) {
+            try {
+                org.ngscript.runtime.OpUtils.callValue(vm, setter, this, new Object[]{value});
+            } catch (Exception e) {
+                throw e instanceof RuntimeException
+                        ? (RuntimeException) e
+                        : new RuntimeException(e.getMessage() == null
+                                ? e.toString() : e.getMessage());
+            }
+        }
+        // a getter-only accessor ignores writes; a plain setter stores nothing
+        // (the setter's side effects are the property's behaviour)
+    }
+
+    /**
      * The constructor function that created this object via {@code new},
      * used by the minimal instanceof support. Null for plain objects.
      */
@@ -109,9 +150,12 @@ public class NgsObject implements Scope {
     }
 
     /**
-     * Whether an own property exists.
+     * Whether an own property exists (data or accessor).
      */
     public boolean has(String key) {
+        if (accessors != null && accessors.containsKey(key)) {
+            return true;
+        }
         return data.containsKey(key);
     }
 
@@ -134,6 +178,17 @@ public class NgsObject implements Scope {
             case "%exception":
                 return vm.exception;
             default:
+                if (accessors != null && accessors.containsKey(member)) {
+                    // accessor property (getter and/or setter): reads invoke
+                    // the getter (undefined when absent), writes go through
+                    // the setter
+                    return new MemRef(getAccessor(member, "get") != null ? get(member) : Undefined.value) {
+                        @Override
+                        public void write(Object v) {
+                            NgsObject.this.setAccessor(member, v, vm);
+                        }
+                    };
+                }
                 MemRef ref = data.get(member);
                 if (ref != null) {
                     return ref;
@@ -255,6 +310,18 @@ public class NgsObject implements Scope {
 
     /** Returns the value of a member, or {@code null} if unset. */
     public Object get(String member) {
+        Object g = getAccessor(member, "get");
+        if (g != null) {
+            try {
+                return org.ngscript.runtime.OpUtils.callValue(
+                        Machine.getCurrent(), g, this, new Object[0]);
+            } catch (Exception e) {
+                throw e instanceof RuntimeException
+                        ? (RuntimeException) e
+                        : new RuntimeException(e.getMessage() == null
+                                ? e.toString() : e.getMessage());
+            }
+        }
         MemRef ref = data.get(member);
         return ref == null ? null : ref.read();
     }
@@ -264,6 +331,9 @@ public class NgsObject implements Scope {
      * unset. Unlike {@link #get} this does not unwrap the reference.
      */
     public MemRef getRef(String member) {
+        if (accessors != null && accessors.containsKey(member)) {
+            return new MemRef(get(member));
+        }
         return data.get(member);
     }
 

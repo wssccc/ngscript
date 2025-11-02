@@ -18,8 +18,6 @@ package org.ngscript.runtime;
 
 import java.lang.reflect.Constructor;
 import java.util.Arrays;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.ngscript.interop.JavaMethod;
 import org.ngscript.value.Invokable;
@@ -42,6 +40,16 @@ public class OpCall {
 
     public static void new_closure(Machine vm, String param, String param_extend) {
         ScriptFunction closure = new ScriptFunction(param, (NgsObject) vm.env.read(), vm);
+        if (param_extend != null && param_extend.contains("|")) {
+            // the exit label rides along: "<marker>|exit:<label>"
+            int bar = param_extend.indexOf('|');
+            String marker = param_extend.substring(0, bar);
+            String exitPart = param_extend.substring(bar + 1);
+            if (exitPart.startsWith("exit:")) {
+                closure.functionExitLabel = exitPart.substring(5);
+            }
+            param_extend = marker;
+        }
         if ("1".equals(param_extend)) {
             // arrow function: capture the lexical this binding
             closure.arrow = true;
@@ -270,7 +278,6 @@ public class OpCall {
             try {
                 ((Invokable) callee).invoke(vm, args);
             } catch (Exception ex) {
-                Logger.getLogger(Machine.class.getName()).log(Level.SEVERE, null, ex);
                 Object e = ex.getCause();
                 if (e == null) {
                     e = ex;

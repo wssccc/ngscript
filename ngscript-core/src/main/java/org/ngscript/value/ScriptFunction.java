@@ -25,6 +25,12 @@ import org.ngscript.runtime.NgsObject;
 public class ScriptFunction {
 
     public String functionLabel;
+    /**
+     * Label of the instruction just past the function body; a synchronous
+     * call (getter/callback) whose body throws and is routed by an
+     * enclosing try/catch leaves the body through this boundary.
+     */
+    public String functionExitLabel;
     public NgsObject environment;
     public Machine vm;
 

@@ -102,6 +102,7 @@ public class OpObject {
         if (objs[0] instanceof NgsObject) {
             NgsObject env = (NgsObject) objs[0];
             MemRef ref = env.lookup(member, vm, true);
+            if (System.getProperty("dbg.set") != null) System.err.println("MEMBER_REF " + member + " -> " + ref.getClass().getSimpleName());
             vm.eax.write(ref);
             return;
         }
@@ -330,25 +331,46 @@ public class OpObject {
         }
     }
 
+    /** Splits "enter|exit:label" into {enter, exitLabel}. */
+    private static String[] splitEnter(String paramExtend) {
+        if (paramExtend != null && paramExtend.contains("|")) {
+            int bar = paramExtend.indexOf('|');
+            String exitPart = paramExtend.substring(bar + 1);
+            if (exitPart.startsWith("exit:")) {
+                return new String[]{paramExtend.substring(0, bar), exitPart.substring(5)};
+            }
+        }
+        return new String[]{paramExtend, null};
+    }
+
     public static void static_func(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
-        OpCall.new_closure(vm, param_extend, null);
-        ((ScriptFunction) vm.eax.read()).name = param;
+        String[] parts = splitEnter(param_extend);
+        OpCall.new_closure(vm, parts[0], null);
+        ScriptFunction f = (ScriptFunction) vm.eax.read();
+        f.functionExitLabel = parts[1];
+        f.name = param;
         OpScope.set(vm, param, null);
     }
 
     /** Binds a {@code function*} declaration (a generator function). */
     public static void static_func_gen(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
-        OpCall.new_closure(vm, param_extend, null);
-        ((ScriptFunction) vm.eax.read()).generator = true;
-        ((ScriptFunction) vm.eax.read()).name = param;
+        String[] parts = splitEnter(param_extend);
+        OpCall.new_closure(vm, parts[0], null);
+        ScriptFunction f = (ScriptFunction) vm.eax.read();
+        f.functionExitLabel = parts[1];
+        f.generator = true;
+        f.name = param;
         OpScope.set(vm, param, null);
     }
 
     /** Binds an {@code async function} declaration. */
     public static void static_func_async(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
-        OpCall.new_closure(vm, param_extend, null);
-        ((ScriptFunction) vm.eax.read()).async = true;
-        ((ScriptFunction) vm.eax.read()).name = param;
+        String[] parts = splitEnter(param_extend);
+        OpCall.new_closure(vm, parts[0], null);
+        ScriptFunction f = (ScriptFunction) vm.eax.read();
+        f.functionExitLabel = parts[1];
+        f.async = true;
+        f.name = param;
         OpScope.set(vm, param, null);
     }
 
@@ -605,13 +627,23 @@ public class OpObject {
         NgsArray arr = new NgsArray((NgsObject) vm.env.read());
         arr.setPrototype(vm.arrayPrototype);
         int i = 0;
+        long budget = vm.runBudget;
+        long n = 0;
         if (iterator instanceof java.util.Iterator) {
             java.util.Iterator it = (java.util.Iterator) iterator;
             while (it.hasNext()) {
+                if (budget >= 0 && ++n > budget) {
+                    throw new NgScriptRuntimeException(vm,
+                            "instruction budget exceeded while destructuring rest");
+                }
                 arr.set("" + i++, it.next());
             }
         } else {
             while (true) {
+                if (budget >= 0 && ++n > budget) {
+                    throw new NgScriptRuntimeException(vm,
+                            "instruction budget exceeded while destructuring rest");
+                }
                 Object method = OpUtils.getMember(vm, iterator, "next");
                 Object result = OpUtils.callValue(vm, method, iterator, new Object[0]);
                 if (result instanceof NgsObject && !OpUtils.testValue(((NgsObject) result).get("done"))) {

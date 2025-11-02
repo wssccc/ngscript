@@ -59,6 +59,11 @@ public class TypedArrayBuiltins {
             if (len < 0) {
                 throw new NgScriptRuntimeException(vm, "negative ArrayBuffer size");
             }
+            // the JVM cannot back arrays beyond Integer.MAX_VALUE; the ES
+            // spec asks for a RangeError when the allocation is impossible
+            if (len > Integer.MAX_VALUE - 8) {
+                throw new NgScriptRuntimeException(vm, "ArrayBuffer allocation failed (too large)");
+            }
             ArrayBufferValue ab = new ArrayBufferValue(len);
             ab.setPrototype(getArrayBufferPrototype());
             vm.eax.write(ab);

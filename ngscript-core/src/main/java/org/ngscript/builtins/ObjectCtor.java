@@ -117,7 +117,16 @@ public class ObjectCtor implements Invokable {
                     Object desc = args.length > 2 ? args[2] : null;
                     if (desc instanceof NgsObject) {
                         NgsObject d = (NgsObject) desc;
-                        if (d.get("value") != null) {
+                        Object getter = d.get("get");
+                        Object setter = d.get("set");
+                        if (getter != null || setter != null) {
+                            // accessor property: getter/setter functions
+                            o.defineAccessor(name,
+                                    getter instanceof org.ngscript.value.Invokable
+                                            || getter instanceof org.ngscript.value.ScriptFunction ? getter : null,
+                                    setter instanceof org.ngscript.value.Invokable
+                                            || setter instanceof org.ngscript.value.ScriptFunction ? setter : null);
+                        } else if (d.get("value") != null) {
                             o.set(name, d.get("value"));
                         }
                     }

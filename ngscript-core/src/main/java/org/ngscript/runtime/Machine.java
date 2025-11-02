@@ -244,10 +244,30 @@ public class Machine {
      */
     public long runBudget = -1;
 
+    /**
+     * The Machine running on the current thread (used by property getters
+     * invoked from {@link NgsObject#get} which have no Machine parameter).
+     */
+    private static final ThreadLocal<Machine> CURRENT = new ThreadLocal<>();
+
+    public static Machine getCurrent() {
+        return CURRENT.get();
+    }
+
     public void run() throws NgScriptRuntimeException {
         //initial
         exception.write(null);
         eax.write(null);
+        Machine prev = CURRENT.get();
+        CURRENT.set(this);
+        try {
+            runInner();
+        } finally {
+            CURRENT.set(prev);
+        }
+    }
+
+    private void runInner() throws NgScriptRuntimeException {
         long budget = runBudget;
         while (true) {
             if (getEip() < 0 || getEip() >= instructions.length) {
@@ -312,6 +332,19 @@ public class Machine {
         int savedCallStackSize = callstack.size();
         Object savedThis = thisRef.read();
         NgsObject savedEnv = (NgsObject) env.read();
+        Machine prev = CURRENT.get();
+        CURRENT.set(this);
+        try {
+            return callFunctionSyncInner(callee, args, receiver,
+                    savedEip, savedStackSize, savedCallStackSize, savedThis, savedEnv);
+        } finally {
+            CURRENT.set(prev);
+        }
+    }
+
+    private Object callFunctionSyncInner(Object callee, Object[] args, Object receiver,
+                                         int savedEip, int savedStackSize, int savedCallStackSize,
+                                         Object savedThis, NgsObject savedEnv) throws Exception {
         if (callee instanceof ScriptFunction) {
             ScriptFunction c = (ScriptFunction) callee;
             callstack.push(c);
@@ -328,6 +361,15 @@ public class Machine {
             stack.push(frame);
             stack.push(SYNC_CALL_RET);
             setEip(labels.get(c.functionLabel));
+            // isolate the exception-state stack for the duration of the
+            // synchronous call: a throw inside the callee (a getter or
+            // callback) must propagate out of the call, so the caller's
+            // run loop routes it to the nearest enclosing try/catch of the
+            // *call site* (the caller's Contexts are restored afterwards).
+            // Without this, restore_machine_state would consume the caller's
+            // Context here and swallow the exception.
+            FastStack<Context> savedMss = machineStateStack;
+            machineStateStack = new FastStack<>(8);
             try {
                 while (true) {
                     int eip = getEip();
@@ -347,6 +389,7 @@ public class Machine {
                 env.write(savedEnv);
                 thisRef.write(savedThis);
                 setEip(savedEip);
+                machineStateStack = savedMss;
             }
             return eax.read();
         }
@@ -392,6 +435,8 @@ public class Machine {
         final Object thisValue;
         final Object[] stack;
         final Object[] callstack;
+        final java.util.ArrayDeque<Runnable> microtasks;
+        final int machineStateStackSize;
 
         MachineState(Machine vm) {
             this.instructions = vm.instructions;
@@ -410,6 +455,8 @@ public class Machine {
             for (int i = 0; i < this.callstack.length; i++) {
                 this.callstack[i] = vm.callstack.get(i);
             }
+            this.microtasks = new java.util.ArrayDeque<>(vm.microtasks);
+            this.machineStateStackSize = vm.machineStateStack.size();
         }
 
         void applyTo(Machine vm) {
@@ -429,6 +476,14 @@ public class Machine {
             vm.callstack.clear();
             for (Object o : callstack) {
                 vm.callstack.push((ScriptFunction) o);
+            }
+            // the microtask queue and the exception-state stack belong to the
+            // surrounding context: restore them so no task leaks between
+            // isolated executions
+            vm.microtasks.clear();
+            vm.microtasks.addAll(microtasks);
+            while (vm.machineStateStack.size() > machineStateStackSize) {
+                vm.machineStateStack.pop();
             }
         }
     }

@@ -414,15 +414,33 @@ public class Compiler {
 
     private void compileFunctionDecl(FunctionDecl decl) throws CompilerException {
         String enter = _compile_function_body(decl.params, decl.body);
+        String exitLabel = exitLabelFor(enter);
         if (decl.generator) {
-            assembler.instructions.add(0, new Instruction("static_func_gen", decl.name, enter));
+            assembler.instructions.add(0, new Instruction("static_func_gen", decl.name, enter + "|exit:" + exitLabel));
         } else if (decl.async) {
-            assembler.instructions.add(0, new Instruction("static_func_async", decl.name, enter));
+            assembler.instructions.add(0, new Instruction("static_func_async", decl.name, enter + "|exit:" + exitLabel));
         } else {
-            assembler.instructions.add(0, new Instruction("static_func", decl.name, enter));
+            assembler.instructions.add(0, new Instruction("static_func", decl.name, enter + "|exit:" + exitLabel));
         }
         assembler.instructions.add(1,
                 new Instruction("set_func_meta", functionLength(decl.params) + "", decl.name));
+    }
+
+    /**
+     * The function exit label paired with an enter label: the enter label is
+     * {@code Block_$N_func_enter} (or {@code ..._enter1}, {@code ..._enter2}
+     * for nested functions); the exit label emitted by
+     * {@link #_compile_function_body} is its {@code _func_exit} twin.
+     */
+    private static String exitLabelFor(String enter) {
+        if (enter == null) {
+            return null;
+        }
+        int idx = enter.lastIndexOf("_func_enter");
+        if (idx >= 0) {
+            return enter.substring(0, idx) + "_func_exit" + enter.substring(idx + "_func_enter".length());
+        }
+        return enter;
     }
 
     /**
@@ -790,9 +808,10 @@ public class Compiler {
                         lambda.line);
             }
             String enter = _compile_function_body(lambda.params, body);
-            assembler.emit("new_closure", enter,
-                    lambda.async ? (lambda.isArrow ? "4" : "3")
-                            : (lambda.isArrow ? "1" : (lambda.generator ? "2" : "0")));
+            String marker = lambda.async ? (lambda.isArrow ? "4" : "3")
+                    : (lambda.isArrow ? "1" : (lambda.generator ? "2" : "0"));
+            String exitLabel = exitLabelFor(enter);
+            assembler.emit("new_closure", enter, marker + "|exit:" + exitLabel);
             assembler.emit("set_func_meta", functionLength(lambda.params) + "",
                     lambda.name == null ? "" : lambda.name);
         } else {

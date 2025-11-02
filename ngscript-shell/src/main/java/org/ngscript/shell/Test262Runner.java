@@ -172,6 +172,9 @@ public class Test262Runner {
             return;
         }
         ++total;
+        if (total % 10 == 0) {
+            System.err.println("progress " + total + ": " + id + " @ " + System.currentTimeMillis());
+        }
         if (excludelist.contains(id)) {
             ++excluded;
             return;
@@ -238,7 +241,12 @@ public class Test262Runner {
             return;
         }
         if (execMode) {
+            long t0 = System.currentTimeMillis();
             runExecutableCase(file, id, source, body, includes, flags, negativePhase, negativeType, es5);
+            long elapsed = System.currentTimeMillis() - t0;
+            if (elapsed > 2000) {
+                System.err.println("SLOW-CASE " + elapsed + "ms: " + id);
+            }
             return;
         }
         // parse-only judgement
@@ -283,7 +291,12 @@ public class Test262Runner {
             }
             // guard against runaway loops in test bodies
             sharedEngine.setRunBudget(50_000_000L);
+            long t0 = System.currentTimeMillis();
             sharedEngine.eval(harnessed);
+            long elapsed = System.currentTimeMillis() - t0;
+            if (elapsed > 2000) {
+                System.err.println("SLOW " + elapsed + "ms: " + id);
+            }
             if (expectedRuntimeFail) {
                 fail(file, id, "expected runtime " + negativeType + " but execution succeeded");
             } else {
