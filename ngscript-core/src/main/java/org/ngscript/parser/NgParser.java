@@ -523,6 +523,13 @@ public class NgParser {
                         return parseAsyncFunctionDecl(t);
                     }
                 }
+                // let as a declaration keyword is contextual: "let x" declares,
+                // "let = 1" / "let.x" / "let()" treat it as a plain identifier
+                if (t.value.equals("let") && second != null
+                        && (second.type.equals("ident")
+                            || second.type.equals("lsqr") || second.type.equals("lcurly"))) {
+                    return parseLexicalDecl(false);
+                }
                 return parseExprStmt();
             }
             case "if":
@@ -1516,6 +1523,12 @@ public class NgParser {
                 Expr right = parseAssignment();
                 return new AssignExpr(new DestructureExpr(pattern, left.line), right, t.line, t.type);
             }
+            if (!isAssignableTarget(left)) {
+                // ES early error: the assignment target must be a reference
+                // (42 = 42 / true = x / f() = y are SyntaxErrors)
+                throw new ParserException("invalid assignment target " + left,
+                        new org.ngscript.api.Source(null, t.line));
+            }
             next();
             // right associative: a = b = c parses as a = (b = c)
             Expr right = parseAssignment();
@@ -1770,7 +1783,8 @@ public class NgParser {
      * (an identifier, a member access or an index access).
      */
     private static boolean isAssignableTarget(Expr e) {
-        return e instanceof IdentExpr || e instanceof MemberExpr || e instanceof IndexExpr;
+        return e instanceof IdentExpr || e instanceof MemberExpr || e instanceof IndexExpr
+                || e instanceof SuperMemberExpr || e instanceof VarDeclExpr;
     }
 
     /**
