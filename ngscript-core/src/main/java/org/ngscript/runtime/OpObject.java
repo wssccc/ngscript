@@ -696,6 +696,32 @@ public class OpObject {
     }
 
     /**
+     * Defines an accessor method on the object at the stack bottom of the
+     * method-definition frame: stack [proto, keyRef, fn]; the function in
+     * eax becomes the getter or setter for key on proto. The keyRef and fn
+     * slots are popped (the proto stays for the next method).
+     */
+    public static void accessor_define(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object fn = vm.eax.read();
+        // stack [proto, keyString]; both popped (the proto stays on the
+        // stack below for the next method definition)
+        Object keyObj = vm.stack.pop();
+        Object proto = vm.stack.pop();
+        String key = keyObj == null ? "undefined" : keyObj.toString();
+        if (proto instanceof NgsObject) {
+            NgsObject p = (NgsObject) proto;
+            Object getter = p.getAccessor(key, "get");
+            Object setter = p.getAccessor(key, "set");
+            if ("get".equals(param)) {
+                p.defineAccessor(key, fn, setter);
+            } else {
+                p.defineAccessor(key, getter, fn);
+            }
+        }
+        vm.eax.write(proto);
+    }
+
+    /**
      * A code-point iterator for strings (ES iterates strings by Unicode code
      * point, combining surrogate pairs).
      */

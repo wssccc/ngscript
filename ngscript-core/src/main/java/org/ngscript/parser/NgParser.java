@@ -700,20 +700,36 @@ public class NgParser {
             if (t != null && t.type.equals("ident")
                     && (t.value.equals("get") || t.value.equals("set"))) {
                 Token nx = peekN(2);
-                if (nx != null && nx.type.equals("ident")) {
+                if (nx != null && (nx.type.equals("ident")
+                        || nx.type.equals("lsqr"))) {
                     isGetter = t.value.equals("get");
                     isSetter = t.value.equals("set");
                     next();
                     next();
-                    String mname = tokenName(nx);
+                    String mname = null;
+                    Expr computedKey = null;
+                    if (nx.type.equals("lsqr")) {
+                        computedKey = parseExpr();
+                        expect("rsqr");
+                    } else {
+                        mname = tokenName(nx);
+                    }
                     expect("lparen");
+                    Params accParams;
+                    if (isSetter) {
+                        accParams = parseParamList();
+                    } else {
+                        // getters take no parameters
+                        accParams = new Params(Collections.emptyList());
+                    }
                     expect("rparen");
                     ++functionDepth;
                     try {
                         Block body = parseBlock();
                         methods.add(new ClassExpr.MethodDef(
-                                mname, new Params(Collections.emptyList()), body,
-                                isStatic, isGetter, isSetter, false));
+                                mname, accParams, body,
+                                isStatic, isGetter, isSetter, false,
+                                false, computedKey));
                     } finally {
                         --functionDepth;
                     }

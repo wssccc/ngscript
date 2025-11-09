@@ -73,6 +73,47 @@ public class NgsObject implements Scope {
         data.remove(name);
     }
 
+    /**
+     * Finds an accessor property for {@code member} on this object or its
+     * prototype chain. Returns {getter, setter, owner} or null.
+     */
+    private Object[] findAccessorOnChain(String member) {
+        NgsObject cur = this;
+        while (cur != null) {
+            if (cur.accessors != null && cur.accessors.containsKey(member)) {
+                Object[] pair = cur.accessors.get(member);
+                return new Object[]{pair[0], pair[1], cur};
+            }
+            cur = cur.proto;
+        }
+        return null;
+    }
+
+    /** Invokes an accessor getter with this object as the receiver. */
+    private Object invokeAccessor(Object getter, NgsObject owner) {
+        try {
+            return org.ngscript.runtime.OpUtils.callValue(
+                    Machine.getCurrent(), getter, owner, new Object[0]);
+        } catch (Exception e) {
+            throw e instanceof RuntimeException
+                    ? (RuntimeException) e
+                    : new RuntimeException(e.getMessage() == null
+                            ? e.toString() : e.getMessage());
+        }
+    }
+
+    /** Invokes an accessor setter with this object as the receiver. */
+    private void invokeAccessorWrite(Object setter, NgsObject owner, Object value, Machine vm) {
+        try {
+            org.ngscript.runtime.OpUtils.callValue(vm, setter, owner, new Object[]{value});
+        } catch (Exception e) {
+            throw e instanceof RuntimeException
+                    ? (RuntimeException) e
+                    : new RuntimeException(e.getMessage() == null
+                            ? e.toString() : e.getMessage());
+        }
+    }
+
     /** Writes through an accessor's setter (called from the lookup MemRef). */
     private void setAccessor(String name, Object value, Machine vm) {
         Object setter = getAccessor(name, "set");
@@ -178,14 +219,21 @@ public class NgsObject implements Scope {
             case "%exception":
                 return vm.exception;
             default:
-                if (accessors != null && accessors.containsKey(member)) {
-                    // accessor property (getter and/or setter): reads invoke
-                    // the getter (undefined when absent), writes go through
-                    // the setter
-                    return new MemRef(getAccessor(member, "get") != null ? get(member) : Undefined.value) {
+                // accessor properties live on the prototype chain too:
+                // { get v() } on a class prototype makes obj.v go through
+                // the getter (and obj.v = x through the setter) for any
+                // instance without an own data property
+                Object[] chainAccessor = findAccessorOnChain(member);
+                if (chainAccessor != null) {
+                    final NgsObject owner = chainAccessor[2] instanceof NgsObject
+                            ? (NgsObject) chainAccessor[2] : this;
+                    final Object[] acc = chainAccessor;
+                    return new MemRef(acc[0] != null ? invokeAccessor(acc[0], owner) : Undefined.value) {
                         @Override
                         public void write(Object v) {
-                            NgsObject.this.setAccessor(member, v, vm);
+                            if (acc[1] != null) {
+                                invokeAccessorWrite(acc[1], owner, v, vm);
+                            }
                         }
                     };
                 }

@@ -1802,12 +1802,31 @@ public class Compiler {
         } else {
             assembler.emit("string", m.name);
         }
+        if (m.isGetter || m.isSetter) {
+            // accessor methods: [proto, key]; the key string stays on the
+            // stack for accessor_define (no member reference is needed)
+            assembler.emit("push_eax");
+            String enter = _compile_function_body(m.params, m.body);
+            assembler.emit("new_closure", enter, m.generator ? "2" : "0");
+            assembler.emit("set_func_meta", functionLength(m.params) + "",
+                    m.name == null ? "" : m.name);
+            assembler.emit("accessor_define", m.isGetter ? "get" : "set");
+            return;
+        }
         assembler.emit("own_member_ref");
         assembler.emit("push_eax");
         String enter = _compile_function_body(m.params, m.body);
         assembler.emit("new_closure", enter, m.generator ? "2" : "0");
         assembler.emit("set_func_meta", functionLength(m.params) + "",
                 m.name == null ? "" : m.name);
-        assembler.emit("assign");
+        if (m.isGetter) {
+            // accessor: define the getter on the class prototype (the
+            // receiver is the prototype object held in eax's stack slot)
+            assembler.emit("accessor_define", "get");
+        } else if (m.isSetter) {
+            assembler.emit("accessor_define", "set");
+        } else {
+            assembler.emit("assign");
+        }
     }
 }
