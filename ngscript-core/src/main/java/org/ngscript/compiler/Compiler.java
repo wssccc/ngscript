@@ -1484,7 +1484,11 @@ public class Compiler {
         String exitLabel = assembler.label("exit", tryStmt);
         finallyLabels.push(finallyLabel);
         boolean savedHooked = inHookedBlock;
-        inHookedBlock = true;
+        // return/break/continue inside a try need the finally hook only when
+        // a finally clause exists: without one, the catch clause does not
+        // intercept control flow, and routing through the (empty) finally
+        // block would pop the return address off the stack and break ret
+        inHookedBlock = tryStmt.finallyBody != null;
         assembler.emit("save_machine_state");
         assembler.emit("test", "%exception");
         assembler.emit("jnz", catchLabel);
@@ -1546,7 +1550,24 @@ public class Compiler {
 
     private void compileReturn(ReturnStmt stmt) throws CompilerException {
         if (inHookedBlock) {
+            // return inside a try with finally: evaluate the return value
+            // first, then route through the finally block. The finally's
+            // "jmp offset 1" resumes at the return address + 1, so a nop
+            // placeholder is emitted after the jump to make the resumed
+            // position the value handling below.
+            if (stmt.expr != null) {
+                compileExpr(stmt.expr);
+                assembler.emit("push_eax");
+            } else {
+                assembler.emit("clear", "%eax");
+            }
             _compile_call_finally();
+            emitLabel(assembler.label("ret_hook", stmt));
+            if (stmt.expr != null) {
+                assembler.emit("pop_eax");
+            }
+            assembler.emit("ret");
+            return;
         }
         // returning out of open for-in/for-of loops drops their iteration
         // state (keys + index / iterator) left on the stack

@@ -653,12 +653,29 @@ public class OpObject {
                 }
             }
         }
+        closeIterator(vm, iterator);
         vm.eax.write(arr);
     }
 
     /** Drops the iterator left on the stack by destr_iter_init. */
     public static void destr_iter_done(Machine vm, String param, String param_extend) {
-        vm.stack.pop();
+        Object iterator = vm.stack.pop();
+        closeIterator(vm, iterator);
+    }
+
+    /** Closes an iterator via its return() method (ES IteratorClose). */
+    private static void closeIterator(Machine vm, Object iterator) {
+        if (iterator == null || !(iterator instanceof NgsObject)) {
+            return;
+        }
+        try {
+            Object ret = ((NgsObject) iterator).get("return");
+            if (ret instanceof Invokable || ret instanceof ScriptFunction) {
+                OpUtils.callValue(vm, ret, iterator, new Object[0]);
+            }
+        } catch (Throwable ignored) {
+            // IteratorClose's return() throwing is swallowed by the spec
+        }
     }
 
     /**
