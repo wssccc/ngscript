@@ -336,7 +336,7 @@ public class Lexer {
                     // escape is at the current position
                     stringBuilder.setLength(0);
                     if (chr == '\\') {
-                        reader.forward();
+                        // chr was consumed by read(): only the 'u' remains
                         reader.forward();
                         char decoded = (char) readHexDigits(4, "unicode escape");
                         if (!isIdentStart(decoded)) {
