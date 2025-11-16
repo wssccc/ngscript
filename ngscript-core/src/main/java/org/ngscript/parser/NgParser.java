@@ -748,7 +748,23 @@ public class NgParser {
             }
             Token mname = peek();
             boolean isGenerator = false;
+            boolean isAsync = false;
             Expr computedKey = null;
+            if (mname != null && mname.type.equals("ident") && mname.value.equals("async")) {
+                // async method: async m() / async *m() / async [expr]()
+                Token nx = peekN(2);
+                if (nx != null && (nx.type.equals("ident")
+                        || nx.type.equals("mul") || nx.type.equals("lsqr"))) {
+                    isAsync = true;
+                    next();
+                    mname = peek();
+                    if (mname != null && mname.type.equals("mul")) {
+                        isGenerator = true;
+                        next();
+                        mname = peek();
+                    }
+                }
+            }
             if (mname != null && mname.type.equals("mul")) {
                 // generator method: *m() {}
                 isGenerator = true;
@@ -783,20 +799,24 @@ public class NgParser {
             expect("rparen");
             ++functionDepth;
             int savedGen = generatorDepth;
+            int savedAsync = asyncDepth;
             if (isGenerator) {
                 ++generatorDepth;
             } else {
                 generatorDepth = 0;
             }
+            asyncDepth = isAsync ? 1 : 0;
             try {
                 Block body = parseBlock();
                 boolean isCtor = mname != null && mname.value.equals("constructor")
-                        && !isStatic && !isGenerator;
+                        && !isStatic && !isGenerator && !isAsync;
                 methods.add(new ClassExpr.MethodDef(
                         mname == null ? null : tokenName(mname), params, body,
-                        isStatic, false, false, isCtor, isGenerator, computedKey));
+                        isStatic, false, false, isCtor, isGenerator, isAsync, computedKey));
             } finally {
                 --functionDepth;
+                generatorDepth = savedGen;
+                asyncDepth = savedAsync;
                 generatorDepth = savedGen;
             }
             if (peekIs("semicolon")) {

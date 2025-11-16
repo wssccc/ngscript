@@ -1802,12 +1802,14 @@ public class Compiler {
         } else {
             assembler.emit("string", m.name);
         }
+        String marker = m.async ? (m.generator ? "5" : "3")
+                : (m.generator ? "2" : "0");
         if (m.isGetter || m.isSetter) {
             // accessor methods: [proto, key]; the key string stays on the
             // stack for accessor_define (no member reference is needed)
             assembler.emit("push_eax");
             String enter = _compile_function_body(m.params, m.body);
-            assembler.emit("new_closure", enter, m.generator ? "2" : "0");
+            assembler.emit("new_closure", enter, marker);
             assembler.emit("set_func_meta", functionLength(m.params) + "",
                     m.name == null ? "" : m.name);
             assembler.emit("accessor_define", m.isGetter ? "get" : "set");
@@ -1816,7 +1818,7 @@ public class Compiler {
         assembler.emit("own_member_ref");
         assembler.emit("push_eax");
         String enter = _compile_function_body(m.params, m.body);
-        assembler.emit("new_closure", enter, m.generator ? "2" : "0");
+        assembler.emit("new_closure", enter, marker);
         assembler.emit("set_func_meta", functionLength(m.params) + "",
                 m.name == null ? "" : m.name);
         if (m.isGetter) {

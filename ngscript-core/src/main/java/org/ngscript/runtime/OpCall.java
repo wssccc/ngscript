@@ -65,6 +65,10 @@ public class OpCall {
             closure.arrow = true;
             closure.capturedThis = vm.thisRef.read();
             closure.async = true;
+        } else if ("5".equals(param_extend)) {
+            // async generator method: generator + async
+            closure.generator = true;
+            closure.async = true;
         }
         vm.eax.write(closure);
     }
