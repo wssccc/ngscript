@@ -66,7 +66,10 @@ public class NgScriptEngine {
         // the global eval() builtin runs scripts against this engine
         Machine.evalHook = code -> {
             try {
-                return eval(code);
+                Object r = eval(code);
+                // an empty completion (bare block, no expression) is the
+                // undefined value, not the Java null used for empty eax
+                return r == null ? org.ngscript.value.Undefined.value : r;
             } catch (NgScriptException e) {
                 throw e;
             }
