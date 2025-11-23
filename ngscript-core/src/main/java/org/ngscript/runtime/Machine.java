@@ -242,6 +242,12 @@ public class Machine {
      * many executed instructions. The runner sets it per case; normal
      * scripting leaves it at -1.
      */
+    /**
+     * Whether the last destructuring next() reported done (drives
+     * IteratorClose: a done iterator is not closed).
+     */
+    public boolean destrDone;
+
     public long runBudget = -1;
 
     /**

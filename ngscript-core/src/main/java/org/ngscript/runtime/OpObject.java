@@ -603,13 +603,20 @@ public class OpObject {
      */
     public static void destr_iter_next(Machine vm, String param, String param_extend) throws Exception {
         Object iterator = vm.stack.peek(0);
+        vm.destrDone = false;
         if (iterator instanceof java.util.Iterator) {
             java.util.Iterator it = (java.util.Iterator) iterator;
-            vm.eax.write(it.hasNext() ? it.next() : Undefined.value);
+            if (it.hasNext()) {
+                vm.eax.write(it.next());
+            } else {
+                vm.destrDone = true;
+                vm.eax.write(Undefined.value);
+            }
             return;
         }
         Object method = OpUtils.getMember(vm, iterator, "next");
         if (method == null || method == Undefined.value) {
+            vm.destrDone = true;
             vm.eax.write(Undefined.value);
             return;
         }
@@ -617,6 +624,7 @@ public class OpObject {
         if (result instanceof NgsObject && !OpUtils.testValue(((NgsObject) result).get("done"))) {
             vm.eax.write(((NgsObject) result).get("value"));
         } else {
+            vm.destrDone = true;
             vm.eax.write(Undefined.value);
         }
     }
@@ -629,6 +637,7 @@ public class OpObject {
         int i = 0;
         long budget = vm.runBudget;
         long n = 0;
+        boolean done = false;
         if (iterator instanceof java.util.Iterator) {
             java.util.Iterator it = (java.util.Iterator) iterator;
             while (it.hasNext()) {
@@ -638,6 +647,7 @@ public class OpObject {
                 }
                 arr.set("" + i++, it.next());
             }
+            done = true;
         } else {
             while (true) {
                 if (budget >= 0 && ++n > budget) {
@@ -649,18 +659,26 @@ public class OpObject {
                 if (result instanceof NgsObject && !OpUtils.testValue(((NgsObject) result).get("done"))) {
                     arr.set("" + i++, ((NgsObject) result).get("value"));
                 } else {
+                    done = true;
                     break;
                 }
             }
         }
-        closeIterator(vm, iterator);
+        // a rest pattern exhausts the iterator: IteratorClose applies only
+        // when the iteration is abandoned early (done here means completed)
+        if (!done) {
+            closeIterator(vm, iterator);
+        }
         vm.eax.write(arr);
     }
 
     /** Drops the iterator left on the stack by destr_iter_init. */
     public static void destr_iter_done(Machine vm, String param, String param_extend) {
         Object iterator = vm.stack.pop();
-        closeIterator(vm, iterator);
+        if (!vm.destrDone) {
+            // the iterator is not exhausted: ES IteratorClose calls return()
+            closeIterator(vm, iterator);
+        }
     }
 
     /** Closes an iterator via its return() method (ES IteratorClose). */
