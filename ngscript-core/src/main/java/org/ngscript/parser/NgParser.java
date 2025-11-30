@@ -687,6 +687,7 @@ public class NgParser {
         }
         expect("lcurly");
         List<ClassExpr.MethodDef> methods = new ArrayList<>();
+        List<ClassExpr.FieldDef> fields = new ArrayList<>();
         while (!peekIs("rcurly")) {
             if (peekIs("semicolon")) {
                 next();
@@ -696,7 +697,10 @@ public class NgParser {
             boolean isStatic = false;
             if (t != null && t.type.equals("ident") && t.value.equals("static")) {
                 Token nx = peekN(2);
-                if (nx != null && !nx.type.equals("lparen")) {
+                // `static` followed by `=`, `;` or `}` is a field named static
+                if (nx != null && !nx.type.equals("lparen")
+                        && !nx.type.equals("assign") && !nx.type.equals("semicolon")
+                        && !nx.type.equals("rcurly")) {
                     isStatic = true;
                     next();
                     t = peek();
@@ -787,12 +791,36 @@ public class NgParser {
                 throw new ParserException("expecting a method name but got " + peek(),
                         new org.ngscript.api.Source(null, kw.line));
             }
-            if (mname != null && !isKeyName(mname.type)) {
+            if (mname != null && !(isKeyName(mname.type)
+                    || mname.type.equals("string") || mname.type.equals("integer")
+                    || mname.type.equals("double"))) {
                 throw new ParserException("expecting a method name but got " + mname,
                         new org.ngscript.api.Source(null, kw.line));
             }
             if (mname != null) {
                 next();
+            }
+            // a field declaration: `name = init`, `name;` or the class body
+            // closes right after the name ([expr] = init for computed keys)
+            Token after = peek();
+            if (after != null && (after.type.equals("assign")
+                    || after.type.equals("semicolon") || after.type.equals("rcurly"))) {
+                if (isGenerator || isAsync) {
+                    throw new ParserException("generator/async fields are not allowed",
+                            new org.ngscript.api.Source(null, kw.line));
+                }
+                Expr init = null;
+                if (after.type.equals("assign")) {
+                    next();
+                    init = parseAssignment();
+                }
+                fields.add(new ClassExpr.FieldDef(
+                        mname == null ? null : tokenName(mname),
+                        isStatic, computedKey, init));
+                if (peekIs("semicolon")) {
+                    next();
+                }
+                continue;
             }
             expect("lparen");
             Params params = parseParamList();
@@ -824,7 +852,7 @@ public class NgParser {
             }
         }
         expect("rcurly");
-        return new ClassExpr(name, superClass, methods, kw.line);
+        return new ClassExpr(name, superClass, methods, fields, kw.line);
     }
 
     /**

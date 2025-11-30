@@ -17,6 +17,7 @@
 package org.ngscript.compiler;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
@@ -1762,19 +1763,49 @@ public class Compiler {
                 break;
             }
         }
+        // instance field initializers run inside the constructor, after the
+        // leading super() call for derived classes (at the top for base
+        // classes), in declaration order, with this bound to the instance
+        List<ClassExpr.FieldDef> instFields = new ArrayList<>();
+        for (ClassExpr.FieldDef f : cls.fields) {
+            if (!f.isStatic) {
+                instFields.add(f);
+            }
+        }
+        List<Stmt> fieldStmts = new ArrayList<>();
+        for (ClassExpr.FieldDef f : instFields) {
+            Expr target = f.computedKey != null
+                    ? new IndexExpr(new IdentExpr("this", cls.line),
+                            f.computedKey, cls.line)
+                    : new MemberExpr(new IdentExpr("this", cls.line),
+                            f.name, cls.line);
+            Expr value = f.initializer != null ? f.initializer
+                    : new LiteralExpr(LiteralExpr.Kind.UNDEFINED, "undefined", cls.line);
+            fieldStmts.add(new ExprStmt(new AssignExpr(target, value, cls.line), cls.line));
+        }
         Params ctorParams;
         Block ctorBody;
         if (ctor != null) {
             ctorParams = ctor.params;
-            ctorBody = ctor.body;
+            List<Stmt> stmts = new ArrayList<>(ctor.body.statements);
+            int insertAt = 0;
+            if (cls.superClass != null && !stmts.isEmpty()
+                    && stmts.get(0) instanceof ExprStmt
+                    && ((ExprStmt) stmts.get(0)).expr instanceof SuperCallExpr) {
+                insertAt = 1;
+            }
+            stmts.addAll(insertAt, fieldStmts);
+            ctorBody = new Block(stmts, cls.line);
         } else if (cls.superClass != null) {
             ctorParams = new Params(Collections.singletonList("args"), null, true);
-            ctorBody = new Block(Collections.singletonList(new ExprStmt(
-                    new SuperCallExpr(Collections.singletonList(new SpreadExpr(
-                            new IdentExpr("args", cls.line), cls.line)), cls.line), cls.line)), cls.line);
+            List<Stmt> stmts = new ArrayList<>();
+            stmts.add(new ExprStmt(new SuperCallExpr(Collections.singletonList(new SpreadExpr(
+                    new IdentExpr("args", cls.line), cls.line)), cls.line), cls.line));
+            stmts.addAll(fieldStmts);
+            ctorBody = new Block(stmts, cls.line);
         } else {
             ctorParams = new Params(Collections.emptyList());
-            ctorBody = new Block(Collections.emptyList(), cls.line);
+            ctorBody = new Block(fieldStmts, cls.line);
         }
         String enter = _compile_function_body(ctorParams, ctorBody);
         assembler.emit("new_closure", enter, "0");
@@ -1802,6 +1833,42 @@ public class Compiler {
                 continue;
             }
             emitMethodDefine(m);
+        }
+        // static field initializers run after all methods are defined, in
+        // declaration order, with the constructor bound as this; the
+        // surrounding this binding is restored afterwards
+        boolean hasStaticFields = false;
+        for (ClassExpr.FieldDef f : cls.fields) {
+            if (f.isStatic) {
+                hasStaticFields = true;
+                break;
+            }
+        }
+        if (hasStaticFields) {
+            assembler.emit("push_this");
+            for (ClassExpr.FieldDef f : cls.fields) {
+                if (!f.isStatic) {
+                    continue;
+                }
+                assembler.emit("peek", "0");
+                assembler.emit("push_eax");
+                assembler.emit("set_this");
+                if (f.computedKey != null) {
+                    compileExpr(f.computedKey);
+                    assembler.emit("to_string");
+                } else {
+                    assembler.emit("string", f.name);
+                }
+                assembler.emit("own_member_ref");
+                assembler.emit("push_eax");
+                if (f.initializer != null) {
+                    compileExpr(f.initializer);
+                } else {
+                    assembler.emit("undefined");
+                }
+                assembler.emit("assign");
+            }
+            assembler.emit("pop_this");
         }
         assembler.emit("pop_eax"); // eax = ctor, stack clean
         if (cls.name != null) {

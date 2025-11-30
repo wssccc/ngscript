@@ -16,6 +16,7 @@
 
 package org.ngscript.ast;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -73,10 +74,38 @@ public class ClassExpr extends Expr {
     public final Expr superClass;
     public final List<MethodDef> methods;
 
+    /**
+     * A class field declaration: {@code x = init}, {@code static y = init}
+     * or a computed key {@code [expr] = init}. {@link #initializer} is null
+     * for a field without an initializer (initialized to undefined).
+     */
+    public static class FieldDef {
+        public final String name;              // null when computedKey != null
+        public final boolean isStatic;
+        public final Expr computedKey;
+        public final Expr initializer;
+
+        public FieldDef(String name, boolean isStatic, Expr computedKey,
+                        Expr initializer) {
+            this.name = name;
+            this.isStatic = isStatic;
+            this.computedKey = computedKey;
+            this.initializer = initializer;
+        }
+    }
+
+    public final List<FieldDef> fields;
+
     public ClassExpr(String name, Expr superClass, List<MethodDef> methods, int line) {
+        this(name, superClass, methods, Collections.<FieldDef>emptyList(), line);
+    }
+
+    public ClassExpr(String name, Expr superClass, List<MethodDef> methods,
+                     List<FieldDef> fields, int line) {
         this.name = name;
         this.superClass = superClass;
         this.methods = methods;
+        this.fields = fields;
         this.line = line;
     }
 

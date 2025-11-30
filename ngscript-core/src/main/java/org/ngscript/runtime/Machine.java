@@ -81,6 +81,22 @@ public class Machine {
      * bound by the call opcode (method receivers) and new_op (instances).
      */
     public final MemRef thisRef = new MemRef();
+
+    /**
+     * The saved {@code this} stack for class static field initializers
+     * (push_this/pop_this). Kept off the data stack so field-initializer
+     * instructions (peek 0) see the constructor as the stack top.
+     */
+    private final java.util.Deque<Object> savedThisStack = new java.util.ArrayDeque<>();
+
+    public void pushSavedThis() {
+        savedThisStack.push(thisRef.read());
+    }
+
+    public void popSavedThis() {
+        thisRef.write(savedThisStack.pop());
+    }
+
     private ThreadLocal<Integer> eip = ThreadLocal.withInitial(() -> 0);
     //
 

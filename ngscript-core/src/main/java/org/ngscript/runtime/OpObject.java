@@ -757,6 +757,25 @@ public class OpObject {
     }
 
     /**
+     * Binds {@code this} for a class static field initializer: the
+     * constructor object in eax becomes the current this binding (ES static
+     * fields run with the constructor as the receiver).
+     */
+    public static void set_this(Machine vm, String param, String param_extend) {
+        vm.thisRef.write(vm.eax.read());
+    }
+
+    /** Saves the current this binding (static field initializer scope). */
+    public static void push_this(Machine vm, String param, String param_extend) {
+        vm.pushSavedThis();
+    }
+
+    /** Restores the this binding saved by push_this. */
+    public static void pop_this(Machine vm, String param, String param_extend) {
+        vm.popSavedThis();
+    }
+
+    /**
      * A code-point iterator for strings (ES iterates strings by Unicode code
      * point, combining surrogate pairs).
      */
