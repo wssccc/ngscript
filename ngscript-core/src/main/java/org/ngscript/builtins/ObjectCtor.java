@@ -73,14 +73,44 @@ public class ObjectCtor implements Invokable {
             }
             case "getPrototypeOf":
                 return new MemRef((Invokable) (vm2, args) -> {
+                    if (args.length > 0 && args[0] instanceof org.ngscript.value.ScriptFunction) {
+                        // function objects: the shared Function.prototype is
+                        // not modelled; report the placeholder (undefined)
+                        vm2.eax.write(Undefined.value);
+                        return;
+                    }
                     NgsObject o = objectArg(vm2, args, 0);
                     NgsObject p = o.getPrototype();
                     vm2.eax.write(p == null ? Undefined.value : p);
                 });
             case "getOwnPropertyDescriptor":
                 return new MemRef((Invokable) (vm2, args) -> {
-                    NgsObject o = objectArg(vm2, args, 0);
                     String name = args.length > 1 ? args[1].toString() : "undefined";
+                    if (args.length > 0 && args[0] instanceof org.ngscript.value.ScriptFunction) {
+                        org.ngscript.value.ScriptFunction f =
+                                (org.ngscript.value.ScriptFunction) args[0];
+                        Object v = null;
+                        if ("name".equals(name)) {
+                            v = f.name == null ? "" : f.name;
+                        } else if ("length".equals(name)) {
+                            v = f.params;
+                        } else if ("prototype".equals(name)) {
+                            v = f.getPrototypeObject();
+                        }
+                        if (v == null) {
+                            vm2.eax.write(Undefined.value);
+                            return;
+                        }
+                        NgsObject desc = new NgsObject((NgsObject) vm2.env.read());
+                        desc.setPrototype(vm2.objectPrototype);
+                        desc.set("value", v);
+                        desc.set("writable", Boolean.TRUE);
+                        desc.set("enumerable", Boolean.FALSE);
+                        desc.set("configurable", Boolean.TRUE);
+                        vm2.eax.write(desc);
+                        return;
+                    }
+                    NgsObject o = objectArg(vm2, args, 0);
                     Object v = o.get(name);
                     if (v == null && !o.has(name)) {
                         vm2.eax.write(Undefined.value);
@@ -97,9 +127,18 @@ public class ObjectCtor implements Invokable {
                 });
             case "getOwnPropertyNames":
                 return new MemRef((Invokable) (vm2, args) -> {
-                    NgsObject o = objectArg(vm2, args, 0);
                     NgsArray out = new NgsArray(null);
                     int i = 0;
+                    if (args.length > 0 && args[0] instanceof org.ngscript.value.ScriptFunction) {
+                        // function objects: name, length, prototype
+                        for (String k : functionPropertyNames()) {
+                            out.set("" + i++, k);
+                        }
+                        out.setPrototype(vm2.arrayPrototype);
+                        vm2.eax.write(out);
+                        return;
+                    }
+                    NgsObject o = objectArg(vm2, args, 0);
                     for (String k : o.keys()) {
                         out.set("" + i++, k);
                     }
@@ -200,5 +239,13 @@ public class ObjectCtor implements Invokable {
             return (NgsObject) args[i];
         }
         throw new NgScriptRuntimeException(vm, "expected an object argument");
+    }
+
+    /**
+     * The property names of a function object (class constructors and
+     * functions are not NgsObjects): name, length and prototype.
+     */
+    static String[] functionPropertyNames() {
+        return new String[]{"name", "length", "prototype"};
     }
 }
