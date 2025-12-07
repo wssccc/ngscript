@@ -331,15 +331,53 @@ public class Lexer {
             case SourceReader.EOF:
                 return null;
             default:
+                if (chr == '#') {
+                    // private identifier (#name): class private fields and
+                    // methods; the value keeps the '#' prefix so private
+                    // members are plain keys like "#x" on the instance
+                    char p = reader.peek();
+                    if (isIdentStart(p) || (p == '\\' && reader.peek(1) == 'u')) {
+                        stringBuilder.setLength(0);
+                        stringBuilder.append('#');
+                        if (p == '\\') {
+                            // both the backslash and the 'u' are pending
+                            reader.forward();
+                            String decoded = readUnicodeEscape("unicode escape");
+                            if (!isIdentStartCp(decoded.codePointAt(0))) {
+                                throw new LexerException("invalid unicode escape at start of private identifier");
+                            }
+                            stringBuilder.append(decoded);
+                        } else {
+                            stringBuilder.append(p);
+                            reader.forward();
+                        }
+                        while (true) {
+                            char c = reader.peek();
+                            if (isIdentPart(c)) {
+                                stringBuilder.append(c);
+                                reader.forward();
+                            } else if (c == '\\' && reader.peek(1) == 'u') {
+                                reader.forward();
+                                String decoded = readUnicodeEscape("unicode escape");
+                                if (!isIdentPartCp(decoded.codePointAt(0))) {
+                                    throw new LexerException("invalid unicode escape in private identifier");
+                                }
+                                stringBuilder.append(decoded);
+                            } else {
+                                return token("private_ident", stringBuilder.toString());
+                            }
+                        }
+                    }
+                    throw new LexerException("unexpected char '#'(35)at line " + reader.lineNumber);
+                }
                 if (isIdentStart(chr) || (chr == '\\' && reader.peek() == 'u')) {
                     // note: chr was consumed by read(), so the 'u' of an
                     // escape is at the current position
                     stringBuilder.setLength(0);
                     if (chr == '\\') {
                         // chr was consumed by read(): only the 'u' remains
-                        reader.forward();
-                        char decoded = (char) readHexDigits(4, "unicode escape");
-                        if (!isIdentStart(decoded)) {
+                        String decoded = readUnicodeEscape("unicode escape at start of identifier");
+                        if (!isIdentStartCp(decoded.codePointAt(0))) {
                             throw new LexerException("invalid unicode escape at start of identifier");
                         }
                         stringBuilder.append(decoded);
@@ -352,11 +390,10 @@ public class Lexer {
                             stringBuilder.append(c);
                             reader.forward();
                         } else if (c == '\\' && reader.peek(1) == 'u') {
-                            // unicode escape inside an identifier: backslash-uXXXX
+                            // unicode escape inside an identifier (4-hex or code point)
                             reader.forward();
-                            reader.forward();
-                            char decoded = (char) readHexDigits(4, "unicode escape");
-                            if (!isIdentPart(decoded)) {
+                            String decoded = readUnicodeEscape("unicode escape");
+                            if (!isIdentPartCp(decoded.codePointAt(0))) {
                                 throw new LexerException("invalid unicode escape in identifier");
                             }
                             stringBuilder.append(decoded);
@@ -537,6 +574,52 @@ public class Lexer {
     }
 
     /**
+     * Reads a unicode escape inside an identifier: the 'u' is at the current
+     * position; accepts both backslash-uXXXX (4 hex digits) and backslash-u
+     * followed by a brace code point (possibly a surrogate pair).
+     */
+    private String readUnicodeEscape(String what) throws LexerException {
+        reader.forward(); // the 'u'
+        if (reader.peek() == '{') {
+            reader.forward();
+            int value = 0;
+            int digits = 0;
+            while (true) {
+                int d = Character.digit(reader.peek(), 16);
+                if (d < 0) {
+                    break;
+                }
+                value = value * 16 + d;
+                reader.forward();
+                ++digits;
+            }
+            if (digits == 0 || reader.peek() != '}' || value > 0x10FFFF) {
+                throw new LexerException("invalid unicode code point escape");
+            }
+            reader.forward();
+            if (value > 0xFFFF) {
+                value -= 0x10000;
+                return "" + (char) (0xD800 + (value >> 10))
+                        + (char) (0xDC00 + (value & 0x3FF));
+            }
+            return String.valueOf((char) value);
+        }
+        return String.valueOf((char) readHexDigits(4, what));
+    }
+
+    /** Code-point aware identifier start check (handles surrogate pairs). */
+    private static boolean isIdentStartCp(int cp) {
+        return cp != 0 && (Character.isUnicodeIdentifierStart(cp) || cp == '$' || cp == '_'
+                || cp == 0x2118 || cp == 0x212E || cp == 0x309B || cp == 0x309C);
+    }
+
+    /** Code-point aware identifier part check. */
+    private static boolean isIdentPartCp(int cp) {
+        return cp != 0 && (Character.isUnicodeIdentifierPart(cp) || cp == '$'
+                || cp == 0x200C || cp == 0x200D);
+    }
+
+    /**
      * Scans a 0x/0o/0b literal and returns a decimal integer token when the value fits
      * in a Java int, otherwise a double token (ES numbers are IEEE-754 doubles).
      */
@@ -704,11 +787,15 @@ public class Lexer {
 
     static boolean isIdentStart(char c) {
         // exclude the EOF sentinel: Java 8 reports isUnicodeIdentifierPart('\0') == true
-        return c != '\0' && (Character.isUnicodeIdentifierStart(c) || c == '$' || c == '_');
+        return c != '\0' && (Character.isUnicodeIdentifierStart(c) || c == '$' || c == '_'
+                // ES Other_ID_Start characters missing from the Java table
+                || c == '\u2118' || c == '\u212E' || c == '\u309B' || c == '\u309C');
     }
 
     static boolean isIdentPart(char c) {
-        return c != '\0' && (Character.isUnicodeIdentifierPart(c) || c == '$');
+        return c != '\0' && (Character.isUnicodeIdentifierPart(c) || c == '$'
+                // ES IdentifierPart includes ZWNJ/ZWJ
+                || c == '\u200C' || c == '\u200D');
     }
 
     boolean isNumeric(char c) {

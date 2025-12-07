@@ -108,6 +108,18 @@ public class OpObject {
         }
         //member of native
         if (objs[0] instanceof ScriptFunction) {
+            // class-defined static members (static m() {}, static x = 1)
+            // take precedence over the intrinsic function properties
+            // (call/apply/bind/name/length/prototype), per ES: class
+            // elements are defined as own properties of the constructor
+            java.util.Map<String, MemRef> own = vm.hostProps.get(objs[0]);
+            if (own != null) {
+                MemRef dyn = own.get(member);
+                if (dyn != null) {
+                    vm.eax.write(dyn);
+                    return;
+                }
+            }
             MemRef ref = functionMember((ScriptFunction) objs[0], member, vm);
             if (ref != null) {
                 vm.eax.write(ref);

@@ -712,6 +712,7 @@ public class NgParser {
                     && (t.value.equals("get") || t.value.equals("set"))) {
                 Token nx = peekN(2);
                 if (nx != null && (nx.type.equals("ident")
+                        || nx.type.equals("private_ident")
                         || nx.type.equals("lsqr"))) {
                     isGetter = t.value.equals("get");
                     isSetter = t.value.equals("set");
@@ -758,6 +759,7 @@ public class NgParser {
                 // async method: async m() / async *m() / async [expr]()
                 Token nx = peekN(2);
                 if (nx != null && (nx.type.equals("ident")
+                        || nx.type.equals("private_ident")
                         || nx.type.equals("mul") || nx.type.equals("lsqr"))) {
                     isAsync = true;
                     next();
@@ -2496,6 +2498,7 @@ public class NgParser {
     private static boolean isKeyName(String type) {
         switch (type) {
             case "ident":
+            case "private_ident":
             case "true": case "false": case "null": case "undefined":
             case "var": case "function": case "new": case "if": case "return":
             case "break": case "continue": case "while": case "switch": case "case":
