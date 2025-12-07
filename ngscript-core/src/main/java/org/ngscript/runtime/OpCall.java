@@ -40,6 +40,7 @@ public class OpCall {
 
     public static void new_closure(Machine vm, String param, String param_extend) {
         ScriptFunction closure = new ScriptFunction(param, (NgsObject) vm.env.read(), vm);
+        closure.instructions = vm.instructions;
         if (param_extend != null && param_extend.contains("|")) {
             // the exit label rides along: "<marker>|exit:<label>"
             int bar = param_extend.indexOf('|');
@@ -266,7 +267,28 @@ public class OpCall {
             } else {
                 vm.thisRef.write(Undefined.value);
             }
-            int nip = vm.labels.get(c.functionLabel);
+            Integer nipObj = vm.labels.get(c.functionLabel);
+            if (nipObj == null && c.instructions != null) {
+                // a closure created inside an eval whose execution has
+                // ended: its instructions are no longer installed, so run
+                // the body in a nested loop against its own array. The
+                // label lookup (not an array reference comparison) decides:
+                // nested evals replace and restore the instruction array
+                // with equal-content objects, and same-script recursive
+                // calls must take the normal path.
+                try {
+                    vm.eax.write(vm.callClosureSync(
+                            c, args, receiver, c.instructions));
+                } catch (Exception e) {
+                    if (e instanceof ClosureBudgetExceeded) {
+                        throw (ClosureBudgetExceeded) e;
+                    }
+                    throw new NgScriptRuntimeException(vm, e.getMessage() == null
+                            ? e.toString() : e.getMessage());
+                }
+                return;
+            }
+            int nip = nipObj;
             vm.stack.push(vm.getEip());
             vm.setEip(nip);
             return;

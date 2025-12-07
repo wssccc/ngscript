@@ -19,6 +19,7 @@ package org.ngscript.runtime;
 import java.util.ArrayList;
 
 import org.ngscript.value.MemRef;
+import org.ngscript.value.ScriptFunction;
 import org.ngscript.value.SymbolValue;
 import org.ngscript.value.Undefined;
 
@@ -77,6 +78,27 @@ public class OpArray {
             } else {
                 vm.eax.write(new MemRef(Undefined.value));
             }
+            return;
+        }
+        if (objs[0] instanceof ScriptFunction) {
+            // bracket access on a script function: class-defined static
+            // members first, then the intrinsic function properties
+            String member = keyString(objs[1]);
+            java.util.Map<String, MemRef> own = vm.hostProps.get(objs[0]);
+            if (own != null) {
+                MemRef dyn = own.get(member);
+                if (dyn != null) {
+                    vm.eax.write(dyn);
+                    return;
+                }
+            }
+            MemRef ref = org.ngscript.runtime.OpObject.functionMember(
+                    (ScriptFunction) objs[0], member, vm);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
+            vm.eax.write(new MemRef(Undefined.value));
             return;
         }
         throw new NgScriptRuntimeException(vm, "not an array object");

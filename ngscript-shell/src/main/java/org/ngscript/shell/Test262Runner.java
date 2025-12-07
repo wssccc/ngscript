@@ -59,6 +59,9 @@ public class Test262Runner {
     private String harnessDir;
     private String harnessPrelude = "";
     private org.ngscript.api.NgScriptEngine sharedEngine;
+    private org.ngscript.runtime.Machine machine;
+    private java.util.Map<String, org.ngscript.value.MemRef> globalBaseline;
+    private java.util.Map<Object, java.util.Map<String, org.ngscript.value.MemRef>> hostBaseline;
 
     private int total;
     private int passed;
@@ -288,6 +291,13 @@ public class Test262Runner {
                 java.io.PrintWriter sink = new java.io.PrintWriter(new java.io.StringWriter());
                 sharedEngine = new org.ngscript.api.NgScriptEngine(
                         new org.ngscript.api.Configuration(), sink, sink);
+                // baseline captured once, before any case: test262 cases run
+                // in an isolated realm, and assignments like `eval = f` on
+                // the global object must not leak into later cases (a
+                // polluted eval made every subsequent eval() recurse)
+                machine = sharedEngine.getMachine();
+                globalBaseline = org.ngscript.runtime.Machine.globalThis.snapshotData();
+                hostBaseline = machine.snapshotHostProps();
             }
             // guard against runaway loops in test bodies
             sharedEngine.setRunBudget(50_000_000L);
@@ -297,6 +307,8 @@ public class Test262Runner {
             if (elapsed > 2000) {
                 System.err.println("SLOW " + elapsed + "ms: " + id);
             }
+            org.ngscript.runtime.Machine.globalThis.restoreData(globalBaseline);
+            machine.restoreHostProps(hostBaseline);
             if (expectedRuntimeFail) {
                 fail(file, id, "expected runtime " + negativeType + " but execution succeeded");
             } else {

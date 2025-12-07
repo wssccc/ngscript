@@ -81,6 +81,11 @@ public class NgScriptEngine {
         vm.runBudget = budget;
     }
 
+    /** The underlying machine (used by the test runner for state snapshots). */
+    public org.ngscript.runtime.Machine getMachine() {
+        return vm;
+    }
+
     /**
      * Compiles a script without executing it. The returned {@link Script}
      * can be executed any number of times; each execution is isolated from

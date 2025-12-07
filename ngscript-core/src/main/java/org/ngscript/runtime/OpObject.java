@@ -323,7 +323,7 @@ public class OpObject {
      * runtime this binding is the target function when they are invoked),
      * so they chain like real functions (Function.prototype.call.bind(...)).
      */
-    private static MemRef functionMember(ScriptFunction fn, String member, Machine vm) {
+    public static MemRef functionMember(ScriptFunction fn, String member, Machine vm) {
         switch (member) {
             case "prototype":
                 return new MemRef(fn.getPrototypeObject());
@@ -764,8 +764,75 @@ public class OpObject {
             } else {
                 p.defineAccessor(key, getter, fn);
             }
+        } else {
+            // host function (class constructor): static accessors live in
+            // hostProps as an accessor-backed reference so member reads and
+            // writes go through the getter/setter
+            java.util.Map<String, MemRef> props = vm.hostProps.computeIfAbsent(proto,
+                    k -> new java.util.HashMap<>());
+            MemRef slot = props.get(key);
+            Object getter = slot instanceof HostAccessorRef
+                    ? ((HostAccessorRef) slot).getter : null;
+            Object setter = slot instanceof HostAccessorRef
+                    ? ((HostAccessorRef) slot).setter : null;
+            if ("get".equals(param)) {
+                getter = fn;
+            } else {
+                setter = fn;
+            }
+            props.put(key, new HostAccessorRef(getter, setter, proto, vm));
         }
         vm.eax.write(proto);
+    }
+
+    /**
+     * An accessor-backed member reference on a host function (class static
+     * getter/setter): reads invoke the getter, writes invoke the setter,
+     * both with the constructor as the receiver.
+     */
+    private static class HostAccessorRef extends MemRef {
+        final Object getter;
+        final Object setter;
+        final Object owner;
+        final Machine vm;
+
+        HostAccessorRef(Object getter, Object setter, Object owner, Machine vm) {
+            super(null);
+            this.getter = getter;
+            this.setter = setter;
+            this.owner = owner;
+            this.vm = vm;
+        }
+
+        @Override
+        public Object read() {
+            if (getter == null) {
+                return Undefined.value;
+            }
+            try {
+                return OpUtils.callValue(vm, getter, owner, new Object[0]);
+            } catch (Exception e) {
+                throw e instanceof RuntimeException
+                        ? (RuntimeException) e
+                        : new RuntimeException(e.getMessage() == null
+                                ? e.toString() : e.getMessage());
+            }
+        }
+
+        @Override
+        public void write(Object v) {
+            if (setter == null) {
+                throw new RuntimeException("Cannot set property without a setter");
+            }
+            try {
+                OpUtils.callValue(vm, setter, owner, new Object[]{v});
+            } catch (Exception e) {
+                throw e instanceof RuntimeException
+                        ? (RuntimeException) e
+                        : new RuntimeException(e.getMessage() == null
+                                ? e.toString() : e.getMessage());
+            }
+        }
     }
 
     /**
@@ -952,6 +1019,12 @@ public class OpObject {
         frame.putRef("%superclass", new MemRef(sc));
         if (sc instanceof ScriptFunction) {
             frame.putRef("%superproto", new MemRef(((ScriptFunction) sc).getPrototypeObject()));
+        }
+        if (System.getProperty("dbg.super") != null) {
+            System.err.println("BIND_SUPER frame@" + System.identityHashCode(frame)
+                    + " isGlobal=" + (frame == org.ngscript.runtime.Machine.globalThis)
+                    + " parentRootIsGlobal=" + (frame.rootFrame() == org.ngscript.runtime.Machine.globalThis)
+                    + " super=" + sc.getClass().getSimpleName());
         }
     }
 

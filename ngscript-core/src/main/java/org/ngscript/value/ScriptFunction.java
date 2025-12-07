@@ -105,6 +105,14 @@ public class ScriptFunction {
      */
     public String callMode;
 
+    /**
+     * The instruction array this closure was compiled into; closures
+     * created inside an eval whose execution has ended need it to run their
+     * body against their own instructions (the machine may have switched
+     * back to the caller's array).
+     */
+    public org.ngscript.runtime.opcache.OpBinding[] instructions;
+
     public ScriptFunction(String functionLabel, NgsObject environment, Machine vm) {
         this.functionLabel = functionLabel;
         this.environment = environment;

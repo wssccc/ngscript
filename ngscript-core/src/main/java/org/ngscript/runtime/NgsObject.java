@@ -148,6 +148,28 @@ public class NgsObject implements Scope {
         this.parent = parent;
     }
 
+    /**
+     * Snapshot of the own data map (used by the test runner to isolate
+     * shared globals between cases: {@code eval = f} style assignments
+     * must not leak across cases).
+     */
+    public java.util.Map<String, MemRef> snapshotData() {
+        return new HashMap<>(data);
+    }
+
+    /** Restores the own data map from a snapshot taken by {@link #snapshotData}. */
+    public void restoreData(java.util.Map<String, MemRef> snapshot) {
+        // deep-copy the values: a case may have written through a shared
+        // MemRef (e.g. `eval = f` on the global object), which a shallow
+        // map copy would keep polluted
+        java.util.Map<String, MemRef> fresh = new HashMap<>();
+        for (java.util.Map.Entry<String, MemRef> e : snapshot.entrySet()) {
+            MemRef ref = e.getValue();
+            fresh.put(e.getKey(), new MemRef(ref.read(), ref.isImmutable()));
+        }
+        data = fresh;
+    }
+
     public NgsObject getPrototype() {
         return proto;
     }

@@ -55,6 +55,29 @@ public class Machine {
     public final java.util.Map<Object, java.util.Map<String, MemRef>> hostProps =
             new java.util.IdentityHashMap<>();
 
+    /** Deep snapshot of {@link #hostProps} (runner isolation between cases). */
+    public java.util.Map<Object, java.util.Map<String, MemRef>> snapshotHostProps() {
+        java.util.Map<Object, java.util.Map<String, MemRef>> snap =
+                new java.util.IdentityHashMap<>();
+        for (java.util.Map.Entry<Object, java.util.Map<String, MemRef>> e : hostProps.entrySet()) {
+            snap.put(e.getKey(), new java.util.HashMap<>(e.getValue()));
+        }
+        return snap;
+    }
+
+    /** Restores {@link #hostProps} from a snapshot taken by {@link #snapshotHostProps}. */
+    public void restoreHostProps(java.util.Map<Object, java.util.Map<String, MemRef>> snapshot) {
+        hostProps.clear();
+        for (java.util.Map.Entry<Object, java.util.Map<String, MemRef>> e : snapshot.entrySet()) {
+            java.util.Map<String, MemRef> fresh = new java.util.HashMap<>();
+            for (java.util.Map.Entry<String, MemRef> m : e.getValue().entrySet()) {
+                MemRef ref = m.getValue();
+                fresh.put(m.getKey(), new MemRef(ref.read(), ref.isImmutable()));
+            }
+            hostProps.put(e.getKey(), fresh);
+        }
+    }
+
     /**
      * Shared built-in prototype objects: array literals link to
      * {@link #arrayPrototype}, object literals to {@link #objectPrototype}.
@@ -319,6 +342,10 @@ public class Machine {
             }
             try {
                 instruction.invoke(this);
+            } catch (ClosureBudgetExceeded cbe) {
+                // a runaway eval closure must not be retried: propagate it
+                // to the caller immediately (the case fails fast)
+                throw cbe;
             } catch (Throwable ex) {
                 try {
                     exception.write(ex);
@@ -341,6 +368,76 @@ public class Machine {
      * instruction loop knows when the callee has returned.
      */
     private static final int SYNC_CALL_RET = -2;
+
+    /**
+     * Calls a script function created inside an eval whose execution has
+     * ended: switches to the closure's own instruction array (and its label
+     * table), runs the body in a nested loop, then restores the machine to
+     * the caller's state, including its instruction array.
+     */
+    public Object callClosureSync(ScriptFunction c, Object[] args, Object receiver,
+                                  org.ngscript.runtime.opcache.OpBinding[] ins) throws Exception {
+        int savedEip = getEip();
+        int savedStackSize = stack.size();
+        int savedCallStackSize = callstack.size();
+        Object savedThis = thisRef.read();
+        NgsObject savedEnv = (NgsObject) env.read();
+        OpBinding[] savedIns = instructions;
+        Map<String, Integer> savedLabels = labels;
+        instructions = ins;
+        labels = new HashMap<>();
+        updateLabels();
+        FastStack<Context> savedMss = machineStateStack;
+        machineStateStack = new FastStack<>(8);
+        try {
+            callstack.push(c);
+            NgsObject frame = new NgsObject((NgsObject) c.environment);
+            frame.functionScope = true;
+            env.write(frame);
+            thisRef.write(c.arrow
+                    ? (c.capturedThis != null ? c.capturedThis : Undefined.value)
+                    : (receiver != null ? receiver : Undefined.value));
+            stack.push(receiver != null ? receiver : null);
+            stack.push(c);
+            stack.push(args);
+            stack.push(frame);
+            stack.push(SYNC_CALL_RET);
+            setEip(labels.get(c.functionLabel));
+            long budget = runBudget;
+            while (true) {
+                if (budget >= 0 && --budget < 0) {
+                    // a runaway closure: fail fast instead of letting the
+                    // enclosing run loop retry (which would burn the whole
+                    // budget again); ClosureBudgetExceeded propagates
+                    // through OpCall.call untouched
+                    throw new ClosureBudgetExceeded(this,
+                            "closure instruction budget exceeded for "
+                                    + (c.name == null ? "anonymous" : c.name)
+                                    + " label=" + c.functionLabel);
+                }
+                int eip = getEip();
+                if (eip < 0 || eip >= instructions.length) {
+                    break;
+                }
+                setEip(eip + 1);
+                instructions[eip].invoke(this);
+            }
+            return eax.read();
+        } finally {
+            while (stack.size() > savedStackSize) {
+                stack.pop();
+            }
+            while (callstack.size() > savedCallStackSize) {
+                callstack.pop();
+            }
+            env.write(savedEnv);
+            thisRef.write(savedThis);
+            setEip(savedEip);
+            instructions = savedIns;
+            labels = savedLabels;
+            machineStateStack = savedMss;
+        }
+    }
 
     /**
      * Calls a script function synchronously from a builtin (e.g. an Array
