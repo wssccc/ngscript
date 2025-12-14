@@ -41,6 +41,9 @@ public class OpCall {
     public static void new_closure(Machine vm, String param, String param_extend) {
         ScriptFunction closure = new ScriptFunction(param, (NgsObject) vm.env.read(), vm);
         closure.instructions = vm.instructions;
+        // closures created inside a replace-style execution (eval /
+        // CompiledScript) are dispatched by their own instruction array
+        closure.evalClosure = vm.execNesting > 0;
         if (param_extend != null && param_extend.contains("|")) {
             // the exit label rides along: "<marker>|exit:<label>"
             int bar = param_extend.indexOf('|');
@@ -268,17 +271,20 @@ public class OpCall {
                 vm.thisRef.write(Undefined.value);
             }
             Integer nipObj = vm.labels.get(c.functionLabel);
-            if (nipObj == null && c.instructions != null) {
-                // a closure created inside an eval whose execution has
-                // ended: its instructions are no longer installed, so run
-                // the body in a nested loop against its own array. The
-                // label lookup (not an array reference comparison) decides:
-                // nested evals replace and restore the instruction array
-                // with equal-content objects, and same-script recursive
-                // calls must take the normal path.
+            if ((c.evalClosure && c.instructions != null
+                    && c.instructions != vm.instructions) || nipObj == null) {
+                // a closure whose body lives in another instruction array
+                // (created inside an eval / CompiledScript execution whose
+                // execution has ended, or a script function called from
+                // eval code whose label is not in the eval array): run the
+                // body in a nested loop against its own array. Plain
+                // (merged/append) scripts keep their labels in the current
+                // array and take the normal path; the eval closure marker
+                // avoids label-name collisions (every eval source restarts
+                // line numbers at 1, so label names repeat across arrays).
                 try {
                     vm.eax.write(vm.callClosureSync(
-                            c, args, receiver, c.instructions));
+                            c, args, receiver, c.instructions, env));
                 } catch (Exception e) {
                     if (e instanceof ClosureBudgetExceeded) {
                         throw (ClosureBudgetExceeded) e;

@@ -31,6 +31,8 @@ import org.ngscript.parser.NgParser;
 import org.ngscript.parser.ParserException;
 import org.ngscript.parser.Token;
 import org.ngscript.runtime.Machine;
+import org.ngscript.runtime.NgsObject;
+import org.ngscript.runtime.opcache.OpBinding;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -63,10 +65,13 @@ public class NgScriptEngine {
         this.compiler = new Compiler(configuration);
         this.parser = new NgParser();
         this.parser.setStatementListener(stmt -> compileAndRun(stmt, ""));
-        // the global eval() builtin runs scripts against this engine
-        Machine.evalHook = code -> {
+        // the global eval() builtin runs scripts against this engine; a
+        // direct eval shares the caller's scope (the env passed by the
+        // builtin), an indirect/global eval (null caller) gets a fresh
+        // root scope on the baseline environment
+        Machine.evalHook = (code, callerEnv) -> {
             try {
-                Object r = eval(code);
+                Object r = callerEnv == null ? eval(code) : evalIn(code, callerEnv);
                 // an empty completion (bare block, no expression) is the
                 // undefined value, not the Java null used for empty eax
                 return r == null ? org.ngscript.value.Undefined.value : r;
@@ -118,6 +123,39 @@ public class NgScriptEngine {
     }
 
     /**
+     * Direct-eval execution: runs the code in a fresh declarative
+     * environment whose outer is the caller's environment, so the eval
+     * code can read (and with {@code var}, declare into) the caller's
+     * scope. {@code let}/{@code const} bindings stay in the fresh frame
+     * and are discarded when the eval completes.
+     *
+     * @param code the eval source
+     * @param callerEnv the caller's current environment
+     * @return the eval completion value
+     * @throws NgScriptException if the script fails
+     */
+    public Object evalIn(String code, NgsObject callerEnv) throws NgScriptException {
+        if (configuration.isInteractive()) {
+            return eval(code);
+        }
+        Program program = parser.parse(code);
+        List<Instruction> ins = compiler.compileCode(program, code);
+        OpBinding[] bound = vm.bindInstructions(ins);
+        Machine.MachineState state = vm.captureState();
+        vm.execNesting++;
+        try {
+            vm.installInstructions(bound);
+            vm.env.write(new NgsObject(callerEnv));
+            vm.resetForExecution();
+            vm.run();
+            return vm.eax.read();
+        } finally {
+            vm.execNesting--;
+            vm.restoreState(state);
+        }
+    }
+
+    /**
      * Line number of the first line of the next interactive input batch;
      * lets ASI detect line breaks across REPL lines.
      */
@@ -150,4 +188,5 @@ public class NgScriptEngine {
         vm.loadInstructions(ins);
         vm.run();
     }
+
 }

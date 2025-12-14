@@ -16,6 +16,7 @@
 
 package org.ngscript.runtime;
 
+import org.ngscript.value.MemRef;
 import org.ngscript.value.Undefined;
 
 /**
@@ -66,6 +67,31 @@ public class OpStack {
         }
     }
 
+    /**
+     * Loads argument {@code param} as a shared reference (mapped arguments
+     * semantics): the MemRef is stored back into the args array so the
+     * arguments object built by {@link #rest_args} aliases the parameter
+     * binding. Writing through either side updates both.
+     */
+    public static void pickarg_ref(Machine vm, String param, String param_extend) {
+        int offset = Integer.parseInt(param);
+        //stack layout inside a function: [receiver, func, args[], env, retAddr]
+        Object[] args = (Object[]) vm.stack.peek(2);
+        MemRef ref;
+        if (offset < args.length) {
+            Object v = args[offset];
+            if (v instanceof MemRef) {
+                ref = (MemRef) v;
+            } else {
+                ref = new MemRef(v);
+                args[offset] = ref;
+            }
+        } else {
+            ref = new MemRef(Undefined.value);
+        }
+        vm.eax.write(ref);
+    }
+
     public static void packargs(Machine vm, String param, String param_extend) {
         int n = Integer.parseInt(param);
         Object[] args = new Object[n];
@@ -82,7 +108,14 @@ public class OpStack {
         NgsArray arr = new NgsArray((NgsObject) vm.env.read());
         arr.setPrototype(vm.arrayPrototype);
         for (int i = from; i < args.length; i++) {
-            arr.set("" + (i - from), args[i]);
+            Object v = args[i];
+            if (v instanceof MemRef) {
+                // mapped arguments: share the parameter's reference so
+                // arguments[i] aliases the parameter binding
+                arr.putRef("" + (i - from), (MemRef) v);
+            } else {
+                arr.set("" + (i - from), v);
+            }
         }
         vm.eax.write(arr);
     }

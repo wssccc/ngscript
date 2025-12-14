@@ -474,6 +474,18 @@ public class Compiler {
         return length;
     }
 
+    private boolean hasNonNull(List<?> list) {
+        if (list == null) {
+            return false;
+        }
+        for (Object o : list) {
+            if (o != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private String _compile_function_body(Params params, Block body) throws CompilerException {
         String exit = assembler.label("func_exit", body);
         String enter = assembler.label("func_enter", body);
@@ -483,6 +495,13 @@ public class Compiler {
         // nested functions/arrows have their own block-depth bookkeeping
         int savedBlockDepth = blockDepth;
         blockDepth = 0;
+        // mapped arguments require a simple parameter list: no defaults,
+        // rest, or destructuring (ES unmaps the arguments object otherwise);
+        // defaults/patterns are parallel lists whose entries are null when
+        // the parameter has no default / is not a pattern
+        boolean simpleParams = !params.rest
+                && !hasNonNull(params.defaults)
+                && !hasNonNull(params.patterns);
         try {
             for (int i = 0; i < params.names.size(); i++) {
                 Pattern pat = params.patterns != null ? params.patterns.get(i) : null;
@@ -503,7 +522,12 @@ public class Compiler {
                     compilePattern(pat);
                     continue;
                 }
-                assembler.emit("pickarg", i + "");
+                if (simpleParams) {
+                    // shared reference so arguments[i] aliases the parameter
+                    assembler.emit("pickarg_ref", i + "");
+                } else {
+                    assembler.emit("pickarg", i + "");
+                }
                 assembler.emit("set", params.names.get(i), "%eax");
                 if (params.rest && i == params.names.size() - 1) {
                     // rest parameter: bind the remaining arguments as an array
@@ -1167,8 +1191,15 @@ public class Compiler {
                 assembler.emit("post_dec");
                 break;
             case TYPEOF:
-                compileExpr(unary.operand);
-                assembler.emit("typeof");
+                if (unary.operand instanceof IdentExpr) {
+                    // typeof on an undeclared name is "undefined", not a
+                    // ReferenceError (TDZ bindings still throw)
+                    assembler.emit("typeof_name", ((IdentExpr) unary.operand).name);
+                    assembler.emit("typeof");
+                } else {
+                    compileExpr(unary.operand);
+                    assembler.emit("typeof");
+                }
                 break;
             case NEG:
                 compileExpr(unary.operand);

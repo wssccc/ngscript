@@ -266,13 +266,16 @@ public class NgsObject implements Scope {
                     ref = lookupEnv(member, vm, isMember);
                     if (ref == null) {
                         // an unset member read as undefined (kept from the legacy
-                        // behavior: reading a member creates the reference)
+                        // behavior: reading a member creates the reference).
+                        // A found binding is returned as-is: copying it into
+                        // the root frame would leak local bindings into the
+                        // global object (and shadow them there forever)
                         ref = new MemRef(Undefined.value);
-                    }
-                    if (isMember) {
-                        data.put(member, ref);
-                    } else {
-                        rootFrame().data.put(member, ref);
+                        if (isMember) {
+                            data.put(member, ref);
+                        } else {
+                            rootFrame().data.put(member, ref);
+                        }
                     }
                     return ref;
                 }
@@ -302,7 +305,7 @@ public class NgsObject implements Scope {
         if (f == null) {
             f = this;
         }
-        f.data.put(name, new MemRef(value));
+        f.data.put(name, value instanceof MemRef ? (MemRef) value : new MemRef(value));
     }
 
     /**
@@ -409,7 +412,9 @@ public class NgsObject implements Scope {
 
     /** Sets a member to a fresh reference holding the given value. */
     public void set(String member, Object value) {
-        data.put(member, new MemRef(value));
+        // a MemRef value is stored as-is so callers can install a shared
+        // reference (mapped arguments, dynamic references)
+        data.put(member, value instanceof MemRef ? (MemRef) value : new MemRef(value));
     }
 
     /** Creates a member reference without a value. */

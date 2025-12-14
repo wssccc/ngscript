@@ -167,6 +167,15 @@ public class ObjectCtor implements Invokable {
                                             || setter instanceof org.ngscript.value.ScriptFunction ? setter : null);
                         } else if (d.get("value") != null) {
                             o.set(name, d.get("value"));
+                        } else if (d.has("writable") && Boolean.FALSE.equals(d.get("writable"))) {
+                            // making the property non-writable removes the
+                            // arguments mapping (configurable:false alone
+                            // keeps it): copy the current value so later
+                            // parameter writes no longer alias this property
+                            MemRef existing = o.getRef(name);
+                            if (existing != null) {
+                                o.set(name, existing.read());
+                            }
                         }
                     }
                     vm2.eax.write(o);

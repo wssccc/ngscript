@@ -51,6 +51,7 @@ public class CompiledScript implements Script {
     public Object execute() throws NgScriptException {
         Machine machine = engine.vm;
         Machine.MachineState state = machine.captureState();
+        machine.execNesting++;
         try {
             machine.installInstructions(boundInstructions);
             machine.env.write(new NgsObject(machine.getInitialEnvironment()));
@@ -61,6 +62,7 @@ public class CompiledScript implements Script {
             machine.run();
             return machine.eax.read();
         } finally {
+            machine.execNesting--;
             machine.restoreState(state);
         }
     }

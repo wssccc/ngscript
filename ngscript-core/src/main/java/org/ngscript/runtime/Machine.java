@@ -137,9 +137,19 @@ public class Machine {
 
     /**
      * The eval hook installed by NgScriptEngine: evaluates a source string
-     * and returns its value (null when no engine is attached).
+     * and returns its value (null when no engine is attached). The second
+     * argument is the caller's current environment (the direct-eval scope);
+     * a null caller means a global/indirect eval that runs in a fresh root
+     * scope on the baseline environment.
      */
-    public static volatile java.util.function.Function<String, Object> evalHook;
+    public static volatile java.util.function.BiFunction<String, NgsObject, Object> evalHook;
+
+    /**
+     * Depth of replace-style executions (direct eval / CompiledScript) on
+     * this machine. Closures created while it is > 0 get marked as eval
+     * closures so calls can dispatch by their own instruction array.
+     */
+    public int execNesting;
 
     /**
      * The ES microtask queue (Promise reactions): tasks are drained when
@@ -373,10 +383,13 @@ public class Machine {
      * Calls a script function created inside an eval whose execution has
      * ended: switches to the closure's own instruction array (and its label
      * table), runs the body in a nested loop, then restores the machine to
-     * the caller's state, including its instruction array.
+     * the caller's state, including its instruction array. {@code frame}
+     * is the caller-prepared function frame (its env); a null frame is
+     * built from the closure's captured environment.
      */
     public Object callClosureSync(ScriptFunction c, Object[] args, Object receiver,
-                                  org.ngscript.runtime.opcache.OpBinding[] ins) throws Exception {
+                                  org.ngscript.runtime.opcache.OpBinding[] ins,
+                                  NgsObject frame) throws Exception {
         int savedEip = getEip();
         int savedStackSize = stack.size();
         int savedCallStackSize = callstack.size();
@@ -391,12 +404,23 @@ public class Machine {
         machineStateStack = new FastStack<>(8);
         try {
             callstack.push(c);
-            NgsObject frame = new NgsObject((NgsObject) c.environment);
-            frame.functionScope = true;
+            if (frame == null) {
+                frame = new NgsObject((NgsObject) c.environment);
+                frame.functionScope = true;
+            }
             env.write(frame);
-            thisRef.write(c.arrow
-                    ? (c.capturedThis != null ? c.capturedThis : Undefined.value)
-                    : (receiver != null ? receiver : Undefined.value));
+            if (receiver == OpCall.NEW_RECEIVER) {
+                // new-expression call: the frame is the instance (mirrors
+                // the plain call path); link constructor/prototype so the
+                // constructor body can use `this instanceof Ctor`
+                thisRef.write(frame);
+                frame.setConstructor(c);
+                frame.setPrototype(c.getPrototypeObject());
+            } else {
+                thisRef.write(c.arrow
+                        ? (c.capturedThis != null ? c.capturedThis : Undefined.value)
+                        : (receiver != null ? receiver : Undefined.value));
+            }
             stack.push(receiver != null ? receiver : null);
             stack.push(c);
             stack.push(args);

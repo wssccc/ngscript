@@ -17,6 +17,7 @@
 package org.ngscript.runtime;
 
 import org.ngscript.value.MemRef;
+import org.ngscript.value.Undefined;
 
 /**
  * Move opcodes: register and variable loads/stores.
@@ -33,6 +34,24 @@ public class OpMove {
             v1 = vm.lookup(param);
         }
         vm.eax.write(v1.read());
+    }
+
+    /**
+     * Safe variable read for {@code typeof}: an undeclared name yields the
+     * undefined value (typeof undeclared === "undefined"); a TDZ let/const
+     * still throws (typeof on a TDZ binding is a ReferenceError).
+     */
+    public static void typeof_name(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        try {
+            MemRef v1 = vm.lookup(param);
+            vm.eax.write(v1.read());
+        } catch (NgScriptRuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().endsWith(" is not declared")) {
+                vm.eax.write(Undefined.value);
+                return;
+            }
+            throw e;
+        }
     }
 
     public static void mov_eax(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {

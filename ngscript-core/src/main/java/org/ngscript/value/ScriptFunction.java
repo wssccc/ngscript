@@ -113,6 +113,16 @@ public class ScriptFunction {
      */
     public org.ngscript.runtime.opcache.OpBinding[] instructions;
 
+    /**
+     * True when this closure was created inside a replace-style execution
+     * (direct eval or a CompiledScript execution, where the instruction
+     * array is swapped in and out rather than merged). Such closures must
+     * be dispatched by their own instruction array once the outer
+     * execution has ended; plain (merged/append) scripts can rely on the
+     * label table.
+     */
+    public boolean evalClosure;
+
     public ScriptFunction(String functionLabel, NgsObject environment, Machine vm) {
         this.functionLabel = functionLabel;
         this.environment = environment;

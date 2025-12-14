@@ -46,7 +46,9 @@ public class FunctionCtor implements Invokable {
         if (Machine.evalHook == null) {
             throw new NgScriptRuntimeException(vm, "Function constructor requires an engine eval hook");
         }
-        Object f = Machine.evalHook.apply(src);
+        // the Function constructor runs in the global scope, not the
+        // caller's scope (null caller env)
+        Object f = Machine.evalHook.apply(src, null);
         vm.eax.write(f);
     }
 }
