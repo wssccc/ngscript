@@ -83,6 +83,13 @@ public class ObjectCtor implements Invokable {
                     NgsObject p = o.getPrototype();
                     vm2.eax.write(p == null ? Undefined.value : p);
                 });
+            case "setPrototypeOf":
+                return new MemRef((Invokable) (vm2, args) -> {
+                    NgsObject o = objectArg(vm2, args, 0);
+                    Object proto = args.length > 1 ? args[1] : null;
+                    o.setPrototype(proto instanceof NgsObject ? (NgsObject) proto : null);
+                    vm2.eax.write(o);
+                });
             case "getOwnPropertyDescriptor":
                 return new MemRef((Invokable) (vm2, args) -> {
                     String name = args.length > 1 ? args[1].toString() : "undefined";
@@ -112,6 +119,11 @@ public class ObjectCtor implements Invokable {
                     }
                     NgsObject o = objectArg(vm2, args, 0);
                     Object v = o.get(name);
+                    if (o instanceof NgsArray && "length".equals(name) && v == null) {
+                        // the virtual length of an array-like (arguments):
+                        // one past the highest numeric index
+                        v = ((NgsArray) o).length();
+                    }
                     if (v == null && !o.has(name)) {
                         vm2.eax.write(Undefined.value);
                         return;
@@ -130,9 +142,17 @@ public class ObjectCtor implements Invokable {
                     NgsArray out = new NgsArray(null);
                     int i = 0;
                     if (args.length > 0 && args[0] instanceof org.ngscript.value.ScriptFunction) {
-                        // function objects: name, length, prototype
+                        org.ngscript.value.ScriptFunction f = (org.ngscript.value.ScriptFunction) args[0];
+                        // intrinsic function properties first, then the
+                        // class-defined static members (hostProps)
                         for (String k : functionPropertyNames()) {
                             out.set("" + i++, k);
+                        }
+                        java.util.Map<String, MemRef> own = vm2.hostProps.get(f);
+                        if (own != null) {
+                            for (String k : own.keySet()) {
+                                out.set("" + i++, k);
+                            }
                         }
                         out.setPrototype(vm2.arrayPrototype);
                         vm2.eax.write(out);
@@ -255,6 +275,8 @@ public class ObjectCtor implements Invokable {
      * functions are not NgsObjects): name, length and prototype.
      */
     static String[] functionPropertyNames() {
-        return new String[]{"name", "length", "prototype"};
+        // ES own-property order for function objects: length, name,
+        // prototype (chronological creation order)
+        return new String[]{"length", "name", "prototype"};
     }
 }

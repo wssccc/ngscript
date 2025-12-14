@@ -62,6 +62,8 @@ public class Test262Runner {
     private org.ngscript.runtime.Machine machine;
     private java.util.Map<String, org.ngscript.value.MemRef> globalBaseline;
     private java.util.Map<Object, java.util.Map<String, org.ngscript.value.MemRef>> hostBaseline;
+    private java.util.Map<String, org.ngscript.value.MemRef> objectProtoBaseline;
+    private java.util.Map<String, org.ngscript.value.MemRef> arrayProtoBaseline;
 
     private int total;
     private int passed;
@@ -298,6 +300,11 @@ public class Test262Runner {
                 machine = sharedEngine.getMachine();
                 globalBaseline = org.ngscript.runtime.Machine.globalThis.snapshotData();
                 hostBaseline = machine.snapshotHostProps();
+                // the shared prototypes are mutable too: a case that defines
+                // an accessor on Object.prototype (or Array.prototype) would
+                // otherwise redirect every property lookup in later cases
+                objectProtoBaseline = machine.objectPrototype.snapshotData();
+                arrayProtoBaseline = machine.arrayPrototype.snapshotData();
             }
             // guard against runaway loops in test bodies
             sharedEngine.setRunBudget(50_000_000L);
@@ -307,8 +314,6 @@ public class Test262Runner {
             if (elapsed > 2000) {
                 System.err.println("SLOW " + elapsed + "ms: " + id);
             }
-            org.ngscript.runtime.Machine.globalThis.restoreData(globalBaseline);
-            machine.restoreHostProps(hostBaseline);
             if (expectedRuntimeFail) {
                 fail(file, id, "expected runtime " + negativeType + " but execution succeeded");
             } else {
@@ -335,6 +340,14 @@ public class Test262Runner {
             } else {
                 fail(file, id, "execution failed: " + firstLine(e.getMessage()));
             }
+        } finally {
+            // restore the shared engine even when the case failed: an
+            // exception aborts the eval mid-way, leaving the global object,
+            // host props and shared prototypes polluted for later cases
+            org.ngscript.runtime.Machine.globalThis.restoreData(globalBaseline);
+            machine.restoreHostProps(hostBaseline);
+            machine.objectPrototype.restoreData(objectProtoBaseline);
+            machine.arrayPrototype.restoreData(arrayProtoBaseline);
         }
     }
 

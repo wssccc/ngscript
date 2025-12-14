@@ -16,6 +16,7 @@
 
 package org.ngscript.runtime;
 
+import org.ngscript.value.Invokable;
 import org.ngscript.value.MemRef;
 import org.ngscript.value.Undefined;
 
@@ -106,7 +107,15 @@ public class OpStack {
         int from = Integer.parseInt(param);
         Object[] args = (Object[]) vm.stack.peek(2);
         NgsArray arr = new NgsArray((NgsObject) vm.env.read());
-        arr.setPrototype(vm.arrayPrototype);
+        // the arguments object's [[Prototype]] is Object.prototype (ES); it
+        // stays array-like via its own numeric keys and length
+        arr.setPrototype(vm.objectPrototype);
+        // ... but it still iterates like an array (Symbol.iterator)
+        arr.set("@@iterator", new MemRef((Invokable) (v, a) -> {
+            NgsArray self = arr;
+            self.resetIterator();
+            v.eax.write(self);
+        }));
         for (int i = from; i < args.length; i++) {
             Object v = args[i];
             if (v instanceof MemRef) {

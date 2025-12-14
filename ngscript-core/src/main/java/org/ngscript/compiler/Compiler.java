@@ -782,12 +782,12 @@ public class Compiler {
             assembler.emit("pop");//pop receiver
         } else if (expr instanceof SuperMemberExpr) {
             SuperMemberExpr sm = (SuperMemberExpr) expr;
-            // member resolved on the superclass prototype; the receiver (this)
-            // is pushed by the call compiler, so nothing leaks here
-            assembler.emit("deref", "%superproto");
-            assembler.emit("push_eax");
-            assembler.emit("string", sm.name);
-            assembler.emit("member_ref");
+            // member resolved on the superclass prototype (bound as
+            // %superproto by class definitions); object literal methods
+            // have no such binding, so super_ref falls back to the dynamic
+            // prototype of `this` (the object's [[Prototype]] chain)
+            assembler.emit("super_proto");
+            assembler.emit("super_ref", sm.name);
             if (!byref) {
                 assembler.emit("deref", "%eax");
             }

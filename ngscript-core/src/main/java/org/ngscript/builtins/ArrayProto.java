@@ -38,6 +38,9 @@ public class ArrayProto {
 
     public static NgsObject create() {
         NgsObject proto = new NgsObject(null);
+        // Array.prototype's [[Prototype]] is Object.prototype: instance
+        // methods like hasOwnProperty must resolve through it
+        proto.setPrototype(Builtins.getObjectPrototype());
         register(proto, "push", (vm, args) -> push(vm, args));
         register(proto, "pop", (vm, args) -> pop(vm, args));
         register(proto, "shift", (vm, args) -> shift(vm, args));

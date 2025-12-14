@@ -151,10 +151,18 @@ public class NgsObject implements Scope {
     /**
      * Snapshot of the own data map (used by the test runner to isolate
      * shared globals between cases: {@code eval = f} style assignments
-     * must not leak across cases).
+     * must not leak across cases). Accessor properties are captured too
+     * (a case that defines a getter on Object.prototype would otherwise
+     * redirect every property lookup in later cases).
      */
     public java.util.Map<String, MemRef> snapshotData() {
-        return new HashMap<>(data);
+        java.util.Map<String, MemRef> snap = new HashMap<>(data);
+        if (accessors != null) {
+            for (java.util.Map.Entry<String, Object[]> e : accessors.entrySet()) {
+                snap.put("%accessor:" + e.getKey(), new MemRef(e.getValue()));
+            }
+        }
+        return snap;
     }
 
     /** Restores the own data map from a snapshot taken by {@link #snapshotData}. */
@@ -163,11 +171,21 @@ public class NgsObject implements Scope {
         // MemRef (e.g. `eval = f` on the global object), which a shallow
         // map copy would keep polluted
         java.util.Map<String, MemRef> fresh = new HashMap<>();
+        java.util.Map<String, Object[]> freshAccessors = null;
         for (java.util.Map.Entry<String, MemRef> e : snapshot.entrySet()) {
+            if (e.getKey().startsWith("%accessor:")) {
+                MemRef ref = e.getValue();
+                if (freshAccessors == null) {
+                    freshAccessors = new java.util.LinkedHashMap<>();
+                }
+                freshAccessors.put(e.getKey().substring(10), (Object[]) ref.read());
+                continue;
+            }
             MemRef ref = e.getValue();
             fresh.put(e.getKey(), new MemRef(ref.read(), ref.isImmutable()));
         }
         data = fresh;
+        accessors = freshAccessors;
     }
 
     public NgsObject getPrototype() {

@@ -901,6 +901,59 @@ public class OpObject {
         }
     }
 
+    /**
+     * Reads {@code %superproto} safely: undeclared (object literal
+     * methods, which have no class binding) yields undefined instead of
+     * throwing "not declared".
+     */
+    public static void super_proto(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        try {
+            vm.eax.write(vm.lookup("%superproto").read());
+        } catch (NgScriptRuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().endsWith(" is not declared")) {
+                vm.eax.write(Undefined.value);
+                return;
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Resolves a {@code super} member: eax holds %superproto (bound by
+     * class definitions) or undefined. With a bound superclass prototype
+     * the member is looked up on it (class methods); otherwise the member
+     * is resolved on the dynamic [[Prototype]] chain of {@code this}
+     * (object literal methods, whose home object is the literal itself).
+     */
+    public static void super_ref(Machine vm, String param, String param_extend) {
+        Object sp = vm.eax.read();
+        if (sp instanceof NgsObject) {
+            MemRef ref = findInProtoChain((NgsObject) sp, param);
+            vm.eax.write(ref != null ? ref : new MemRef(Undefined.value));
+            return;
+        }
+        Object t = vm.thisRef.read();
+        if (t instanceof NgsObject) {
+            MemRef ref = findInProtoChain(((NgsObject) t).getPrototype(), param);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
+        }
+        vm.eax.write(new MemRef(Undefined.value));
+    }
+
+    private static MemRef findInProtoChain(NgsObject p, String name) {
+        while (p != null) {
+            MemRef ref = p.getRef(name);
+            if (ref != null) {
+                return ref;
+            }
+            p = p.getPrototype();
+        }
+        return null;
+    }
+
     public static void typeof(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object obj = vm.eax.read();
         //common types

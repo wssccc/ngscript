@@ -414,6 +414,10 @@ public class OpUtils {
     /** ES {@code ===} (strict equality). Integer and Double are the same JS type. */
     public static boolean strictEquals(Object a, Object b) {
         if (a == b) {
+            // same object, but ES still says NaN !== NaN
+            if (a instanceof Double && ((Double) a).isNaN()) {
+                return false;
+            }
             return true;
         }
         if (isNumber(a) && isNumber(b)) {
