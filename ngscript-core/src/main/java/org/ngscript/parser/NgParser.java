@@ -31,6 +31,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 import org.ngscript.ast.ArrayLiteral;
 import org.ngscript.ast.AssignExpr;
+import org.ngscript.ast.AwaitExpr;
 import org.ngscript.ast.BinaryExpr;
 import org.ngscript.ast.Block;
 import org.ngscript.ast.BlockStmt;
@@ -81,7 +82,6 @@ import org.ngscript.ast.UnaryExpr;
 import org.ngscript.ast.VarDeclExpr;
 import org.ngscript.ast.WhileStmt;
 import org.ngscript.ast.WithStmt;
-import org.ngscript.ast.AwaitExpr;
 import org.ngscript.ast.YieldExpr;
 import org.ngscript.compiler.CompilerException;
 import org.ngscript.lexer.Lexer;
