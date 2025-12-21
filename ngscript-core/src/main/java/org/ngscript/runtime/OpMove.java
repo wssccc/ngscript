@@ -59,6 +59,27 @@ public class OpMove {
         vm.eax.write(v1);
     }
 
+    /**
+     * Assignment reference load: like {@link #mov_eax} but an undeclared
+     * name creates an implicit global binding (sloppy-mode assignment
+     * semantics: {@code x = 1} on an undeclared x assigns to a new global
+     * instead of throwing). Reads (deref) still throw for undeclared names.
+     */
+    public static void mov_eax_or_create(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        try {
+            vm.eax.write(vm.lookup(param));
+        } catch (NgScriptRuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().endsWith(" is not declared")) {
+                NgsObject root = ((NgsObject) vm.env.read()).rootFrame();
+                MemRef ref = new MemRef(Undefined.value);
+                root.putRef(param, ref);
+                vm.eax.write(ref);
+                return;
+            }
+            throw e;
+        }
+    }
+
     public static void mov_exception_eax(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         vm.exception.write(vm.eax.read());
     }

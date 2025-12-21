@@ -163,11 +163,12 @@ public class Compiler {
      * Assigns the current eax value to an existing (or implicitly declared)
      * name through the normal assignment path: the reference is pushed, the
      * value restored to eax, then assign runs (TDZ/const checks apply). The
-     * saved value is popped afterwards to keep the stack balanced.
+     * saved value is popped afterwards to keep the stack balanced. An
+     * undeclared name creates an implicit global (sloppy-mode semantics).
      */
     private void emitAssignToName(String name) {
         assembler.emit("push_eax");
-        assembler.emit("mov_eax", name);
+        assembler.emit("mov_eax_or_create", name);
         assembler.emit("push_eax");
         assembler.emit("peek", "1");
         assembler.emit("assign");
@@ -626,6 +627,17 @@ public class Compiler {
                 assembler.emit("push_eax");
                 compilePattern(pat);
                 assembler.emit("pop_eax");
+            } else if (assign.target instanceof IdentExpr) {
+                // plain identifier assignment: the target reference is
+                // resolved (not read) first, then the right-hand side
+                // evaluates, then the value is stored, creating an implicit
+                // global for an undeclared name (sloppy-mode semantics);
+                // x = x on an undeclared x throws from the RHS read
+                assembler.emit("resolve_ref", ((IdentExpr) assign.target).name);
+                assembler.emit("push_eax");
+                compileExpr(assign.value);
+                assembler.emit("assign_ref", ((IdentExpr) assign.target).name);
+                assembler.emit("pop");
             } else {
                 compileExpr(assign.target, true);
                 assembler.emit("push_eax");

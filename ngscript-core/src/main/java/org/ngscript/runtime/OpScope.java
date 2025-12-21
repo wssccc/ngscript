@@ -18,6 +18,7 @@ package org.ngscript.runtime;
 
 import org.ngscript.value.LetBinding;
 import org.ngscript.value.MemRef;
+import org.ngscript.value.Undefined;
 
 /**
  * Scope-write opcodes: declarations and assignments against the active frame.
@@ -63,5 +64,64 @@ public class OpScope {
         Object[] objs = OpUtils.get2OpParam(vm);
         ((MemRef) objs[0]).write(objs[1]);
         vm.eax.write(objs[1]);
+    }
+
+    /**
+     * Resolves an assignment target reference without reading it: eax gets
+     * the binding's MemRef, or the undefined marker when the name is
+     * undeclared (the implicit global is only created by
+     * {@link #assign_ref}, after the right-hand side has evaluated, so
+     * {@code x = x} on an undeclared x throws from the RHS read and a
+     * direct eval declaring x in the meantime does not capture the
+     * already-resolved reference).
+     */
+    public static void resolve_ref(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        try {
+            vm.eax.write(vm.lookup(param));
+        } catch (NgScriptRuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().endsWith(" is not declared")) {
+                vm.eax.write(Undefined.value);
+                return;
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Stores eax into the reference resolved by {@link #resolve_ref} (on
+     * the stack top): a MemRef is written through; the undefined marker
+     * creates an implicit global binding (sloppy-mode assignment).
+     */
+    public static void assign_ref(Machine vm, String param, String param_extend) {
+        Object val = vm.eax.read();
+        Object ref = vm.stack.peek(0);
+        if (ref instanceof MemRef) {
+            ((MemRef) ref).write(val);
+        } else {
+            ((NgsObject) vm.env.read()).rootFrame().putRef(param, new MemRef(val));
+        }
+        vm.eax.write(val);
+    }
+
+    /**
+     * Assigns eax to the named binding, creating an implicit global when
+     * the name is undeclared (sloppy-mode assignment). Unlike the
+     * reference-load path this does not read the target first, so the
+     * right-hand side is evaluated before any binding is created
+     * ({@code x = x} on an undeclared x throws from the RHS read).
+     */
+    public static void assign_or_create(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object val = vm.eax.read();
+        try {
+            MemRef ref = vm.lookup(param);
+            ref.write(val);
+        } catch (NgScriptRuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().endsWith(" is not declared")) {
+                ((NgsObject) vm.env.read()).rootFrame().putRef(param, new MemRef(val));
+            } else {
+                throw e;
+            }
+        }
+        vm.eax.write(val);
     }
 }
