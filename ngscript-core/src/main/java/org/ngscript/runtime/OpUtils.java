@@ -57,6 +57,16 @@ public class OpUtils {
      * objects go through the ES @@iterator protocol.
      */
     public static Object getIterator(Machine vm, Object iterable) throws Exception {
+        if (iterable instanceof NgsArray) {
+            // ES: GetMethod(iterable, @@iterator). The array itself is a
+            // java.util.Iterator, but deleting Array.prototype[@@iterator]
+            // must make it non-iterable, so go through the protocol
+            Object method = getMember(vm, iterable, "@@iterator");
+            if (method == null || method == Undefined.value) {
+                throw new IllegalArgumentException("value is not iterable");
+            }
+            return callValue(vm, method, iterable, new Object[0]);
+        }
         if (iterable instanceof java.util.Iterator) {
             return iterable;
         }

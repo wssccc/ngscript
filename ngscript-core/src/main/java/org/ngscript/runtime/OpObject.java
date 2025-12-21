@@ -402,7 +402,8 @@ public class OpObject {
     public static void delete_op(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
         Object obj = objs[0];
-        String key = objs[1].toString();
+        // symbol keys canonicalize to their internal form (@@iterator etc.)
+        String key = OpArray.keyString(objs[1]);
         if (obj instanceof ProxyValue) {
             try {
                 vm.eax.write(((ProxyValue) obj).proxyDelete(vm, key) ? 1 : 0);
