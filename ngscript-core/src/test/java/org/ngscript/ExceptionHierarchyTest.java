@@ -52,8 +52,9 @@ public class ExceptionHierarchyTest {
     @Test
     public void compileErrorIsNgScriptException() {
         try {
-            // with parses fine but is not compiled yet
-            new NgScriptEngine().eval("with (o) { x = 1; }");
+            // `with` parses and compiles; a genuinely unsupported construct
+            // (dynamic import) still raises a CompilerException
+            new NgScriptEngine().eval("import('x');");
             fail("expected CompilerException");
         } catch (NgScriptException e) {
             assertTrue("should be a CompilerException", e instanceof CompilerException);

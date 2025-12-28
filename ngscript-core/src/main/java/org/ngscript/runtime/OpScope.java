@@ -51,6 +51,20 @@ public class OpScope {
         vm.env.write(new NgsObject(current));
     }
 
+    /**
+     * Pushes a {@code with (obj)} scope: the object's own properties (and
+     * its [[Prototype]] chain) shadow the outer chain for variable lookups;
+     * absent properties fall through to the outer environment. Writes to
+     * present properties land on the object's own references.
+     */
+    public static void enter_with(Machine vm, String param, String param_extend) {
+        NgsObject current = (NgsObject) vm.env.read();
+        Object obj = vm.eax.read();
+        vm.env.write(obj instanceof NgsObject
+                ? new org.ngscript.runtime.NgsObject.WithFrame(current, (NgsObject) obj)
+                : new NgsObject(current));
+    }
+
     /** Pops the active block scope off the environment chain. */
     public static void leave_block(Machine vm, String param, String param_extend) {
         vm.env.write(((NgsObject) vm.env.read()).getParent());

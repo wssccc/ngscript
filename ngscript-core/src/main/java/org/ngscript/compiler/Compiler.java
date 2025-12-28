@@ -407,8 +407,20 @@ public class Compiler {
         } else if (stmt instanceof GoStmt) {
             compileGo((GoStmt) stmt);
         } else if (stmt instanceof WithStmt) {
-            // parsed for conformance; semantics arrive with the environment rework
-            throw compileError("with statement is not supported yet");
+            // with (obj) { body }: the object's properties shadow the outer
+            // scope for lookups; writes to present properties land on the
+            // object, absent ones fall through to the outer chain
+            WithStmt with = (WithStmt) stmt;
+            compileExpr(with.object);
+            assembler.emit("enter_with");
+            if (with.body instanceof Block) {
+                // a block body is compiled with its own block-frame
+                // bookkeeping; leave_block below pops the with frame
+                compileStmt(with.body);
+            } else {
+                compileStmt(with.body);
+            }
+            assembler.emit("leave_block");
         } else {
             throw compileError("Unknown statement " + stmt);
         }

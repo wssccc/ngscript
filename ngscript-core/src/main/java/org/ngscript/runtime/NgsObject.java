@@ -312,6 +312,35 @@ public class NgsObject implements Scope {
     }
 
     /**
+     * A {@code with (obj)} scope frame: variable lookups consult the
+     * object's own data and its [[Prototype]] chain first, then fall
+     * through to the outer environment. The frame itself stays empty, so
+     * assignments to absent properties never write into the object.
+     */
+    public static class WithFrame extends NgsObject {
+
+        private final NgsObject object;
+
+        public WithFrame(NgsObject parent, NgsObject object) {
+            super(parent);
+            this.object = object;
+        }
+
+        @Override
+        public MemRef lookup(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {
+            NgsObject p = object;
+            while (p != null) {
+                MemRef ref = p.getRef(member);
+                if (ref != null) {
+                    return ref;
+                }
+                p = p.getPrototype();
+            }
+            return super.lookup(member, vm, isMember);
+        }
+    }
+
+    /**
      * Binds a {@code var} declaration (or a parameter): the binding goes to
      * the nearest enclosing function scope, skipping any block frames.
      */
