@@ -24,7 +24,6 @@ import static org.junit.Assert.fail;
 import org.junit.Test;
 import org.ngscript.api.NgScriptEngine;
 import org.ngscript.api.NgScriptException;
-import org.ngscript.compiler.CompilerException;
 import org.ngscript.parser.ParserException;
 import org.ngscript.runtime.NgScriptRuntimeException;
 
@@ -53,11 +52,11 @@ public class ExceptionHierarchyTest {
     public void compileErrorIsNgScriptException() {
         try {
             // `with` parses and compiles; a genuinely unsupported construct
-            // (dynamic import) still raises a CompilerException
+            // (dynamic import) still raises a ParserException
             new NgScriptEngine().eval("import('x');");
-            fail("expected CompilerException");
+            fail("expected ParserException");
         } catch (NgScriptException e) {
-            assertTrue("should be a CompilerException", e instanceof CompilerException);
+            assertTrue("should be a ParserException", e instanceof ParserException);
         }
     }
 
