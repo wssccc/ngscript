@@ -838,7 +838,10 @@ public class NgParser {
             asyncDepth = isAsync ? 1 : 0;
             try {
                 Block body = parseBlock();
-                boolean isCtor = mname != null && mname.value.equals("constructor")
+                // keyword tokens (break/if/...) have a null value: only a
+                // real ident token can be `constructor`
+                boolean isCtor = mname != null && mname.value != null
+                        && mname.value.equals("constructor")
                         && !isStatic && !isGenerator && !isAsync;
                 methods.add(new ClassExpr.MethodDef(
                         mname == null ? null : tokenName(mname), params, body,
