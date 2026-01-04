@@ -134,6 +134,18 @@ public class OpObject {
                 return;
             }
         }
+        if (objs[0] instanceof Invokable) {
+            // native callables get the generic call/apply/bind placeholders
+            // (the runtime this binding is the target when invoked), so
+            // Object.prototype.hasOwnProperty.call(obj, k) chains
+            if ("call".equals(member) || "apply".equals(member) || "bind".equals(member)) {
+                ScriptFunction generic = new ScriptFunction(null, null, vm);
+                generic.placeholder = true;
+                generic.callMode = member;
+                vm.eax.write(new MemRef(generic));
+                return;
+            }
+        }
         if (objs[0] instanceof org.ngscript.builtins.ArrayCtor) {
             MemRef ref = org.ngscript.builtins.ArrayCtor.lookup(
                     (org.ngscript.builtins.ArrayCtor) objs[0], member, vm);
