@@ -26,6 +26,9 @@ import org.ngscript.api.Source;
  */
 public class NgScriptRuntimeException extends NgScriptException {
 
+    /** The JS error object (if any) that produced this exception; used for diagnostics. */
+    private transient Object jsError;
+
     public NgScriptRuntimeException(String message) {
         super(message);
     }
@@ -35,7 +38,17 @@ public class NgScriptRuntimeException extends NgScriptException {
     }
 
     public NgScriptRuntimeException(Machine vm, String message) {
+        this(vm, message, null);
+    }
+
+    public NgScriptRuntimeException(Machine vm, String message, Object jsError) {
         super(genInfoString(vm, message), sourceFromHints(vm));
+        this.jsError = jsError;
+    }
+
+    /** The JS error object that produced this exception, or null. */
+    public Object getJsError() {
+        return jsError;
     }
 
     @Override

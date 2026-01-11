@@ -294,6 +294,16 @@ public class OpControlFlow {
         throw new NgScriptRuntimeException(vm, "yield* outside a generator");
     }
 
+    /**
+     * Marker at the end of a generator function's parameter-binding
+     * prefix. The {@code Generator} executes this prefix synchronously at
+     * call time (destructuring/defaults may throw before any next()); the
+     * body starts only on the first next(). A no-op when reached normally.
+     */
+    public static void gen_body_enter(Machine vm, String param, String param_extend) {
+        // nothing to do: the marker is consumed by Generator.bindParams()
+    }
+
     public static void go(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         // the go body shares the vm stack, so it must run synchronously on the current thread:
         // save the current position, jump into the go body and run until it halts, then resume.

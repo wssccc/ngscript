@@ -221,8 +221,12 @@ public class OpCall {
                     throw new IllegalArgumentException(
                             (c.name == null ? "" : c.name + " ") + "is not a constructor");
                 }
-                // a generator call returns an iterator without running the body
-                vm.eax.write(new Generator(vm, c, args));
+                // a generator call binds parameters synchronously (ES:
+                // FunctionDeclarationInstantiation at call time), then
+                // returns an iterator without running the body
+                Generator g = new Generator(vm, c, args);
+                g.bindParams();
+                vm.eax.write(g);
                 return;
             }
             if (c.async) {
@@ -390,7 +394,7 @@ public class OpCall {
             } else if (ex instanceof Throwable) {
                 throw new NgScriptRuntimeException((Throwable) ex);
             } else {
-                throw new NgScriptRuntimeException(vm, ex.toString());
+                throw new NgScriptRuntimeException(vm, ex.toString(), ex);
             }
         } else {
             Context ms = vm.machineStateStack.pop();

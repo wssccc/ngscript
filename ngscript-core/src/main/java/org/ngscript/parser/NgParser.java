@@ -803,10 +803,16 @@ public class NgParser {
                 next();
             }
             // a field declaration: `name = init`, `name;` or the class body
-            // closes right after the name ([expr] = init for computed keys)
+            // closes right after the name ([expr] = init for computed keys);
+            // ASI also terminates the field when the next token is on a new
+            // line (e.g. `m() {} a` then `b = 1` on the next line), unless
+            // the next token starts a method (`name(`)
             Token after = peek();
-            if (after != null && (after.type.equals("assign")
-                    || after.type.equals("semicolon") || after.type.equals("rcurly"))) {
+            boolean methodFollows = after != null && after.type.equals("lparen");
+            if (after != null && !methodFollows
+                    && (after.type.equals("assign")
+                            || after.type.equals("semicolon") || after.type.equals("rcurly")
+                            || atLineBreakAfter(kw.line))) {
                 if (isGenerator || isAsync) {
                     throw new ParserException("generator/async fields are not allowed",
                             new org.ngscript.api.Source(null, kw.line));

@@ -134,6 +134,8 @@ public class ScriptFunction {
             prototype = new NgsObject(null);
             // the constructor's prototype links to Object.prototype
             prototype.setPrototype(vm.objectPrototype);
+            // ES: F.prototype.constructor === F
+            prototype.set("constructor", this);
         }
         return prototype;
     }

@@ -427,7 +427,7 @@ public class Compiler {
     }
 
     private void compileFunctionDecl(FunctionDecl decl) throws CompilerException {
-        String enter = _compile_function_body(decl.params, decl.body);
+        String enter = _compile_function_body(decl.params, decl.body, decl.generator || decl.async);
         String exitLabel = exitLabelFor(enter);
         if (decl.generator) {
             assembler.instructions.add(0, new Instruction("static_func_gen", decl.name, enter + "|exit:" + exitLabel));
@@ -500,6 +500,10 @@ public class Compiler {
     }
 
     private String _compile_function_body(Params params, Block body) throws CompilerException {
+        return _compile_function_body(params, body, false);
+    }
+
+    private String _compile_function_body(Params params, Block body, boolean generatorBody) throws CompilerException {
         String exit = assembler.label("func_exit", body);
         String enter = assembler.label("func_enter", body);
         emitJump(exit);
@@ -563,6 +567,13 @@ public class Compiler {
             assembler.emit("rest_args", "0");
             assembler.emit("bind_callee");
             assembler.emit("set", "arguments", "%eax");
+            if (generatorBody) {
+                // parameter binding (including destructuring/defaults) runs
+                // synchronously at generator call time; the body starts only
+                // on the first next(). This marker lets the Generator bind
+                // parameters without running the body.
+                assembler.emit("gen_body_enter");
+            }
             compileBlock(body);
             //default return void (pop any open block frames first)
             while (blockDepth > 0) {
@@ -856,7 +867,7 @@ public class Compiler {
                         Collections.singletonList(new ReturnStmt(lambda.bodyExpr, lambda.line)),
                         lambda.line);
             }
-            String enter = _compile_function_body(lambda.params, body);
+            String enter = _compile_function_body(lambda.params, body, lambda.generator);
             String marker = lambda.async ? (lambda.isArrow ? "4" : "3")
                     : (lambda.isArrow ? "1" : (lambda.generator ? "2" : "0"));
             String exitLabel = exitLabelFor(enter);
@@ -1951,7 +1962,7 @@ public class Compiler {
             // accessor methods: [proto, key]; the key string stays on the
             // stack for accessor_define (no member reference is needed)
             assembler.emit("push_eax");
-            String enter = _compile_function_body(m.params, m.body);
+            String enter = _compile_function_body(m.params, m.body, m.generator);
             assembler.emit("new_closure", enter, marker);
             assembler.emit("set_func_meta", functionLength(m.params) + "",
                     m.name == null ? "" : m.name);
@@ -1960,7 +1971,7 @@ public class Compiler {
         }
         assembler.emit("own_member_ref");
         assembler.emit("push_eax");
-        String enter = _compile_function_body(m.params, m.body);
+        String enter = _compile_function_body(m.params, m.body, m.generator);
         assembler.emit("new_closure", enter, marker);
         assembler.emit("set_func_meta", functionLength(m.params) + "",
                 m.name == null ? "" : m.name);

@@ -23,6 +23,7 @@ import org.ngscript.value.MemRef;
 import org.ngscript.value.RegExpValue;
 import org.ngscript.value.ScriptFunction;
 import org.ngscript.value.Undefined;
+import org.ngscript.api.NgScriptException;
 
 /**
  * Object opcodes: literal construction, member access, closures,
@@ -279,6 +280,12 @@ public class OpObject {
                 vm.eax.write(new MemRef(errorName((Throwable) objs[0])));
                 return;
             }
+            if (objs[0] instanceof Throwable && member.equals("constructor")) {
+                // ES: thrown.constructor === TypeError/... — map the Java
+                // exception class back to the ES error constructor
+                vm.eax.write(new MemRef(errorCtor((Throwable) objs[0])));
+                return;
+            }
             String getterName = "get" + Character.toUpperCase(member.charAt(0)) + member.substring(1);
             if (!getterName.equals(member)) {
                 Object getter = NgsObject.lookupNative(objs[0], getterName, vm);
@@ -314,6 +321,12 @@ public class OpObject {
 
     /** The ES error name for the Java exception class mapping. */
     private static String errorName(Throwable t) {
+        if (t instanceof org.ngscript.runtime.NgScriptRuntimeException
+                || t instanceof NgScriptException) {
+            // VM-internal errors (unresolvable reference, bad member
+            // access, ...) surface as ReferenceError to script code
+            return "ReferenceError";
+        }
         if (t instanceof IllegalArgumentException) {
             return "TypeError";
         }
@@ -327,6 +340,29 @@ public class OpObject {
             return "URIError";
         }
         return t.getClass().getSimpleName();
+    }
+
+    /** The ES error constructor class for the Java exception class mapping. */
+    private static Class<?> errorCtor(Throwable t) {
+        if (t instanceof IllegalArgumentException) {
+            return IllegalArgumentException.class;
+        }
+        if (t instanceof IndexOutOfBoundsException) {
+            return IndexOutOfBoundsException.class;
+        }
+        if (t instanceof IllegalStateException) {
+            return IllegalStateException.class;
+        }
+        if (t instanceof java.net.URISyntaxException) {
+            return java.net.URISyntaxException.class;
+        }
+        if (t instanceof RuntimeException) {
+            return RuntimeException.class;
+        }
+        if (t instanceof Error) {
+            return Error.class;
+        }
+        return t.getClass();
     }
 
     /**
@@ -1013,6 +1049,11 @@ public class OpObject {
         if (obj instanceof NgsObject || obj instanceof NgsArray || obj instanceof RegExpValue) {
             // ES: objects report "object" (foreign Java classes keep their
             // qualified name for the interop extension)
+            vm.eax.write("object");
+            return;
+        }
+        if (obj instanceof Throwable) {
+            // thrown Java exceptions surface as ordinary error objects
             vm.eax.write("object");
             return;
         }

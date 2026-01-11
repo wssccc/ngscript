@@ -162,6 +162,86 @@ public class Generator extends NgsObject {
         vm.setEip(vm.labels.get(fn.functionLabel));
     }
 
+    /**
+     * Runs the parameter-binding prefix of the generator body at call time
+     * (ES: FunctionDeclarationInstantiation happens when the generator is
+     * called; only the body is deferred to next()). Stops at the
+     * {@code gen_body_enter} marker, leaving the machine in the caller's
+     * state with the frame recorded for the first next(). A throw during
+     * binding propagates to the caller (the frame is stripped).
+     */
+    public void bindParams() throws NgScriptRuntimeException {
+        callerEip = vm.getEip();
+        callerStackSize = vm.stack.size();
+        callerEnv = (NgsObject) vm.env.read();
+        vm.callstack.push(fn);
+        fn.savedThis = vm.thisRef.read();
+        NgsObject frame = new NgsObject((NgsObject) fn.environment);
+        frame.functionScope = true;
+        frame.set("%generator", this);
+        genEnv = frame;
+        vm.env.write(frame);
+        vm.stack.push(null); // receiver
+        vm.stack.push(fn);   // func
+        vm.stack.push(args); // args
+        vm.stack.push(frame); // env
+        vm.stack.push(-1);    // return address: the halt sentinel
+        Integer nipObj = vm.labels.get(fn.functionLabel);
+        vm.setEip(nipObj == null ? 0 : nipObj);
+        boolean bound = false;
+        while (true) {
+            int eip = vm.getEip();
+            if (eip < 0 || eip >= vm.instructions.length) {
+                break;
+            }
+            vm.setEip(eip + 1);
+            try {
+                org.ngscript.runtime.opcache.OpBinding ins = vm.instructions[eip];
+                if (ins.op.equals("gen_body_enter")) {
+                    // parameters are bound: record the resume point and the
+                    // frame for the first next(), then restore the caller
+                    bound = true;
+                    resumeEip = vm.getEip();
+                    int n = vm.stack.size() - callerStackSize;
+                    frameSlot = new Object[n];
+                    for (int i = n - 1; i >= 0; i--) {
+                        frameSlot[i] = vm.stack.pop();
+                    }
+                    break;
+                }
+                ins.invoke(vm);
+            } catch (Throwable ex) {
+                // a throw during parameter binding: route it through the
+                // enclosing JS try/catch (restore_machine_state), or strip
+                // the frame and propagate to the caller
+                try {
+                    vm.exception.write(ex);
+                    OpCall.restore_machine_state(vm, null, null);
+                } catch (NgScriptRuntimeException re) {
+                    closed = true;
+                    yielded = false;
+                    vm.setEip(callerEip);
+                    vm.env.write(callerEnv);
+                    while (vm.stack.size() > callerStackSize) {
+                        vm.stack.pop();
+                    }
+                    throw re;
+                }
+                // a JS try/catch handled it: the machine state (eip, env,
+                // stack) has been restored to the catch site; the frame was
+                // already popped by restore. Return without touching state.
+                return;
+            }
+        }
+        if (bound) {
+            vm.setEip(callerEip);
+            vm.env.write(callerEnv);
+            while (vm.stack.size() > callerStackSize) {
+                vm.stack.pop();
+            }
+        }
+    }
+
     /** Restores the suspended frame; {@code sent} becomes the yield value. */
     private void resume(Object sent) throws Exception {
         callerEip = vm.getEip();

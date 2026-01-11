@@ -42,7 +42,8 @@ public class OpUtils {
             return ((NgsObject) obj).lookup(key, vm, true).read();
         }
         if (obj == null || obj == Undefined.value) {
-            throw new NgScriptRuntimeException(vm, "cannot read property '" + key + "' of null/undefined");
+            // ES: reading a property of null/undefined is a TypeError
+            throw new IllegalArgumentException("cannot read property '" + key + "' of null/undefined");
         }
         Object v = NgsObject._lookupNative(obj, obj.getClass(), key, vm);
         if (v instanceof MemRef) {

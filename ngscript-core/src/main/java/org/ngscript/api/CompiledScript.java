@@ -19,8 +19,8 @@ package org.ngscript.api;
 import java.util.List;
 
 import org.ngscript.bytecode.Instruction;
-import org.ngscript.runtime.NgsObject;
 import org.ngscript.runtime.Machine;
+import org.ngscript.runtime.NgsObject;
 import org.ngscript.runtime.opcache.OpBinding;
 
 /**
