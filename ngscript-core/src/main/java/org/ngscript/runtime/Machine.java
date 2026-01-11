@@ -419,7 +419,7 @@ public class Machine {
             } else {
                 thisRef.write(c.arrow
                         ? (c.capturedThis != null ? c.capturedThis : Undefined.value)
-                        : (receiver != null ? receiver : Undefined.value));
+                        : (receiver != null ? receiver : Machine.globalThis));
             }
             stack.push(receiver != null ? receiver : null);
             stack.push(c);

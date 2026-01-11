@@ -59,6 +59,8 @@ public class CompiledScript implements Script {
             // declarations bind here rather than to the builtins baseline
             ((NgsObject) machine.env.read()).functionScope = true;
             machine.resetForExecution();
+            // top-level `this` is the global object (restored afterwards)
+            machine.thisRef.write(Machine.globalThis);
             machine.run();
             return machine.eax.read();
         } finally {
