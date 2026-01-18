@@ -46,12 +46,18 @@ public class Generator extends NgsObject {
     private boolean delegating;
     private Object delegate;
     private Object lastResult;
+    private final Object receiver;
 
     public Generator(Machine vm, ScriptFunction fn, Object[] args) {
+        this(vm, fn, args, null);
+    }
+
+    public Generator(Machine vm, ScriptFunction fn, Object[] args, Object receiver) {
         super((NgsObject) fn.environment);
         this.vm = vm;
         this.fn = fn;
         this.args = args;
+        this.receiver = receiver;
         setPrototype(vm.objectPrototype);
         set("next", (Invokable) (m, a) ->
                 m.eax.write(nextResult(a != null && a.length > 0 ? a[0] : Undefined.value)));
@@ -149,12 +155,17 @@ public class Generator extends NgsObject {
         callerEnv = (NgsObject) vm.env.read();
         vm.callstack.push(fn);
         fn.savedThis = vm.thisRef.read();
+        // the generator body sees the call-time receiver as this (arrows
+        // keep their lexical this via capturedThis)
+        vm.thisRef.write(fn.arrow
+                ? (fn.capturedThis != null ? fn.capturedThis : Undefined.value)
+                : (receiver != null ? receiver : Undefined.value));
         NgsObject frame = new NgsObject((NgsObject) fn.environment);
         frame.functionScope = true;
         frame.set("%generator", this);
         genEnv = frame;
         vm.env.write(frame);
-        vm.stack.push(null); // receiver
+        vm.stack.push(receiver); // receiver
         vm.stack.push(fn);   // func
         vm.stack.push(args); // args
         vm.stack.push(frame); // env
@@ -176,12 +187,17 @@ public class Generator extends NgsObject {
         callerEnv = (NgsObject) vm.env.read();
         vm.callstack.push(fn);
         fn.savedThis = vm.thisRef.read();
+        // the generator body sees the call-time receiver as this (arrows
+        // keep their lexical this via capturedThis)
+        vm.thisRef.write(fn.arrow
+                ? (fn.capturedThis != null ? fn.capturedThis : Undefined.value)
+                : (receiver != null ? receiver : Undefined.value));
         NgsObject frame = new NgsObject((NgsObject) fn.environment);
         frame.functionScope = true;
         frame.set("%generator", this);
         genEnv = frame;
         vm.env.write(frame);
-        vm.stack.push(null); // receiver
+        vm.stack.push(receiver); // receiver
         vm.stack.push(fn);   // func
         vm.stack.push(args); // args
         vm.stack.push(frame); // env
@@ -248,6 +264,11 @@ public class Generator extends NgsObject {
         callerStackSize = vm.stack.size();
         callerEnv = (NgsObject) vm.env.read();
         vm.callstack.push(fn);
+        // the generator body keeps the call-time receiver as this across
+        // suspensions (next()/return() must not rebind it)
+        vm.thisRef.write(fn.arrow
+                ? (fn.capturedThis != null ? fn.capturedThis : Undefined.value)
+                : (receiver != null ? receiver : Undefined.value));
         vm.env.write(genEnv);
         for (Object slot : frameSlot) {
             vm.stack.push(slot);

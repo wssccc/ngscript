@@ -224,7 +224,8 @@ public class OpCall {
                 // a generator call binds parameters synchronously (ES:
                 // FunctionDeclarationInstantiation at call time), then
                 // returns an iterator without running the body
-                Generator g = new Generator(vm, c, args);
+                Generator g = new Generator(vm, c, args,
+                        receiver == NEW_RECEIVER ? null : receiver);
                 g.bindParams();
                 vm.eax.write(g);
                 return;

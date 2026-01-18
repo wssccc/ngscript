@@ -44,6 +44,44 @@ public class NgsObject implements Scope {
     private NgsObject parent;
 
     /**
+     * Property names made non-configurable via Object.defineProperty
+     * ({configurable: false}): delete returns false for them.
+     */
+    private java.util.Set<String> nonConfigurable;
+
+    /**
+     * Property names made non-writable via Object.defineProperty
+     * ({writable: false}): script writes are silently ignored (sloppy).
+     */
+    private java.util.Set<String> nonWritable;
+
+    /** Marks an own property as non-configurable (delete returns false). */
+    public void markNonConfigurable(String name) {
+        if (nonConfigurable == null) {
+            nonConfigurable = new java.util.HashSet<>();
+        }
+        nonConfigurable.add(name);
+    }
+
+    /** Whether an own property was marked non-configurable. */
+    public boolean isNonConfigurable(String name) {
+        return nonConfigurable != null && nonConfigurable.contains(name);
+    }
+
+    /** Marks an own property as non-writable (writes are ignored). */
+    public void markNonWritable(String name) {
+        if (nonWritable == null) {
+            nonWritable = new java.util.HashSet<>();
+        }
+        nonWritable.add(name);
+    }
+
+    /** Whether a script write to this own property is ignored. */
+    public boolean isNonWritable(String name) {
+        return nonWritable != null && nonWritable.contains(name);
+    }
+
+    /**
      * The [[Prototype]] chain for property access (distinct from the lexical
      * parent chain used for variable lookup).
      */
@@ -224,9 +262,13 @@ public class NgsObject implements Scope {
     }
 
     /**
-     * Removes an own property; returns false when it did not exist.
+     * Removes an own property; returns false when it did not exist or when
+     * the property is non-configurable.
      */
     public boolean remove(String key) {
+        if (nonConfigurable != null && nonConfigurable.contains(key)) {
+            return false;
+        }
         return data.remove(key) != null;
     }
 
@@ -279,6 +321,18 @@ public class NgsObject implements Scope {
                 }
                 MemRef ref = data.get(member);
                 if (ref != null) {
+                    if (isNonWritable(member)) {
+                        // non-writable property (defineProperty writable:
+                        // false): script writes are silently ignored
+                        // (sloppy mode); reads pass through
+                        final MemRef inner = ref;
+                        return new MemRef(inner.read()) {
+                            @Override
+                            public void write(Object v) {
+                                // ignore the write
+                            }
+                        };
+                    }
                     return ref;
                 } else {
                     ref = lookupEnv(member, vm, isMember);

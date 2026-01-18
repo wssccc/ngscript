@@ -98,6 +98,11 @@ public class OpArray {
                 vm.eax.write(ref);
                 return;
             }
+            ref = org.ngscript.runtime.OpObject.objectProtoMember(member);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
             vm.eax.write(new MemRef(Undefined.value));
             return;
         }

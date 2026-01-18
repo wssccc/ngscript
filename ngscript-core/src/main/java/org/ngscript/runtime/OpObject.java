@@ -126,6 +126,14 @@ public class OpObject {
                 vm.eax.write(ref);
                 return;
             }
+            // functions inherit Object.prototype methods (hasOwnProperty,
+            // toString, valueOf, isPrototypeOf) through Function.prototype
+            // -> Object.prototype
+            ref = objectProtoMember(member);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
         }
         if (objs[0] instanceof org.ngscript.builtins.ObjectCtor) {
             MemRef ref = org.ngscript.builtins.ObjectCtor.lookup(
@@ -391,6 +399,24 @@ public class OpObject {
         }
     }
 
+    /**
+     * Object.prototype methods reachable on functions (functions inherit
+     * through Function.prototype -> Object.prototype). The generic
+     * implementations live in {@link org.ngscript.builtins.ObjectProto} but
+     * are re-registered here against the shared prototype object.
+     */
+    public static MemRef objectProtoMember(String member) {
+        if (!"hasOwnProperty".equals(member) && !"toString".equals(member)
+                && !"valueOf".equals(member) && !"isPrototypeOf".equals(member)) {
+            return null;
+        }
+        Object v = org.ngscript.builtins.Builtins.getObjectPrototype().get(member);
+        if (v == null) {
+            return null;
+        }
+        return new MemRef(v);
+    }
+
     /** Splits "enter|exit:label" into {enter, exitLabel}. */
     private static String[] splitEnter(String paramExtend) {
         if (paramExtend != null && paramExtend.contains("|")) {
@@ -454,17 +480,17 @@ public class OpObject {
         String key = OpArray.keyString(objs[1]);
         if (obj instanceof ProxyValue) {
             try {
-                vm.eax.write(((ProxyValue) obj).proxyDelete(vm, key) ? 1 : 0);
+                vm.eax.write(((ProxyValue) obj).proxyDelete(vm, key) ? Boolean.TRUE : Boolean.FALSE);
             } catch (Exception e) {
                 throw new NgScriptRuntimeException(vm, e.getMessage() == null
                         ? e.toString() : e.getMessage());
             }
         } else if (obj instanceof NgsObject) {
-            vm.eax.write(((NgsObject) obj).remove(key) ? 1 : 0);
+            vm.eax.write(((NgsObject) obj).remove(key) ? Boolean.TRUE : Boolean.FALSE);
         } else if (obj instanceof NgsArray) {
-            vm.eax.write(((NgsArray) obj).remove(key) ? 1 : 0);
+            vm.eax.write(((NgsArray) obj).remove(key) ? Boolean.TRUE : Boolean.FALSE);
         } else {
-            vm.eax.write(1); // deleting a property of a host object: treat as success
+            vm.eax.write(Boolean.TRUE); // deleting a property of a host object: treat as success
         }
     }
 

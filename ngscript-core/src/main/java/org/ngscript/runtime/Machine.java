@@ -490,6 +490,14 @@ public class Machine {
                                          Object savedThis, NgsObject savedEnv) throws Exception {
         if (callee instanceof ScriptFunction) {
             ScriptFunction c = (ScriptFunction) callee;
+            if (c.generator) {
+                // a generator called from a builtin path (Function.prototype
+                // call/apply, iterator callbacks): return an iterator without
+                // running the body; parameters bind synchronously
+                Generator g = new Generator(this, c, args, receiver);
+                g.bindParams();
+                return g;
+            }
             callstack.push(c);
             NgsObject frame = new NgsObject((NgsObject) c.environment);
             frame.functionScope = true;

@@ -186,7 +186,16 @@ public class ObjectCtor implements Invokable {
                                     setter instanceof org.ngscript.value.Invokable
                                             || setter instanceof org.ngscript.value.ScriptFunction ? setter : null);
                         } else if (d.get("value") != null) {
-                            o.set(name, d.get("value"));
+                            // writing a value keeps the arguments mapping
+                            // (ES: DefineOwnProperty on a mapped property
+                            // writes through to the parameter); only
+                            // writable:false removes the mapping
+                            MemRef existing = o.getRef(name);
+                            if (existing != null) {
+                                existing.write(d.get("value"));
+                            } else {
+                                o.set(name, d.get("value"));
+                            }
                         } else if (d.has("writable") && Boolean.FALSE.equals(d.get("writable"))) {
                             // making the property non-writable removes the
                             // arguments mapping (configurable:false alone
@@ -196,6 +205,11 @@ public class ObjectCtor implements Invokable {
                             if (existing != null) {
                                 o.set(name, existing.read());
                             }
+                            o.markNonWritable(name);
+                        }
+                        if (Boolean.FALSE.equals(d.get("configurable"))) {
+                            // delete on a non-configurable property fails
+                            o.markNonConfigurable(name);
                         }
                     }
                     vm2.eax.write(o);
