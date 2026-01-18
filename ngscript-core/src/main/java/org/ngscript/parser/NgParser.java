@@ -2383,6 +2383,47 @@ public class NgParser {
 
     private Kvp parseKvp() throws ParserException {
         Token name = peek();
+        // async methods: { async m() {} } / { async *m() {} } (the async
+        // keyword is only a method modifier when a method follows)
+        if (name != null && name.type.equals("ident") && "async".equals(name.value)) {
+            Token second = peekN(2);
+            boolean star = second != null && second.type.equals("mul");
+            Token mname = star ? peekN(3) : second;
+            boolean mnameOk = mname != null
+                    && (isKeyName(mname.type) || mname.type.equals("string")
+                            || mname.type.equals("integer") || mname.type.equals("double"));
+            Token after = mnameOk ? peekN(star ? 4 : 3) : null;
+            if (after != null && after.type.equals("lparen")) {
+                // { async m() {} } / { async *m() {} }
+                next(); // async
+                if (star) {
+                    next(); // *
+                }
+                Token key = next(); // method name
+                expect("lparen");
+                Params params = parseParamList();
+                expect("rparen");
+                ++functionDepth;
+                int savedGen = generatorDepth;
+                int savedAsync = asyncDepth;
+                if (star) {
+                    ++generatorDepth;
+                }
+                asyncDepth = 1;
+                try {
+                    Block body = parseBlock();
+                    LambdaExpr lambda = new LambdaExpr(
+                            key == null ? null : tokenName(key), params, body, name.line);
+                    lambda.async = true;
+                    lambda.generator = star;
+                    return new Kvp(tokenName(key), lambda, name.line);
+                } finally {
+                    --functionDepth;
+                    generatorDepth = savedGen;
+                    asyncDepth = savedAsync;
+                }
+            }
+        }
         // computed property names: { [expr]: value } / { [expr]() {} }
         if (name != null && name.type.equals("lsqr")) {
             next();

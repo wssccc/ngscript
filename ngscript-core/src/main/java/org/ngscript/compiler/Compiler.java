@@ -299,6 +299,11 @@ public class Compiler {
             if (stmt instanceof ExprStmt && ((ExprStmt) stmt).expr instanceof LetDeclExpr) {
                 return true;
             }
+            if (stmt instanceof FunctionDecl) {
+                // block-scoped function declarations need a block frame to
+                // hold their binding ({ function f() {} } does not leak f)
+                return true;
+            }
         }
         return false;
     }
@@ -429,6 +434,17 @@ public class Compiler {
     private void compileFunctionDecl(FunctionDecl decl) throws CompilerException {
         String enter = _compile_function_body(decl.params, decl.body, decl.generator || decl.async);
         String exitLabel = exitLabelFor(enter);
+        if (blockDepth > 0) {
+            // block-scoped function declaration ({ function f() {} }): the
+            // binding belongs to the block frame, not the function scope
+            // (ES2015+ semantics; strict and sloppy both block-scope it)
+            String marker = decl.generator ? "2" : (decl.async ? "3" : "0");
+            assembler.emit("new_closure", enter, marker + "|exit:" + exitLabel);
+            assembler.emit("set_func_meta", functionLength(decl.params) + "", decl.name);
+            assembler.emit("decl_let", decl.name, "0");
+            emitAssignToName(decl.name);
+            return;
+        }
         if (decl.generator) {
             assembler.instructions.add(0, new Instruction("static_func_gen", decl.name, enter + "|exit:" + exitLabel));
         } else if (decl.async) {
@@ -868,7 +884,8 @@ public class Compiler {
                         lambda.line);
             }
             String enter = _compile_function_body(lambda.params, body, lambda.generator);
-            String marker = lambda.async ? (lambda.isArrow ? "4" : "3")
+            String marker = lambda.async
+                    ? (lambda.generator ? "5" : (lambda.isArrow ? "4" : "3"))
                     : (lambda.isArrow ? "1" : (lambda.generator ? "2" : "0"));
             String exitLabel = exitLabelFor(enter);
             assembler.emit("new_closure", enter, marker + "|exit:" + exitLabel);
