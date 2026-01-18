@@ -129,6 +129,39 @@ public class ScriptFunction {
         this.vm = vm;
     }
 
+    /**
+     * ES Function.prototype.toString approximation: a stable source-like
+     * text used when a function is coerced to a string (computed property
+     * keys, template strings). The engine has no retained source text, so
+     * the form is synthesized from the function's kind and name — two
+     * functions with the same shape stringify identically, which is what
+     * computed-key identity requires.
+     */
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        if (async) {
+            sb.append("async ");
+        }
+        sb.append("function");
+        if (generator) {
+            sb.append('*');
+        }
+        if (name != null && !name.isEmpty()) {
+            sb.append(' ').append(name);
+        }
+        if (arrow) {
+            sb.setLength(0);
+            if (async) {
+                sb.append("async ");
+            }
+            sb.append("() => { }");
+            return sb.toString();
+        }
+        sb.append("() { }");
+        return sb.toString();
+    }
+
     public NgsObject getPrototypeObject() {
         if (prototype == null) {
             prototype = new NgsObject(null);

@@ -32,13 +32,16 @@ public class OpArray {
 
     /**
      * Converts an index value to a property key string; symbols use their
-     * canonical internal key ("@@iterator" etc.).
+     * canonical internal key ("@@iterator" etc.). Must match the key
+     * conversion used when defining properties (to_string opcode), so a
+     * computed key like {@code [() => {}]} resolves the same way it was
+     * defined.
      */
     public static String keyString(Object key) {
         if (key instanceof SymbolValue) {
             return ((SymbolValue) key).getId();
         }
-        return "" + key;
+        return org.ngscript.runtime.OpUtils.toStringValue(key);
     }
 
     public static void array_new(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
