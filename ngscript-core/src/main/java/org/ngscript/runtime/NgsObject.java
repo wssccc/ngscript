@@ -525,6 +525,11 @@ public class NgsObject implements Scope {
 
     /** Returns the member names of this scope (not the parent chain). */
     public java.util.Set<String> keys() {
+        if (accessors != null && !accessors.isEmpty()) {
+            java.util.Set<String> all = new java.util.HashSet<>(data.keySet());
+            all.addAll(accessors.keySet());
+            return all;
+        }
         return data.keySet();
     }
 

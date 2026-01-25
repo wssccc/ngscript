@@ -819,16 +819,32 @@ public class Compiler {
             for (Object item : object.items) {
                 if (item instanceof Kvp) {
                     Kvp kvp = (Kvp) item;
-                    if (kvp.keyExpr != null) {
-                        // computed property name: the key is a runtime value
-                        compileExpr(kvp.keyExpr);
-                        assembler.emit("push_eax");
+                    if (kvp.kind != null) {
+                        // accessor property: { get v() {} } / { set v(x) {} }
+                        // stack [obj.., key, fn] -> obj_accessor consumes
+                        // key+fn and pushes one ObjAccessor marker
+                        if (kvp.keyExpr != null) {
+                            compileExpr(kvp.keyExpr);
+                            assembler.emit("to_string");
+                            assembler.emit("push_eax");
+                        } else {
+                            assembler.emit("string", kvp.name);
+                            assembler.emit("push_eax");
+                        }
+                        compileExpr(kvp.value);
+                        assembler.emit("obj_accessor", kvp.kind);
                     } else {
-                        assembler.emit("string", kvp.name);
+                        if (kvp.keyExpr != null) {
+                            // computed property name: the key is a runtime value
+                            compileExpr(kvp.keyExpr);
+                            assembler.emit("push_eax");
+                        } else {
+                            assembler.emit("string", kvp.name);
+                            assembler.emit("push_eax");
+                        }
+                        compileExpr(kvp.value);
                         assembler.emit("push_eax");
                     }
-                    compileExpr(kvp.value);
-                    assembler.emit("push_eax");
                 } else if (item instanceof SpreadExpr) {
                     compileExpr(((SpreadExpr) item).expr);
                     assembler.emit("obj_spread");

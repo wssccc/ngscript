@@ -48,6 +48,29 @@ public class OpObject {
     /** The stack sentinel marking the bottom of one object literal. */
     public static final Object OBJ_START = new Object();
 
+    /**
+     * An accessor property inside an object literal ({@code { get v() {} }}):
+     * object_new calls defineAccessor with the function as getter or setter.
+     */
+    public static class ObjAccessor {
+        public final Object key;
+        public final Object fn;
+        public final String kind;
+
+        public ObjAccessor(Object key, Object fn, String kind) {
+            this.key = key;
+            this.fn = fn;
+            this.kind = kind;
+        }
+    }
+
+    /** Pushes an accessor pair for object_new to define. */
+    public static void obj_accessor(Machine vm, String param, String param_extend) {
+        Object fn = vm.eax.read();
+        Object key = vm.stack.pop();
+        vm.stack.push(new ObjAccessor(key, fn, param));
+    }
+
     /** Pushes the object literal bottom sentinel. */
     public static void obj_start(Machine vm, String param, String param_extend) {
         vm.stack.push(OBJ_START);
@@ -71,6 +94,18 @@ public class OpObject {
             Object top = vm.stack.pop();
             if (top == OBJ_START) {
                 break;
+            }
+            if (top instanceof ObjAccessor) {
+                ObjAccessor acc = (ObjAccessor) top;
+                String k = acc.key instanceof String ? (String) acc.key
+                        : OpArray.keyString(acc.key);
+                if ("get".equals(acc.kind)) {
+                    sh.defineAccessor(k, acc.fn,
+                            sh.getAccessor(k, "set"));
+                } else {
+                    sh.defineAccessor(k, sh.getAccessor(k, "get"), acc.fn);
+                }
+                continue;
             }
             if (top instanceof ObjSpread) {
                 Object value = ((ObjSpread) top).value;
