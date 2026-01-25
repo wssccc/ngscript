@@ -959,6 +959,23 @@ public class NgParser {
                     expect("rcurly");
                     return allowDefault ? applyPatternDefault(op) : op;
                 }
+                if (peekIs("lsqr")) {
+                    // computed key: {[expr]: target}
+                    next();
+                    Expr keyExpr = parseExpr();
+                    expect("rsqr");
+                    if (!peekIs("colon")) {
+                        throw new ParserException("expecting colon after computed key in pattern",
+                                new org.ngscript.api.Source(null, t.line));
+                    }
+                    next();
+                    props.add(new Pattern.Prop(keyExpr, parsePattern(true)));
+                    if (!peekIs("comma")) {
+                        break;
+                    }
+                    next();
+                    continue;
+                }
                 Token key = peek();
                 if (key == null || !(isKeyName(key.type) || key.type.equals("string")
                         || key.type.equals("integer") || key.type.equals("double"))) {
@@ -1620,15 +1637,22 @@ public class NgParser {
         if (literal instanceof ObjectLiteral) {
             ObjectLiteral obj = (ObjectLiteral) literal;
             List<Pattern.Prop> props = new ArrayList<>();
+            Pattern.ObjectP op = new Pattern.ObjectP(props, obj.line);
             for (Object item : obj.items) {
                 if (item instanceof Kvp) {
                     Kvp kvp = (Kvp) item;
-                    props.add(new Pattern.Prop(kvp.name, patternFromExpr(kvp.value)));
+                    if (kvp.keyExpr != null) {
+                        // computed key: {[expr]: target}
+                        props.add(new Pattern.Prop(kvp.keyExpr, patternFromExpr(kvp.value)));
+                    } else {
+                        props.add(new Pattern.Prop(kvp.name, patternFromExpr(kvp.value)));
+                    }
+                } else if (item instanceof SpreadExpr) {
+                    // object rest: {a, ...rest} = value
+                    op.rest = patternFromExpr(((SpreadExpr) item).expr);
                 }
-                // spread elements are not valid in object destructuring
-                // patterns (ES early error); ignore them here
             }
-            return new Pattern.ObjectP(props, obj.line);
+            return op;
         }
         throw new ParserException("invalid destructuring target " + literal,
                 new org.ngscript.api.Source(null, literal.line));

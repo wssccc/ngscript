@@ -64,10 +64,18 @@ public abstract class Pattern extends AstNode {
     /** One object pattern property: {@code key: pattern} or {@code key}. */
     public static class Prop {
         public final String key;
+        public final Expr keyExpr;
         public final Pattern pattern;
 
         public Prop(String key, Pattern pattern) {
             this.key = key;
+            this.keyExpr = null;
+            this.pattern = pattern;
+        }
+
+        public Prop(Expr keyExpr, Pattern pattern) {
+            this.key = null;
+            this.keyExpr = keyExpr;
             this.pattern = pattern;
         }
     }

@@ -271,25 +271,56 @@ public class Compiler {
             Pattern.ObjectP obj = (Pattern.ObjectP) p;
             assembler.emit("push_eax");
             StringBuilder consumed = new StringBuilder();
+            int computedKeys = 0;
             for (Pattern.Prop prop : obj.props) {
-                assembler.emit("peek", "0");
-                assembler.emit("push_eax");
-                assembler.emit("string", prop.key);
-                assembler.emit("member_ref");
+                if (prop.keyExpr != null) {
+                    // computed key: evaluate at runtime; the key string
+                    // stays on the stack for destr_obj_rest, and the
+                    // object is re-pushed above it for member_ref2
+                    compileExpr(prop.keyExpr);
+                    assembler.emit("to_string");
+                    assembler.emit("push_eax"); // [.., obj, key]
+                    assembler.emit("peek", "1"); // eax = obj
+                    assembler.emit("push_eax"); // [.., obj, key, obj]
+                    ++computedKeys;
+                } else {
+                    assembler.emit("peek", "0");
+                    assembler.emit("push_eax");
+                    assembler.emit("string", prop.key);
+                }
+                if (prop.keyExpr != null) {
+                    assembler.emit("member_ref2");
+                } else {
+                    assembler.emit("member_ref");
+                }
                 assembler.emit("deref", "%eax");
                 compilePattern(prop.pattern);
-                if (consumed.length() > 0) {
-                    consumed.append(',');
+                if (prop.keyExpr == null) {
+                    // only static keys travel in the param list; computed
+                    // keys are pushed on the stack for destr_obj_rest
+                    if (consumed.length() > 0) {
+                        consumed.append(',');
+                    }
+                    consumed.append(prop.key);
                 }
-                consumed.append(prop.key);
             }
             if (obj.rest != null) {
                 // collect the remaining own keys (minus the destructured
-                // ones) into a fresh object for the rest pattern
-                assembler.emit("destr_obj_rest", consumed.toString());
+                // ones) into a fresh object for the rest pattern; the
+                // computed keys sit above the object and are popped by
+                // destr_obj_rest (static keys travel in param)
+                assembler.emit("destr_obj_rest", consumed.toString() + ";" + computedKeys);
                 compilePattern(obj.rest);
+                // only the object itself remains (destr_obj_rest popped
+                // the computed key strings)
+                assembler.emit("pop");
+            } else {
+                // no rest: drop the computed key strings and the object
+                for (int i = 0; i < computedKeys; i++) {
+                    assembler.emit("pop");
+                }
+                assembler.emit("pop");
             }
-            assembler.emit("pop");
         }
     }
 

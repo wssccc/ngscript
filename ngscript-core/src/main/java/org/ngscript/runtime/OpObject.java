@@ -107,6 +107,30 @@ public class OpObject {
             vm.eax.write(ref);
             return;
         }
+        memberRefNative(vm, objs, member);
+    }
+
+    /**
+     * Computed-key member read for destructuring: the stack holds
+     * [.., obj, key, obj-copy]; the object copy is popped as the receiver
+     * and the key below it is read (left on the stack for
+     * destr_obj_rest).
+     */
+    public static void member_ref2(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object obj = vm.stack.pop();
+        Object key = vm.stack.peek(0);
+        Object[] objs = new Object[]{obj, key};
+        memberRefNative(vm, objs, key.toString());
+    }
+
+    private static void memberRefNative(Machine vm, Object[] objs, String member) throws NgScriptRuntimeException {
+        if (objs[0] instanceof NgsObject) {
+            NgsObject env = (NgsObject) objs[0];
+            MemRef ref = env.lookup(member, vm, true);
+            if (System.getProperty("dbg.set") != null) System.err.println("MEMBER_REF " + member + " -> " + ref.getClass().getSimpleName());
+            vm.eax.write(ref);
+            return;
+        }
         //member of native
         if (objs[0] instanceof ScriptFunction) {
             // class-defined static members (static m() {}, static x = 1)
@@ -787,18 +811,38 @@ public class OpObject {
      * Collects the remaining own keys of the object at the stack top (the
      * ones not yet destructured) into a fresh object; the result is the
      * rest pattern's value. The object itself stays on the stack (the
-     * caller pops it). {@code param} lists the already-consumed keys.
+     * caller pops it). {@code param} lists the already-consumed static
+     * keys, followed by {@code ;N} where N is the number of computed keys
+     * pushed above the object (popped here).
      */
     public static void destr_obj_rest(Machine vm, String param, String param_extend) {
-        Object obj = vm.stack.peek(0);
-        NgsObject rest = new NgsObject((NgsObject) vm.env.read());
-        rest.setPrototype(vm.objectPrototype);
+        String staticPart = param;
+        int computed = 0;
+        int semi = param.indexOf(';');
+        if (semi >= 0) {
+            staticPart = param.substring(0, semi);
+            try {
+                computed = Integer.parseInt(param.substring(semi + 1));
+            } catch (NumberFormatException ignored) {
+                // malformed: no computed keys
+            }
+        }
         java.util.Set<String> consumed = new java.util.HashSet<>();
-        if (param != null && !param.isEmpty()) {
-            for (String k : param.split(",")) {
+        if (staticPart != null && !staticPart.isEmpty()) {
+            for (String k : staticPart.split(",")) {
                 consumed.add(k);
             }
         }
+        // pop the computed keys (pushed after the object, in source order)
+        for (int i = 0; i < computed; i++) {
+            Object k = vm.stack.pop();
+            if (k != null) {
+                consumed.add(k.toString());
+            }
+        }
+        Object obj = vm.stack.peek(0);
+        NgsObject rest = new NgsObject((NgsObject) vm.env.read());
+        rest.setPrototype(vm.objectPrototype);
         if (obj instanceof NgsObject) {
             for (String key : ((NgsObject) obj).keys()) {
                 if (!consumed.contains(key)) {
