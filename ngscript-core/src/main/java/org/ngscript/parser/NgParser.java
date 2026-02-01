@@ -191,6 +191,14 @@ public class NgParser {
     private int functionDepth;
 
     /**
+     * Whether super is legal here: >0 inside a method definition (class
+     * methods, object literal methods, getters/setters). Plain functions
+     * and arrows reset it to 0 (super is only allowed directly inside a
+     * method body).
+     */
+    private int superDepth;
+
+    /**
      * Depth of enclosing generator (function*) bodies; {@code yield} is a
      * contextual keyword valid only here (elsewhere it stays an ordinary
      * identifier, e.g. the coroutine extension's yield function).
@@ -836,12 +844,15 @@ public class NgParser {
             ++functionDepth;
             int savedGen = generatorDepth;
             int savedAsync = asyncDepth;
+            int savedSuper = superDepth;
             if (isGenerator) {
                 ++generatorDepth;
             } else {
                 generatorDepth = 0;
             }
             asyncDepth = isAsync ? 1 : 0;
+            // class methods allow super
+            ++superDepth;
             try {
                 Block body = parseBlock();
                 // keyword tokens (break/if/...) have a null value: only a
@@ -856,7 +867,7 @@ public class NgParser {
                 --functionDepth;
                 generatorDepth = savedGen;
                 asyncDepth = savedAsync;
-                generatorDepth = savedGen;
+                superDepth = savedSuper;
             }
             if (peekIs("semicolon")) {
                 next();
@@ -1072,6 +1083,7 @@ public class NgParser {
         ++functionDepth;
         int savedGen = generatorDepth;
         int savedAsync = asyncDepth;
+        int savedSuper = superDepth;
         if (generator) {
             ++generatorDepth;
         } else {
@@ -1079,6 +1091,7 @@ public class NgParser {
             generatorDepth = 0;
         }
         asyncDepth = 0;
+        superDepth = 0;
         try {
             Block body = parseBlock();
             return new FunctionDecl(name.value, params, body, generator, fn.line);
@@ -1086,6 +1099,7 @@ public class NgParser {
             --functionDepth;
             generatorDepth = savedGen;
             asyncDepth = savedAsync;
+            superDepth = savedSuper;
         }
     }
 
@@ -1105,8 +1119,10 @@ public class NgParser {
         ++functionDepth;
         int savedGen = generatorDepth;
         int savedAsync = asyncDepth;
+        int savedSuper = superDepth;
         generatorDepth = 0;
         ++asyncDepth;
+        superDepth = 0;
         try {
             Block body = parseBlock();
             FunctionDecl decl = new FunctionDecl(name.value, params, body, generator, true, asyncTok.line);
@@ -1115,6 +1131,7 @@ public class NgParser {
             --functionDepth;
             generatorDepth = savedGen;
             asyncDepth = savedAsync;
+            superDepth = savedSuper;
         }
     }
 
@@ -2132,6 +2149,8 @@ public class NgParser {
      */
     private Expr parseArrowRest(Params params, int line) throws ParserException {
         ++functionDepth;
+        int savedSuper = superDepth;
+        superDepth = 0;
         try {
             if (peekIs("lcurly")) {
                 Block body = parseBlock();
@@ -2141,6 +2160,7 @@ public class NgParser {
             return new LambdaExpr(params, body, null, line, true);
         } finally {
             --functionDepth;
+            superDepth = savedSuper;
         }
     }
 
@@ -2163,8 +2183,10 @@ public class NgParser {
         ++functionDepth;
         int savedGen = generatorDepth;
         int savedAsync = asyncDepth;
+        int savedSuper = superDepth;
         generatorDepth = 0;
         ++asyncDepth;
+        superDepth = 0;
         try {
             Block body = parseBlock();
             LambdaExpr lambda = new LambdaExpr(name, params, body, asyncTok.line);
@@ -2175,6 +2197,7 @@ public class NgParser {
             --functionDepth;
             generatorDepth = savedGen;
             asyncDepth = savedAsync;
+            superDepth = savedSuper;
         }
     }
 
@@ -2183,8 +2206,10 @@ public class NgParser {
         ++functionDepth;
         int savedGen = generatorDepth;
         int savedAsync = asyncDepth;
+        int savedSuper = superDepth;
         generatorDepth = 0;
         ++asyncDepth;
+        superDepth = 0;
         try {
             LambdaExpr lambda;
             if (peekIs("lcurly")) {
@@ -2200,6 +2225,7 @@ public class NgParser {
             --functionDepth;
             generatorDepth = savedGen;
             asyncDepth = savedAsync;
+            superDepth = savedSuper;
         }
     }
 
@@ -2312,11 +2338,13 @@ public class NgParser {
                 expect("rparen");
                 ++functionDepth;
                 int savedGen = generatorDepth;
+                int savedSuper = superDepth;
                 if (generator) {
                     ++generatorDepth;
                 } else {
                     generatorDepth = 0;
                 }
+                superDepth = 0;
                 try {
                     Block body = parseBlock();
                     LambdaExpr lambda = new LambdaExpr(name, params, body, t.line);
@@ -2325,6 +2353,7 @@ public class NgParser {
                 } finally {
                     --functionDepth;
                     generatorDepth = savedGen;
+                    superDepth = savedSuper;
                 }
             }
             case "class": {
@@ -2338,6 +2367,13 @@ public class NgParser {
             }
             case "super": {
                 next();
+                if (superDepth == 0) {
+                    // super is only allowed directly inside a method body
+                    // (class or object literal); anywhere else is an early
+                    // SyntaxError, including nested plain functions/arrows
+                    throw new ParserException("invalid use of super",
+                            new org.ngscript.api.Source(null, t.line));
+                }
                 if (peekIs("lparen")) {
                     next();
                     List<Expr> args = parseParams();
@@ -2430,10 +2466,12 @@ public class NgParser {
                 ++functionDepth;
                 int savedGen = generatorDepth;
                 int savedAsync = asyncDepth;
+                int savedSuper = superDepth;
                 if (star) {
                     ++generatorDepth;
                 }
                 asyncDepth = 1;
+                ++superDepth;
                 try {
                     Block body = parseBlock();
                     LambdaExpr lambda = new LambdaExpr(
@@ -2445,6 +2483,7 @@ public class NgParser {
                     --functionDepth;
                     generatorDepth = savedGen;
                     asyncDepth = savedAsync;
+                    superDepth = savedSuper;
                 }
             }
         }
@@ -2459,12 +2498,15 @@ public class NgParser {
                 Params params = parseParamList();
                 expect("rparen");
                 ++functionDepth;
+                int savedSuper = superDepth;
+                ++superDepth;
                 try {
                     Block body = parseBlock();
                     return new Kvp(key, new LambdaExpr(null, params, body, name.line),
                             name.line);
                 } finally {
                     --functionDepth;
+                    superDepth = savedSuper;
                 }
             }
             expect("colon");
@@ -2486,7 +2528,9 @@ public class NgParser {
             expect("rparen");
             ++functionDepth;
             int savedGen = generatorDepth;
+            int savedSuper = superDepth;
             ++generatorDepth;
+            ++superDepth;
             try {
                 Block body = parseBlock();
                 LambdaExpr lambda = new LambdaExpr(tokenName(mname), params, body, star.line);
@@ -2495,6 +2539,7 @@ public class NgParser {
             } finally {
                 --functionDepth;
                 generatorDepth = savedGen;
+                superDepth = savedSuper;
             }
         }
         // shorthand and method shorthand: { a } / { a, } / { m() {} } / { m(x) {} }
@@ -2507,6 +2552,8 @@ public class NgParser {
                 Params params = parseParamList();
                 expect("rparen");
                 ++functionDepth;
+                int savedSuper = superDepth;
+                ++superDepth;
                 try {
                     Block body = parseBlock();
                     String mname = tokenName(name);
@@ -2514,6 +2561,7 @@ public class NgParser {
                             new LambdaExpr(mname, params, body, name.line), name.line);
                 } finally {
                     --functionDepth;
+                    superDepth = savedSuper;
                 }
             }
             if (second != null && (second.type.equals("comma") || second.type.equals("rcurly"))) {
@@ -2537,12 +2585,15 @@ public class NgParser {
                 Params params = parseParamList();
                 expect("rparen");
                 ++functionDepth;
+                int savedSuper = superDepth;
+                ++superDepth;
                 try {
                     Block body = parseBlock();
                     return new Kvp(tokenName(key), new LambdaExpr(name.value, params, body, name.line),
                             name.line, name.value);
                 } finally {
                     --functionDepth;
+                    superDepth = savedSuper;
                 }
             }
         }

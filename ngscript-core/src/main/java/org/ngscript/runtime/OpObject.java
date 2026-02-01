@@ -388,6 +388,11 @@ public class OpObject {
 
     /** The ES error name for the Java exception class mapping. */
     private static String errorName(Throwable t) {
+        if (t instanceof org.ngscript.parser.ParserException
+                || t instanceof org.ngscript.compiler.CompilerException) {
+            // parse/compile failures are early errors: SyntaxError
+            return "SyntaxError";
+        }
         if (t instanceof org.ngscript.runtime.NgScriptRuntimeException
                 || t instanceof NgScriptException) {
             // VM-internal errors (unresolvable reference, bad member
@@ -411,6 +416,11 @@ public class OpObject {
 
     /** The ES error constructor class for the Java exception class mapping. */
     private static Class<?> errorCtor(Throwable t) {
+        if (t instanceof org.ngscript.parser.ParserException
+                || t instanceof org.ngscript.compiler.CompilerException) {
+            // parse/compile failures are early errors: SyntaxError
+            return IllegalStateException.class;
+        }
         if (t instanceof IllegalArgumentException) {
             return IllegalArgumentException.class;
         }
