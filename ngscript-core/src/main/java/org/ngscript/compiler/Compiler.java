@@ -1330,11 +1330,18 @@ public class Compiler {
                     assembler.emit("push_eax");
                     compileExpr(index.index);
                     assembler.emit("delete_op");
-                } else {
-                    // deleting a plain variable binding yields false in ES
-                    compileExpr(unary.operand);
-                    assembler.emit("pop");
+                } else if (unary.operand instanceof IdentExpr) {
+                    // deleting a plain variable binding yields false in ES;
+                    // the variable is not read (delete x with an undeclared
+                    // x is true in sloppy mode, but the binding read would
+                    // throw)
                     assembler.emit("bool", "false");
+                } else {
+                    // delete of any other expression (call results, literals)
+                    // evaluates the expression, then yields true (ES5
+                    // semantics; modern ES makes this a SyntaxError)
+                    compileExpr(unary.operand);
+                    assembler.emit("bool", "true");
                 }
                 break;
             case NOT:
