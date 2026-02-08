@@ -32,10 +32,7 @@ public class OpArray {
 
     /**
      * Converts an index value to a property key string; symbols use their
-     * canonical internal key ("@@iterator" etc.). Must match the key
-     * conversion used when defining properties (to_string opcode), so a
-     * computed key like {@code [() => {}]} resolves the same way it was
-     * defined.
+     * canonical internal key ("@@iterator" etc.).
      */
     public static String keyString(Object key) {
         if (key instanceof SymbolValue) {

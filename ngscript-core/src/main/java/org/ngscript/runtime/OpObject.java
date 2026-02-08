@@ -573,7 +573,7 @@ public class OpObject {
         if (v instanceof org.ngscript.value.SymbolValue) {
             vm.eax.write(((org.ngscript.value.SymbolValue) v).getId());
         } else {
-            vm.eax.write(OpUtils.toStringValue(v));
+            vm.eax.write(OpUtils.convertKey(vm, v));
         }
     }
 

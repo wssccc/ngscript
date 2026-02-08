@@ -34,6 +34,43 @@ public class OpUtils {
     }
 
     /**
+     * ES ToPropertyKey on a value: primitives stringify directly; objects
+     * go through ToPrimitive(hint String) — their toString method (or
+     * valueOf, or the [[Prototype]] chain's), throwing a TypeError when
+     * neither exists ({@code Object.create(null)} as a computed key).
+     */
+    public static String convertKey(Machine vm, Object v) {
+        if (v instanceof NgsObject) {
+            NgsObject obj = (NgsObject) v;
+            // ToPrimitive(hint String): try toString, then valueOf (ES
+            // OrdinaryToPrimitive); a missing pair is a TypeError
+            for (String methodName : new String[]{"toString", "valueOf"}) {
+                Object method = null;
+                try {
+                    MemRef ref = obj.lookup(methodName, vm, true);
+                    method = ref.read();
+                } catch (NgScriptRuntimeException ignored) {
+                    // no method on the object or its prototype chain
+                }
+                if (method instanceof ScriptFunction || method instanceof Invokable) {
+                    try {
+                        return toStringValue(
+                                callValue(vm, method, obj, new Object[0]));
+                    } catch (Exception e) {
+                        throw e instanceof RuntimeException
+                                ? (RuntimeException) e
+                                : new RuntimeException(e.getMessage() == null
+                                        ? e.toString() : e.getMessage());
+                    }
+                }
+            }
+            throw new IllegalArgumentException(
+                    "Cannot convert object to primitive value");
+        }
+        return toStringValue(v);
+    }
+
+    /**
      * Reads a member of an object (own data and the prototype chain for
      * script objects, reflection for Java objects); null when absent.
      */

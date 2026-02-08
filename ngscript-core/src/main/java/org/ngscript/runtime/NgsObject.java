@@ -348,6 +348,19 @@ public class NgsObject implements Scope {
                         } else {
                             rootFrame().data.put(member, ref);
                         }
+                    } else if (isMember) {
+                        // the reference lives on the [[Prototype]] chain (or
+                        // an outer frame): a script write must create an own
+                        // property here, not rewrite the inherited slot
+                        // (obj.x = v must not mutate Object.prototype.x)
+                        final MemRef inherited = ref;
+                        final String key = member;
+                        return new MemRef(inherited.read()) {
+                            @Override
+                            public void write(Object v) {
+                                data.put(key, new MemRef(v));
+                            }
+                        };
                     }
                     return ref;
                 }
