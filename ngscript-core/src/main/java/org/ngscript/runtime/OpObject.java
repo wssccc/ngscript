@@ -665,7 +665,7 @@ public class OpObject {
         Object obj = vm.eax.read();
         String[] keys;
         if (obj instanceof NgsObject) {
-            java.util.Set<String> set = ((NgsObject) obj).keys();
+            java.util.Set<String> set = ((NgsObject) obj).enumerableKeys();
             keys = set.toArray(new String[0]);
         } else if (obj instanceof String) {
             String s = (String) obj;
@@ -889,7 +889,7 @@ public class OpObject {
         NgsObject rest = new NgsObject((NgsObject) vm.env.read());
         rest.setPrototype(vm.objectPrototype);
         if (obj instanceof NgsObject) {
-            for (String key : ((NgsObject) obj).keys()) {
+            for (String key : ((NgsObject) obj).enumerableKeys()) {
                 if (!consumed.contains(key)) {
                     rest.set(key, ((NgsObject) obj).get(key));
                 }

@@ -55,6 +55,26 @@ public class NgsObject implements Scope {
      */
     private java.util.Set<String> nonWritable;
 
+    /**
+     * Property names made non-enumerable via Object.defineProperty
+     * ({enumerable: false}): Object.keys, for-in and object-rest skip
+     * them. Literal properties default to enumerable.
+     */
+    private java.util.Set<String> nonEnumerable;
+
+    /** Marks an own property as non-enumerable. */
+    public void markNonEnumerable(String name) {
+        if (nonEnumerable == null) {
+            nonEnumerable = new java.util.HashSet<>();
+        }
+        nonEnumerable.add(name);
+    }
+
+    /** Whether an own property is enumerable (default true). */
+    public boolean isEnumerable(String name) {
+        return nonEnumerable == null || !nonEnumerable.contains(name);
+    }
+
     /** Marks an own property as non-configurable (delete returns false). */
     public void markNonConfigurable(String name) {
         if (nonConfigurable == null) {
@@ -544,6 +564,24 @@ public class NgsObject implements Scope {
             return all;
         }
         return data.keySet();
+    }
+
+    /**
+     * The enumerable own property names (ES [[OwnPropertyKeys]] filtered
+     * by enumerability): used by Object.keys, for-in and object rest.
+     */
+    public java.util.Set<String> enumerableKeys() {
+        java.util.Set<String> all = keys();
+        if (nonEnumerable == null || nonEnumerable.isEmpty()) {
+            return all;
+        }
+        java.util.Set<String> out = new java.util.HashSet<>();
+        for (String k : all) {
+            if (!nonEnumerable.contains(k)) {
+                out.add(k);
+            }
+        }
+        return out;
     }
 
     public NgsObject getParent() {

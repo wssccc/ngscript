@@ -56,7 +56,7 @@ public class ObjectCtor implements Invokable {
                     NgsObject o = objectArg(vm2, args, 0);
                     NgsArray out = new NgsArray(null);
                     int i = 0;
-                    for (String k : o.keys()) {
+                    for (String k : o.enumerableKeys()) {
                         out.set("" + i++, k);
                     }
                     out.setPrototype(vm2.arrayPrototype);
@@ -131,10 +131,11 @@ public class ObjectCtor implements Invokable {
                     NgsObject desc = new NgsObject((NgsObject) vm2.env.read());
                     desc.setPrototype(vm2.objectPrototype);
                     desc.set("value", v == null ? Undefined.value : v);
-                    desc.set("writable", Boolean.TRUE);
+                    desc.set("writable", o.isNonWritable(name) ? Boolean.FALSE : Boolean.TRUE);
                     // callee/length (arrays and arguments) are not enumerable
-                    desc.set("enumerable", !("callee".equals(name) || "length".equals(name)));
-                    desc.set("configurable", Boolean.TRUE);
+                    desc.set("enumerable", !("callee".equals(name) || "length".equals(name))
+                            && o.isEnumerable(name));
+                    desc.set("configurable", o.isNonConfigurable(name) ? Boolean.FALSE : Boolean.TRUE);
                     vm2.eax.write(desc);
                 });
             case "getOwnPropertyNames":
@@ -210,6 +211,10 @@ public class ObjectCtor implements Invokable {
                         if (Boolean.FALSE.equals(d.get("configurable"))) {
                             // delete on a non-configurable property fails
                             o.markNonConfigurable(name);
+                        }
+                        if (Boolean.FALSE.equals(d.get("enumerable"))) {
+                            // Object.keys/for-in/object-rest skip it
+                            o.markNonEnumerable(name);
                         }
                     }
                     vm2.eax.write(o);
