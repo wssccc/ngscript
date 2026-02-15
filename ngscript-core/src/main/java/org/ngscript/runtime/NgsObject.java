@@ -327,14 +327,16 @@ public class NgsObject implements Scope {
                 // instance without an own data property
                 Object[] chainAccessor = findAccessorOnChain(member);
                 if (chainAccessor != null) {
-                    final NgsObject owner = chainAccessor[2] instanceof NgsObject
-                            ? (NgsObject) chainAccessor[2] : this;
+                    // ES: the getter/setter runs with the *accessing object*
+                    // as this (obj.v reads through a prototype accessor with
+                    // this=obj), not with the prototype that owns it
+                    final NgsObject receiver = this;
                     final Object[] acc = chainAccessor;
-                    return new MemRef(acc[0] != null ? invokeAccessor(acc[0], owner) : Undefined.value) {
+                    return new MemRef(acc[0] != null ? invokeAccessor(acc[0], receiver) : Undefined.value) {
                         @Override
                         public void write(Object v) {
                             if (acc[1] != null) {
-                                invokeAccessorWrite(acc[1], owner, v, vm);
+                                invokeAccessorWrite(acc[1], receiver, v, vm);
                             }
                         }
                     };
