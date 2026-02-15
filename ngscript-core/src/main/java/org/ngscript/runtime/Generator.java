@@ -136,7 +136,9 @@ public class Generator extends NgsObject {
                 vm.instructions[eip].invoke(vm);
             } catch (Throwable ex) {
                 try {
-                    vm.exception.write(ex);
+                    // unwrap script values so a JS catch binds the original
+                    // thrown object (iterator errors from destructuring)
+                    vm.exception.write(OpCall.unwrapThrown(ex));
                     OpCall.restore_machine_state(vm, null, null);
                 } catch (NgScriptRuntimeException re) {
                     // no enclosing JS try: propagate to the next() caller
@@ -227,11 +229,8 @@ public class Generator extends NgsObject {
                 }
                 ins.invoke(vm);
             } catch (Throwable ex) {
-                // a throw during parameter binding: route it through the
-                // enclosing JS try/catch (restore_machine_state), or strip
-                // the frame and propagate to the caller
                 try {
-                    vm.exception.write(ex);
+                    vm.exception.write(OpCall.unwrapThrown(ex));
                     OpCall.restore_machine_state(vm, null, null);
                 } catch (NgScriptRuntimeException re) {
                     closed = true;

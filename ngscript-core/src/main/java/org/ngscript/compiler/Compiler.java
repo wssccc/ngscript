@@ -131,9 +131,26 @@ public class Compiler {
      */
     private final Map<String, Integer> labelDepths = new HashMap<>();
 
+    /**
+     * The number of try contexts (save_machine_state entries on the
+     * machine's exception-state stack) open at the current compilation
+     * point. Abrupt exits (return/break/continue) must drop the contexts of
+     * every try they leave, mirroring the block-frame bookkeeping: otherwise
+     * a later exception would restore a stale context of a finished function
+     * frame (wild jumps / opaque NgsObject@hash failures).
+     */
+    private int tryDepth;
+
+    /**
+     * The try-context depth at which each label was emitted, used to emit
+     * drop_machine_state when jumping out of a try region.
+     */
+    private final Map<String, Integer> labelTryDepths = new HashMap<>();
+
     /** Emits a label op, recording the current block depth for jump fixups. */
     private void emitLabel(String name) {
         labelDepths.put(name, blockDepth);
+        labelTryDepths.put(name, tryDepth);
         assembler.emit("label", name);
     }
 
@@ -144,7 +161,24 @@ public class Compiler {
             assembler.emit("leave_block");
             --blockDepth;
         }
+        Integer targetTryDepth = labelTryDepths.get(name);
+        while (targetTryDepth != null && tryDepth > targetTryDepth) {
+            assembler.emit("drop_machine_state");
+            --tryDepth;
+        }
         assembler.emit("jmp", name);
+    }
+
+    /** Pushes a try exception-state context (compile-time depth tracking). */
+    private void trySave() {
+        assembler.emit("save_machine_state");
+        ++tryDepth;
+    }
+
+    /** Pops a try exception-state context (compile-time depth tracking). */
+    private void tryDrop() {
+        --tryDepth;
+        assembler.emit("drop_machine_state");
     }
 
     /** Pushes a block scope frame onto the environment chain. */
@@ -559,6 +593,8 @@ public class Compiler {
         // nested functions/arrows have their own block-depth bookkeeping
         int savedBlockDepth = blockDepth;
         blockDepth = 0;
+        int savedTryDepth = tryDepth;
+        tryDepth = 0;
         // mapped arguments require a simple parameter list: no defaults,
         // rest, or destructuring (ES unmaps the arguments object otherwise);
         // defaults/patterns are parallel lists whose entries are null when
@@ -630,6 +666,7 @@ public class Compiler {
             assembler.emit("ret");
         } finally {
             blockDepth = savedBlockDepth;
+            tryDepth = savedTryDepth;
         }
         emitLabel(exit);
         return enter;
@@ -1627,11 +1664,11 @@ public class Compiler {
         // intercept control flow, and routing through the (empty) finally
         // block would pop the return address off the stack and break ret
         inHookedBlock = tryStmt.finallyBody != null;
-        assembler.emit("save_machine_state");
+        trySave();
         assembler.emit("test", "%exception");
         assembler.emit("jnz", catchLabel);
         compileBlock(tryStmt.tryBody);
-        assembler.emit("drop_machine_state");
+        tryDrop();
         assembler.emit("push_eip");
         emitJump(finallyLabel);
         emitJump(exitLabel);
@@ -1701,6 +1738,12 @@ public class Compiler {
             }
             _compile_call_finally();
             emitLabel(assembler.label("ret_hook", stmt));
+            // the return exits every enclosing try: drop their saved
+            // exception-state contexts (they would otherwise be restored
+            // by a later exception, replaying a dead frame)
+            while (tryDepth > 0) {
+                tryDrop();
+            }
             if (stmt.expr != null) {
                 assembler.emit("pop_eax");
             }
@@ -1725,6 +1768,11 @@ public class Compiler {
         // returning pops any block frames the body may have opened
         while (blockDepth > 0) {
             leaveBlock();
+        }
+        // ... and any try contexts still open (try bodies exited by the
+        // return must not leave stale exception states behind)
+        while (tryDepth > 0) {
+            tryDrop();
         }
         if (stmt.expr != null) {
             assembler.emit("pop_eax");
@@ -1772,7 +1820,11 @@ public class Compiler {
 
     private void _compile_call_finally() {
         assembler.emit("push_eip");
-        emitJump(finallyLabels.peek());
+        // a raw jump: the finally's "jmp offset 1" resumes exactly one
+        // instruction past this jump, so no fixup instructions may sit
+        // between push_eip and the jump (try-context drops for the abrupt
+        // exit are emitted at the continuation point instead)
+        assembler.emit("jmp", finallyLabels.peek());
     }
 
     private void compileGo(GoStmt goStmt) throws CompilerException {
@@ -2031,16 +2083,19 @@ public class Compiler {
                 : (m.generator ? "2" : "0");
         if (m.isGetter || m.isSetter) {
             // accessor methods: [proto, key]; the key string stays on the
-            // stack for accessor_define (no member reference is needed)
+            // stack for accessor_define (no member reference is needed);
+            // class accessors are non-enumerable like class methods
             assembler.emit("push_eax");
             String enter = _compile_function_body(m.params, m.body, m.generator);
             assembler.emit("new_closure", enter, marker);
             assembler.emit("set_func_meta", functionLength(m.params) + "",
                     m.name == null ? "" : m.name);
-            assembler.emit("accessor_define", m.isGetter ? "get" : "set");
+            assembler.emit("accessor_define", m.isGetter ? "get" : "set", "ne");
             return;
         }
-        assembler.emit("own_member_ref");
+        // class methods are non-enumerable: own_member_ref_ne marks the
+        // defined key so Object.keys / for-in / descriptor checks agree
+        assembler.emit("own_member_ref_ne");
         assembler.emit("push_eax");
         String enter = _compile_function_body(m.params, m.body, m.generator);
         assembler.emit("new_closure", enter, marker);

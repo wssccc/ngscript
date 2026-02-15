@@ -297,8 +297,13 @@ public class OpCall {
                     if (e instanceof ClosureBudgetExceeded) {
                         throw (ClosureBudgetExceeded) e;
                     }
+                    // keep the original exception as the jsError: a thrown
+                    // script value wrapped by restore_machine_state must
+                    // survive so the enclosing JS catch can unwrap it
+                    Object jsError = (e instanceof NgScriptRuntimeException)
+                            ? ((NgScriptRuntimeException) e).getJsError() : null;
                     throw new NgScriptRuntimeException(vm, e.getMessage() == null
-                            ? e.toString() : e.getMessage());
+                            ? e.toString() : e.getMessage(), jsError != null ? jsError : e);
                 }
                 return;
             }
@@ -375,6 +380,13 @@ public class OpCall {
     public static void save_machine_state(Machine vm, String param, String param_extend) {
         Context ms = new Context(vm);
         vm.machineStateStack.push(ms);
+        // the finally block's clear_call_stack trims the call stack to the
+        // level at try entry; the marker must be established here (the
+        // machine-level field is otherwise only updated by Context.restore,
+        // so a normal try completion would trim to a stale level — often 0 —
+        // popping the enclosing function's own callstack entry and making
+        // its `ret` crash with "Stack is empty")
+        vm.callStackSize = ms.callStackSize;
     }
 
     public static void drop_machine_state(Machine vm, String param, String param_extend) {
@@ -395,11 +407,62 @@ public class OpCall {
             } else if (ex instanceof Throwable) {
                 throw new NgScriptRuntimeException((Throwable) ex);
             } else {
-                throw new NgScriptRuntimeException(vm, ex.toString(), ex);
+                if (Machine.TRACE) {
+                    System.err.println("[restore-throw] exception=" + ex
+                            + " class=" + (ex == null ? "null" : ex.getClass().getName()));
+                }
+                throw new NgScriptRuntimeException(vm, describeThrownValue(ex), ex);
             }
         } else {
             Context ms = vm.machineStateStack.pop();
             ms.restore(vm);
         }
+    }
+
+    /**
+     * Formats a thrown script value (a non-Throwable) for the exception that
+     * escapes to the host: an object carrying name/message properties —
+     * e.g. a thrown {@code Test262Error} or {@code Error()} — reports
+     * {@code "Name: message"} instead of an opaque {@code NgsObject@hash},
+     * which used to mask the actual assertion failure. No user code runs
+     * (properties are read without triggering accessors).
+     */
+    private static String describeThrownValue(Object value) {
+        if (value instanceof NgsObject) {
+            Object name = ((NgsObject) value).plainGet("name");
+            Object message = ((NgsObject) value).plainGet("message");
+            boolean hasName = name != null && !(name instanceof Undefined);
+            boolean hasMessage = message != null && !(message instanceof Undefined);
+            if (hasName || hasMessage) {
+                StringBuilder sb = new StringBuilder();
+                if (hasName) {
+                    sb.append(org.ngscript.runtime.OpUtils.toStringValue(name)).append(": ");
+                }
+                if (hasMessage) {
+                    sb.append(org.ngscript.runtime.OpUtils.toStringValue(message));
+                }
+                return sb.toString();
+            }
+        }
+        return String.valueOf(value);
+    }
+
+    /**
+     * Unwraps a wrapped script value from an exception: an op that called
+     * into script (iterator next(), getters, callbacks) re-throws a thrown
+     * JS value as an {@link NgScriptRuntimeException} whose jsError IS the
+     * script value. Every catch that writes into the machine's exception
+     * register (runInner, generator loops, async resumes) must unwrap so
+     * the enclosing JS catch binds the original object — assert.throws
+     * checks {@code thrown.constructor === Ctor}.
+     */
+    public static Object unwrapThrown(Throwable ex) {
+        if (ex instanceof NgScriptRuntimeException) {
+            Object js = ((NgScriptRuntimeException) ex).getJsError();
+            if (js != null && !(js instanceof Throwable)) {
+                return js;
+            }
+        }
+        return ex;
     }
 }

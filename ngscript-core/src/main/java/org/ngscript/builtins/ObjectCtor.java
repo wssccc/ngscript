@@ -105,7 +105,20 @@ public class ObjectCtor implements Invokable {
                             v = f.getPrototypeObject();
                         }
                         if (v == null) {
-                            vm2.eax.write(Undefined.value);
+                            // class-defined static members live in hostProps
+                            java.util.Map<String, MemRef> own = vm2.hostProps.get(f);
+                            if (own == null || !own.containsKey(name)) {
+                                vm2.eax.write(Undefined.value);
+                                return;
+                            }
+                            NgsObject desc = new NgsObject((NgsObject) vm2.env.read());
+                            desc.setPrototype(vm2.objectPrototype);
+                            desc.set("value", own.get(name).read());
+                            desc.set("writable", Boolean.TRUE);
+                            java.util.Set<String> nonEnum = vm2.hostNonEnumerable.get(f);
+                            desc.set("enumerable", nonEnum == null || !nonEnum.contains(name));
+                            desc.set("configurable", Boolean.TRUE);
+                            vm2.eax.write(desc);
                             return;
                         }
                         NgsObject desc = new NgsObject((NgsObject) vm2.env.read());

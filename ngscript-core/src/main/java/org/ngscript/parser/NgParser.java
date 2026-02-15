@@ -721,7 +721,10 @@ public class NgParser {
                 Token nx = peekN(2);
                 if (nx != null && (nx.type.equals("ident")
                         || nx.type.equals("private_ident")
-                        || nx.type.equals("lsqr"))) {
+                        || nx.type.equals("lsqr")
+                        || nx.type.equals("string")
+                        || nx.type.equals("integer")
+                        || nx.type.equals("double"))) {
                     isGetter = t.value.equals("get");
                     isSetter = t.value.equals("set");
                     next();

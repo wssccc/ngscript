@@ -546,6 +546,25 @@ public class NgsObject implements Scope {
         return data.get(member);
     }
 
+    /**
+     * Reads a property by walking the own data and the [[Prototype]] chain
+     * without triggering accessors or running any user code: used to format
+     * thrown script objects into exception messages (an escaping exception
+     * must not invoke getters as a side effect). Returns {@code null} when
+     * no plain data binding exists.
+     */
+    public Object plainGet(String member) {
+        NgsObject p = this;
+        while (p != null) {
+            MemRef ref = p.data.get(member);
+            if (ref != null) {
+                return ref.read();
+            }
+            p = p.proto;
+        }
+        return null;
+    }
+
     /** Sets a member to a fresh reference holding the given value. */
     public void set(String member, Object value) {
         // a MemRef value is stored as-is so callers can install a shared

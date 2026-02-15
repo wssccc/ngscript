@@ -167,8 +167,10 @@ public class ScriptFunction {
             prototype = new NgsObject(null);
             // the constructor's prototype links to Object.prototype
             prototype.setPrototype(vm.objectPrototype);
-            // ES: F.prototype.constructor === F
+            // ES: F.prototype.constructor === F (non-enumerable, like all
+            // class/function prototype properties)
             prototype.set("constructor", this);
+            prototype.markNonEnumerable("constructor");
         }
         return prototype;
     }

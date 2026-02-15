@@ -18,12 +18,12 @@ package org.ngscript.runtime;
 
 import java.util.Arrays;
 
+import org.ngscript.api.NgScriptException;
 import org.ngscript.value.Invokable;
 import org.ngscript.value.MemRef;
 import org.ngscript.value.RegExpValue;
 import org.ngscript.value.ScriptFunction;
 import org.ngscript.value.Undefined;
-import org.ngscript.api.NgScriptException;
 
 /**
  * Object opcodes: literal construction, member access, closures,
@@ -559,7 +559,19 @@ public class OpObject {
         } else if (obj instanceof NgsArray) {
             vm.eax.write(((NgsArray) obj).remove(key) ? Boolean.TRUE : Boolean.FALSE);
         } else {
-            vm.eax.write(Boolean.TRUE); // deleting a property of a host object: treat as success
+            // host objects (class constructors): static members live in the
+            // shared hostProps map; deleting them must succeed (ES delete
+            // on a configurable property returns true)
+            java.util.Map<String, MemRef> own = vm.hostProps.get(obj);
+            if (own != null && own.remove(key) != null) {
+                java.util.Set<String> nonEnum = vm.hostNonEnumerable.get(obj);
+                if (nonEnum != null) {
+                    nonEnum.remove(key);
+                }
+                vm.eax.write(Boolean.TRUE);
+            } else {
+                vm.eax.write(Boolean.TRUE);
+            }
         }
     }
 
@@ -914,6 +926,7 @@ public class OpObject {
      */
     public static void accessor_define(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object fn = vm.eax.read();
+        boolean nonEnum = param_extend != null && param_extend.contains("ne");
         // stack [proto, keyString]; both popped (the proto stays on the
         // stack below for the next method definition)
         Object keyObj = vm.stack.pop();
@@ -927,6 +940,9 @@ public class OpObject {
                 p.defineAccessor(key, fn, setter);
             } else {
                 p.defineAccessor(key, getter, fn);
+            }
+            if (nonEnum) {
+                p.markNonEnumerable(key);
             }
         } else {
             // host function (class constructor): static accessors live in
@@ -1227,6 +1243,39 @@ public class OpObject {
             slot = new MemRef(Undefined.value);
             created.put(member, slot);
         }
+        vm.eax.write(slot);
+    }
+
+    /**
+     * The class-method variant of {@link #own_member_ref}: the defined
+     * member is marked non-enumerable, as ES class methods (and accessors)
+     * are { [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: true }
+     * — Object.keys/for-in/object-rest and descriptor checks must not see
+     * them as enumerable.
+     */
+    public static void own_member_ref_ne(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        String member = (String) objs[1];
+        if (objs[0] instanceof NgsObject) {
+            NgsObject env = (NgsObject) objs[0];
+            MemRef ref = env.getRef(member);
+            if (ref == null) {
+                ref = new MemRef(Undefined.value);
+                env.putRef(member, ref);
+            }
+            env.markNonEnumerable(member);
+            vm.eax.write(ref);
+            return;
+        }
+        // host objects fall back to the shared hostProps map
+        java.util.Map<String, MemRef> created = vm.hostProps.computeIfAbsent(objs[0],
+                k -> new java.util.HashMap<>());
+        MemRef slot = created.get(member);
+        if (slot == null) {
+            slot = new MemRef(Undefined.value);
+            created.put(member, slot);
+        }
+        vm.hostNonEnumerable.computeIfAbsent(objs[0], k -> new java.util.HashSet<>()).add(member);
         vm.eax.write(slot);
     }
 

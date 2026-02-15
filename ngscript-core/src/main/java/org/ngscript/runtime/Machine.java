@@ -55,6 +55,13 @@ public class Machine {
     public final java.util.Map<Object, java.util.Map<String, MemRef>> hostProps =
             new java.util.IdentityHashMap<>();
 
+    /**
+     * Host-property keys marked non-enumerable (class static methods):
+     * Object.keys / descriptor checks must not report them as enumerable.
+     */
+    public final java.util.Map<Object, java.util.Set<String>> hostNonEnumerable =
+            new java.util.IdentityHashMap<>();
+
     /** Deep snapshot of {@link #hostProps} (runner isolation between cases). */
     public java.util.Map<Object, java.util.Map<String, MemRef>> snapshotHostProps() {
         java.util.Map<Object, java.util.Map<String, MemRef>> snap =
@@ -75,6 +82,24 @@ public class Machine {
                 fresh.put(m.getKey(), new MemRef(ref.read(), ref.isImmutable()));
             }
             hostProps.put(e.getKey(), fresh);
+        }
+    }
+
+    /** Deep snapshot of {@link #hostNonEnumerable} (runner isolation). */
+    public java.util.Map<Object, java.util.Set<String>> snapshotHostNonEnumerable() {
+        java.util.Map<Object, java.util.Set<String>> snap =
+                new java.util.IdentityHashMap<>();
+        for (java.util.Map.Entry<Object, java.util.Set<String>> e : hostNonEnumerable.entrySet()) {
+            snap.put(e.getKey(), new java.util.HashSet<>(e.getValue()));
+        }
+        return snap;
+    }
+
+    /** Restores {@link #hostNonEnumerable} from {@link #snapshotHostNonEnumerable}. */
+    public void restoreHostNonEnumerable(java.util.Map<Object, java.util.Set<String>> snapshot) {
+        hostNonEnumerable.clear();
+        for (java.util.Map.Entry<Object, java.util.Set<String>> e : snapshot.entrySet()) {
+            hostNonEnumerable.put(e.getKey(), new java.util.HashSet<>(e.getValue()));
         }
     }
 
@@ -350,6 +375,12 @@ public class Machine {
                 hints = instruction;
                 continue;
             }
+            if (TRACE) {
+                err.println("[trace] eip=" + (getEip() - 1) + " " + instruction.op
+                        + " " + instruction.param + " " + instruction.paramExt
+                        + " stack=" + stack.size() + " mss=" + machineStateStack.size()
+                        + " cs=" + callstack.size());
+            }
             try {
                 instruction.invoke(this);
             } catch (ClosureBudgetExceeded cbe) {
@@ -358,7 +389,16 @@ public class Machine {
                 throw cbe;
             } catch (Throwable ex) {
                 try {
-                    exception.write(ex);
+                    // an op that called into script (iterator next(),
+                    // getters, callbacks) re-throws a thrown JS value as a
+                    // wrapper whose jsError IS the script value: unwrap it
+                    // so the enclosing JS catch binds the original object
+                    // (assert.throws checks thrown.constructor === Ctor)
+                    Object thrown = OpCall.unwrapThrown(ex);
+                    if (TRACE && thrown != ex) {
+                        err.println("[unwrap] -> " + thrown.getClass().getName());
+                    }
+                    exception.write(thrown);
                     OpCall.restore_machine_state(this, null, null);
                 } catch (NgScriptRuntimeException ex1) {
                     err.println("VM Exception");
@@ -368,6 +408,12 @@ public class Machine {
             }
         }
     }
+
+    /**
+     * Instruction-level tracing (per-opcode eip/stack dumps), enabled with
+     * {@code -Dngscript.trace=1}; used to debug stack-imbalance bugs.
+     */
+    public static final boolean TRACE = Boolean.getBoolean("ngscript.trace");
 
     public int getEip() {
         return eip.get();

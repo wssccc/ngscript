@@ -39,7 +39,29 @@ public class ObjectProto {
         proto.set("hasOwnProperty", (Invokable) (vm, args) -> {
             String key = args.length > 0 ? args[0].toString() : "undefined";
             Object t = vm.thisRef.read();
-            vm.eax.write(t instanceof NgsObject && ((NgsObject) t).has(key));
+            if (t instanceof NgsObject) {
+                vm.eax.write(((NgsObject) t).has(key));
+            } else {
+                // host objects (class constructors): class-defined static
+                // members live in the shared hostProps map
+                java.util.Map<String, org.ngscript.value.MemRef> own = vm.hostProps.get(t);
+                vm.eax.write(own != null && own.containsKey(key));
+            }
+        });
+        proto.set("propertyIsEnumerable", (Invokable) (vm, args) -> {
+            String key = args.length > 0 ? args[0].toString() : "undefined";
+            Object t = vm.thisRef.read();
+            if (t instanceof NgsObject) {
+                NgsObject obj = (NgsObject) t;
+                // an own data property is enumerable unless defineProperty
+                // (or a non-enumerable class member) marked it otherwise
+                vm.eax.write(obj.has(key) && obj.isEnumerable(key));
+            } else {
+                java.util.Map<String, org.ngscript.value.MemRef> own = vm.hostProps.get(t);
+                java.util.Set<String> nonEnum = vm.hostNonEnumerable.get(t);
+                vm.eax.write(own != null && own.containsKey(key)
+                        && (nonEnum == null || !nonEnum.contains(key)));
+            }
         });
         proto.set("isPrototypeOf", (Invokable) (vm, args) -> {
             Object t = vm.thisRef.read();

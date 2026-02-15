@@ -62,6 +62,7 @@ public class Test262Runner {
     private org.ngscript.runtime.Machine machine;
     private java.util.Map<String, org.ngscript.value.MemRef> globalBaseline;
     private java.util.Map<Object, java.util.Map<String, org.ngscript.value.MemRef>> hostBaseline;
+    private java.util.Map<Object, java.util.Set<String>> hostNonEnumBaseline;
     private java.util.Map<String, org.ngscript.value.MemRef> objectProtoBaseline;
     private java.util.Map<String, org.ngscript.value.MemRef> arrayProtoBaseline;
 
@@ -300,6 +301,7 @@ public class Test262Runner {
                 machine = sharedEngine.getMachine();
                 globalBaseline = org.ngscript.runtime.Machine.globalThis.snapshotData();
                 hostBaseline = machine.snapshotHostProps();
+                hostNonEnumBaseline = machine.snapshotHostNonEnumerable();
                 // the shared prototypes are mutable too: a case that defines
                 // an accessor on Object.prototype (or Array.prototype) would
                 // otherwise redirect every property lookup in later cases
@@ -346,6 +348,7 @@ public class Test262Runner {
             // host props and shared prototypes polluted for later cases
             org.ngscript.runtime.Machine.globalThis.restoreData(globalBaseline);
             machine.restoreHostProps(hostBaseline);
+            machine.restoreHostNonEnumerable(hostNonEnumBaseline);
             machine.objectPrototype.restoreData(objectProtoBaseline);
             machine.arrayPrototype.restoreData(arrayProtoBaseline);
         }
