@@ -148,6 +148,14 @@ public class Compiler {
      */
     private final Map<String, Integer> labelTryDepths = new HashMap<>();
 
+    /**
+     * Strict mode of the function being compiled: disables implicit globals
+     * ({@code x = 1} on an undeclared x throws a ReferenceError). Set per
+     * function body from the parsed strict flag; the script root defaults
+     * to sloppy.
+     */
+    private boolean currentStrict;
+
     /** Emits a label op, recording the current block depth for jump fixups. */
     private void emitLabel(String name) {
         labelDepths.put(name, blockDepth);
@@ -199,11 +207,12 @@ public class Compiler {
      * name through the normal assignment path: the reference is pushed, the
      * value restored to eax, then assign runs (TDZ/const checks apply). The
      * saved value is popped afterwards to keep the stack balanced. An
-     * undeclared name creates an implicit global (sloppy-mode semantics).
+     * undeclared name creates an implicit global (sloppy-mode semantics);
+     * strict mode throws a ReferenceError instead.
      */
     private void emitAssignToName(String name) {
         assembler.emit("push_eax");
-        assembler.emit("mov_eax_or_create", name);
+        assembler.emit(currentStrict ? "mov_eax" : "mov_eax_or_create", name);
         assembler.emit("push_eax");
         assembler.emit("peek", "1");
         assembler.emit("assign");
@@ -519,7 +528,10 @@ public class Compiler {
     }
 
     private void compileFunctionDecl(FunctionDecl decl) throws CompilerException {
+        boolean savedStrict = currentStrict;
+        currentStrict = decl.strict;
         String enter = _compile_function_body(decl.params, decl.body, decl.generator || decl.async);
+        currentStrict = savedStrict;
         String exitLabel = exitLabelFor(enter);
         if (blockDepth > 0) {
             // block-scoped function declaration ({ function f() {} }): the
@@ -528,6 +540,9 @@ public class Compiler {
             String marker = decl.generator ? "2" : (decl.async ? "3" : "0");
             assembler.emit("new_closure", enter, marker + "|exit:" + exitLabel);
             assembler.emit("set_func_meta", functionLength(decl.params) + "", decl.name);
+            if (decl.strict) {
+                assembler.emit("set_func_strict");
+            }
             assembler.emit("decl_let", decl.name, "0");
             emitAssignToName(decl.name);
             return;
@@ -541,6 +556,9 @@ public class Compiler {
         }
         assembler.instructions.add(1,
                 new Instruction("set_func_meta", functionLength(decl.params) + "", decl.name));
+        if (decl.strict) {
+            assembler.instructions.add(2, new Instruction("set_func_strict", null, null));
+        }
     }
 
     /**
@@ -761,11 +779,14 @@ public class Compiler {
                 // resolved (not read) first, then the right-hand side
                 // evaluates, then the value is stored, creating an implicit
                 // global for an undeclared name (sloppy-mode semantics);
-                // x = x on an undeclared x throws from the RHS read
-                assembler.emit("resolve_ref", ((IdentExpr) assign.target).name);
+                // strict mode throws a ReferenceError (x = x on an
+                // undeclared x throws from the RHS read either way)
+                assembler.emit(currentStrict ? "mov_eax" : "resolve_ref",
+                        ((IdentExpr) assign.target).name);
                 assembler.emit("push_eax");
                 compileExpr(assign.value);
-                assembler.emit("assign_ref", ((IdentExpr) assign.target).name);
+                assembler.emit(currentStrict ? "assign" : "assign_ref",
+                        ((IdentExpr) assign.target).name);
                 assembler.emit("pop");
             } else {
                 compileExpr(assign.target, true);
@@ -1000,7 +1021,10 @@ public class Compiler {
                         Collections.singletonList(new ReturnStmt(lambda.bodyExpr, lambda.line)),
                         lambda.line);
             }
+            boolean savedStrict = currentStrict;
+            currentStrict = lambda.strict;
             String enter = _compile_function_body(lambda.params, body, lambda.generator);
+            currentStrict = savedStrict;
             String marker = lambda.async
                     ? (lambda.generator ? "5" : (lambda.isArrow ? "4" : "3"))
                     : (lambda.isArrow ? "1" : (lambda.generator ? "2" : "0"));
@@ -1008,6 +1032,9 @@ public class Compiler {
             assembler.emit("new_closure", enter, marker + "|exit:" + exitLabel);
             assembler.emit("set_func_meta", functionLength(lambda.params) + "",
                     lambda.name == null ? "" : lambda.name);
+            if (lambda.strict) {
+                assembler.emit("set_func_strict");
+            }
         } else {
             throw compileError("Unknown expression " + expr);
         }
@@ -2142,6 +2169,9 @@ public class Compiler {
             assembler.emit("new_closure", enter, marker);
             assembler.emit("set_func_meta", functionLength(m.params) + "",
                     m.name == null ? "" : m.name);
+            if (m.strict) {
+                assembler.emit("set_func_strict");
+            }
             assembler.emit("accessor_define", m.isGetter ? "get" : "set", "ne");
             return;
         }
@@ -2153,6 +2183,9 @@ public class Compiler {
         assembler.emit("new_closure", enter, marker);
         assembler.emit("set_func_meta", functionLength(m.params) + "",
                 m.name == null ? "" : m.name);
+        if (m.strict) {
+            assembler.emit("set_func_strict");
+        }
         if (m.isGetter) {
             // accessor: define the getter on the class prototype (the
             // receiver is the prototype object held in eax's stack slot)

@@ -63,6 +63,9 @@ public class ScriptFunction {
      */
     public boolean arrow;
 
+    /** ES strict mode: plain-call this is undefined, no implicit globals. */
+    public boolean strict;
+
     /**
      * The lexical this binding captured when an arrow function was created;
      * null for ordinary functions.

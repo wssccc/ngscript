@@ -273,10 +273,9 @@ public class OpCall {
             } else if (receiver != null) {
                 vm.thisRef.write(receiver);
             } else {
-                // sloppy-mode plain call: this is the global object
-                // (strict mode would use undefined, but strictness is not
-                // modelled yet)
-                vm.thisRef.write(Machine.globalThis);
+                // plain call: this is the global object in sloppy mode,
+                // undefined in strict mode
+                vm.thisRef.write(c.strict ? Undefined.value : Machine.globalThis);
             }
             Integer nipObj = vm.labels.get(c.functionLabel);
             if ((c.evalClosure && c.instructions != null

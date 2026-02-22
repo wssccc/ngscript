@@ -31,6 +31,9 @@ public class FunctionDecl extends Stmt {
     public final boolean generator;
     public boolean async;
 
+    /** ES strict mode for this function body. */
+    public boolean strict;
+
     public FunctionDecl(String name, Params params, Block body, int line) {
         this(name, params, body, false, false, line);
     }

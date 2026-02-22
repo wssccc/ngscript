@@ -45,6 +45,13 @@ public class LambdaExpr extends Expr {
      */
     public boolean async;
 
+    /**
+     * ES strict mode for this function (its directive prologue, or
+     * inherited from the enclosing scope). Strict semantics: plain-call
+     * this is undefined, no implicit globals, and early errors apply.
+     */
+    public boolean strict;
+
     public LambdaExpr(Params params, Block body, int line) {
         this(null, params, body, line);
     }

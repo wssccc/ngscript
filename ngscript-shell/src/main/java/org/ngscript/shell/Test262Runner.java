@@ -274,8 +274,10 @@ public class Test262Runner {
     }
 
     /**
-     * Execution-mode judgement: strict mode is not implemented yet, so
-     * onlyStrict tests are excluded; the body runs against the harness.
+     * Execution-mode judgement: onlyStrict cases stay excluded for now
+     * (strict early errors — eval/arguments assignment restrictions, octal
+     * literals, duplicate parameters, delete of unqualified names — are
+     * not fully modelled yet); the body runs against the harness.
      */
     private void runExecutableCase(File file, String id, String source, String body,
                                    List<String> includes, Set<String> flags,

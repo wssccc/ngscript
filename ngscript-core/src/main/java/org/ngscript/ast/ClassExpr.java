@@ -40,6 +40,8 @@ public class ClassExpr extends Expr {
         public final boolean generator;
         public final boolean async;
         public final org.ngscript.ast.Expr computedKey;
+        /** ES strict mode of this method body. */
+        public boolean strict;
 
         public MethodDef(String name, Params params, Block body, boolean isStatic,
                          boolean isGetter, boolean isSetter, boolean isCtor) {

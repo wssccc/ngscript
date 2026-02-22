@@ -200,6 +200,21 @@ public class NgParser {
     private int superDepth;
 
     /**
+     * Strict mode of the current script/function (ES directive prologue:
+     * a leading {@code "use strict";} string-literal statement). Strict
+     * semantics: no implicit globals, with() is illegal, plain-call this
+     * is undefined, and several early errors apply.
+     */
+    private boolean strictMode;
+
+    /**
+     * Whether the current statement list position is still the directive
+     * prologue (only leading string-literal expression statements count);
+     * reset at the start of every function body.
+     */
+    private boolean directivePrologue = true;
+
+    /**
      * Depth of enclosing generator (function*) bodies; {@code yield} is a
      * contextual keyword valid only here (elsewhere it stays an ordinary
      * identifier, e.g. the coroutine extension's yield function).
@@ -552,6 +567,11 @@ public class NgParser {
             case "switch":
                 return parseSwitch();
             case "with": {
+                if (strictMode) {
+                    // ES early error: with is illegal in strict mode
+                    throw new ParserException("with statement is not allowed in strict mode",
+                            new org.ngscript.api.Source(null, t.line));
+                }
                 next();
                 expect("lparen");
                 Expr object = parseExpr();
@@ -759,11 +779,13 @@ public class NgParser {
                     expect("rparen");
                     ++functionDepth;
                     try {
-                        Block body = parseBlock();
-                        methods.add(new ClassExpr.MethodDef(
+                        Block body = parseFunctionBody();
+                        ClassExpr.MethodDef md = new ClassExpr.MethodDef(
                                 mname, accParams, body,
                                 isStatic, isGetter, isSetter, false,
-                                false, computedKey));
+                                false, computedKey);
+                        md.strict = pendingFunctionStrict;
+                        methods.add(md);
                     } finally {
                         --functionDepth;
                     }
@@ -868,15 +890,17 @@ public class NgParser {
             // class methods allow super
             ++superDepth;
             try {
-                Block body = parseBlock();
+                Block body = parseFunctionBody();
                 // keyword tokens (break/if/...) have a null value: only a
                 // real ident token can be `constructor`
                 boolean isCtor = mname != null && mname.value != null
                         && mname.value.equals("constructor")
                         && !isStatic && !isGenerator && !isAsync;
-                methods.add(new ClassExpr.MethodDef(
+                ClassExpr.MethodDef md2 = new ClassExpr.MethodDef(
                         mname == null ? null : tokenName(mname), params, body,
-                        isStatic, false, false, isCtor, isGenerator, isAsync, computedKey));
+                        isStatic, false, false, isCtor, isGenerator, isAsync, computedKey);
+                md2.strict = pendingFunctionStrict;
+                methods.add(md2);
             } finally {
                 --functionDepth;
                 generatorDepth = savedGen;
@@ -1107,8 +1131,10 @@ public class NgParser {
         asyncDepth = 0;
         superDepth = 0;
         try {
-            Block body = parseBlock();
-            return new FunctionDecl(name.value, params, body, generator, fn.line);
+            Block body = parseFunctionBody();
+            FunctionDecl decl = new FunctionDecl(name.value, params, body, generator, fn.line);
+            decl.strict = pendingFunctionStrict;
+            return decl;
         } finally {
             --functionDepth;
             generatorDepth = savedGen;
@@ -1138,8 +1164,9 @@ public class NgParser {
         ++asyncDepth;
         superDepth = 0;
         try {
-            Block body = parseBlock();
+            Block body = parseFunctionBody();
             FunctionDecl decl = new FunctionDecl(name.value, params, body, generator, true, asyncTok.line);
+            decl.strict = pendingFunctionStrict;
             return decl;
         } finally {
             --functionDepth;
@@ -1463,8 +1490,44 @@ public class NgParser {
     private Stmt parseExprStmt() throws ParserException {
         Expr expr = parseExpr();
         consumeSemicolon();
+        if (directivePrologue && expr instanceof LiteralExpr
+                && ((LiteralExpr) expr).kind == LiteralExpr.Kind.STRING) {
+            // ES directive prologue: a leading string-literal statement;
+            // "use strict" switches the script/function to strict mode
+            if ("use strict".equals(((LiteralExpr) expr).value)) {
+                strictMode = true;
+            } else {
+                directivePrologue = false;
+            }
+        }
         return new ExprStmt(expr, expr.line);
     }
+
+    /**
+     * Parses a function body block, resetting the directive prologue so a
+     * leading {@code "use strict";} inside the function takes effect for
+     * the function (the caller saves/restores {@link #strictMode} around
+     * the whole function definition and records the result on the AST).
+     */
+    private Block parseFunctionBody() throws ParserException {
+        boolean savedPrologue = directivePrologue;
+        directivePrologue = true;
+        boolean savedStrict = strictMode;
+        try {
+            Block body = parseBlock();
+            // the function's own strictness (its directive prologue, or
+            // inherited from the enclosing scope); the caller reads it to
+            // stamp the function AST node
+            pendingFunctionStrict = strictMode;
+            return body;
+        } finally {
+            strictMode = savedStrict;
+            directivePrologue = savedPrologue;
+        }
+    }
+
+    /** The strictness of the most recently parsed function body. */
+    private boolean pendingFunctionStrict;
 
     private Block parseBlock() throws ParserException {
         Token lcurly = expect("lcurly");
@@ -2167,11 +2230,15 @@ public class NgParser {
         superDepth = 0;
         try {
             if (peekIs("lcurly")) {
-                Block body = parseBlock();
-                return new LambdaExpr(params, null, body, line, true);
+                Block body = parseFunctionBody();
+                LambdaExpr a = new LambdaExpr(params, null, body, line, true);
+                a.strict = pendingFunctionStrict;
+                return a;
             }
             Expr body = parseAssignment();
-            return new LambdaExpr(params, body, null, line, true);
+            LambdaExpr ae = new LambdaExpr(params, body, null, line, true);
+            ae.strict = strictMode;
+            return ae;
         } finally {
             --functionDepth;
             superDepth = savedSuper;
@@ -2202,10 +2269,11 @@ public class NgParser {
         ++asyncDepth;
         superDepth = 0;
         try {
-            Block body = parseBlock();
+            Block body = parseFunctionBody();
             LambdaExpr lambda = new LambdaExpr(name, params, body, asyncTok.line);
             lambda.generator = generator;
             lambda.async = true;
+            lambda.strict = pendingFunctionStrict;
             return lambda;
         } finally {
             --functionDepth;
@@ -2227,7 +2295,7 @@ public class NgParser {
         try {
             LambdaExpr lambda;
             if (peekIs("lcurly")) {
-                Block body = parseBlock();
+                Block body = parseFunctionBody();
                 lambda = new LambdaExpr(params, null, body, line, true);
             } else {
                 Expr body = parseAssignment();
@@ -2360,9 +2428,10 @@ public class NgParser {
                 }
                 superDepth = 0;
                 try {
-                    Block body = parseBlock();
+                    Block body = parseFunctionBody();
                     LambdaExpr lambda = new LambdaExpr(name, params, body, t.line);
                     lambda.generator = generator;
+                    lambda.strict = pendingFunctionStrict;
                     return lambda;
                 } finally {
                     --functionDepth;
@@ -2512,11 +2581,12 @@ public class NgParser {
                 asyncDepth = 1;
                 ++superDepth;
                 try {
-                    Block body = parseBlock();
+                    Block body = parseFunctionBody();
                     LambdaExpr lambda = new LambdaExpr(
                             key == null ? null : tokenName(key), params, body, name.line);
                     lambda.async = true;
                     lambda.generator = star;
+                    lambda.strict = pendingFunctionStrict;
                     return new Kvp(tokenName(key), lambda, name.line);
                 } finally {
                     --functionDepth;
@@ -2540,9 +2610,10 @@ public class NgParser {
                 int savedSuper = superDepth;
                 ++superDepth;
                 try {
-                    Block body = parseBlock();
-                    return new Kvp(key, new LambdaExpr(null, params, body, name.line),
-                            name.line);
+                    Block body = parseFunctionBody();
+                    LambdaExpr cm = new LambdaExpr(null, params, body, name.line);
+                    cm.strict = pendingFunctionStrict;
+                    return new Kvp(key, cm, name.line);
                 } finally {
                     --functionDepth;
                     superDepth = savedSuper;
@@ -2571,9 +2642,10 @@ public class NgParser {
             ++generatorDepth;
             ++superDepth;
             try {
-                Block body = parseBlock();
+                Block body = parseFunctionBody();
                 LambdaExpr lambda = new LambdaExpr(tokenName(mname), params, body, star.line);
                 lambda.generator = true;
+                lambda.strict = pendingFunctionStrict;
                 return new Kvp(tokenName(mname), lambda, star.line);
             } finally {
                 --functionDepth;
@@ -2594,10 +2666,11 @@ public class NgParser {
                 int savedSuper = superDepth;
                 ++superDepth;
                 try {
-                    Block body = parseBlock();
+                    Block body = parseFunctionBody();
                     String mname = tokenName(name);
-                    return new Kvp(mname,
-                            new LambdaExpr(mname, params, body, name.line), name.line);
+                    LambdaExpr ml = new LambdaExpr(mname, params, body, name.line);
+                    ml.strict = pendingFunctionStrict;
+                    return new Kvp(mname, ml, name.line);
                 } finally {
                     --functionDepth;
                     superDepth = savedSuper;
@@ -2627,8 +2700,10 @@ public class NgParser {
                 int savedSuper = superDepth;
                 ++superDepth;
                 try {
-                    Block body = parseBlock();
-                    return new Kvp(tokenName(key), new LambdaExpr(name.value, params, body, name.line),
+                    Block body = parseFunctionBody();
+                    LambdaExpr gv = new LambdaExpr(name.value, params, body, name.line);
+                    gv.strict = pendingFunctionStrict;
+                    return new Kvp(tokenName(key), gv,
                             name.line, name.value);
                 } finally {
                     --functionDepth;

@@ -100,6 +100,17 @@ public class OpMove {
         }
     }
 
+    /**
+     * Marks the function in eax as ES strict (emitted right after
+     * set_func_meta when the parsed function carries the strict flag).
+     */
+    public static void set_func_strict(Machine vm, String param, String param_extend) {
+        Object fn = vm.eax.read();
+        if (fn instanceof org.ngscript.value.ScriptFunction) {
+            ((org.ngscript.value.ScriptFunction) fn).strict = true;
+        }
+    }
+
     public static void mov_eax_exception(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         vm.eax.write(vm.exception.read());
     }
