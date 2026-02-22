@@ -1634,19 +1634,26 @@ public class Compiler {
     private void compileSwitch(SwitchStmt switchStmt) throws CompilerException {
         String breakLabel = assembler.label("break", switchStmt);
         breakLabels.push(breakLabel);
+        // the switch value stays on the stack: every case comparison reads
+        // a copy via peek (eq pops its operand), and the matching case (or
+        // the default) pops the value before running its body
         compileExpr(switchStmt.value);
         assembler.emit("push_eax");
         for (int i = 0; i < switchStmt.cases.size(); i++) {
             SwitchCase c = switchStmt.cases.get(i);
             String nextLabel = assembler.label("case_" + i, switchStmt);
             compileExpr(c.value);
+            assembler.emit("peek", "0");
+            assembler.emit("push_eax");
             assembler.emit("eq");
             assembler.emit("jz", nextLabel);
+            assembler.emit("pop"); // drop the switch value
             compileBlock(c.body);
             emitJump(breakLabel);
             emitLabel(nextLabel);
         }
         if (switchStmt.defaultBody != null) {
+            assembler.emit("pop"); // drop the switch value
             compileBlock(switchStmt.defaultBody);
         }
         breakLabels.pop();

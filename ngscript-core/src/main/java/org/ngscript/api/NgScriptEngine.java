@@ -143,6 +143,10 @@ public class NgScriptEngine {
         OpBinding[] bound = vm.bindInstructions(ins);
         Machine.MachineState state = vm.captureState();
         vm.execNesting++;
+        // isolate the exception-state stack like CompiledScript.execute:
+        // an exception inside the eval must propagate to the caller's run
+        // loop instead of consuming its try contexts (see CompiledScript)
+        org.ngscript.util.FastStack<org.ngscript.runtime.Context> savedMss = vm.isolateMss();
         try {
             vm.installInstructions(bound);
             vm.env.write(new NgsObject(callerEnv));
@@ -150,6 +154,7 @@ public class NgScriptEngine {
             vm.run();
             return vm.eax.read();
         } finally {
+            vm.restoreMss(savedMss);
             vm.execNesting--;
             vm.restoreState(state);
         }

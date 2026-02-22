@@ -98,7 +98,7 @@ public class OpObject {
             if (top instanceof ObjAccessor) {
                 ObjAccessor acc = (ObjAccessor) top;
                 String k = acc.key instanceof String ? (String) acc.key
-                        : OpArray.keyString(acc.key);
+                        : OpUtils.convertKey(vm, acc.key);
                 if ("get".equals(acc.kind)) {
                     sh.defineAccessor(k, acc.fn,
                             sh.getAccessor(k, "set"));
@@ -126,8 +126,9 @@ public class OpObject {
             }
         }
         for (int i = keys.size() - 1; i >= 0; i--) {
-            sh.set(keys.get(i) instanceof String ? (String) keys.get(i)
-                    : OpArray.keyString(keys.get(i)), vals.get(i));
+            Object k = keys.get(i);
+            sh.set(k instanceof String ? (String) k
+                    : OpUtils.convertKey(vm, k), vals.get(i));
         }
         vm.eax.write(sh);
     }
@@ -165,6 +166,13 @@ public class OpObject {
             if (System.getProperty("dbg.set") != null) System.err.println("MEMBER_REF " + member + " -> " + ref.getClass().getSimpleName());
             vm.eax.write(ref);
             return;
+        }
+        if (objs[0] == null || objs[0] == Undefined.value) {
+            // ES: reading a property of null/undefined is a TypeError
+            // (e.g. destructuring [{ x }] against a null element)
+            throw new IllegalArgumentException(
+                    "Cannot read properties of " + (objs[0] == null ? "null" : "undefined")
+                            + " (reading '" + member + "')");
         }
         //member of native
         if (objs[0] instanceof ScriptFunction) {

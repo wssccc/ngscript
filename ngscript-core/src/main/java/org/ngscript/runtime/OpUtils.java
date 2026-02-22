@@ -372,6 +372,15 @@ public class OpUtils {
     }
 
     /** ES Number::toString (shortest decimal, no trailing .0 for integers). */
+    /**
+     * ES Number::toString: the shortest decimal representation, with the
+     * decimal form for exponents in (−7, 21) and the exponential form
+     * otherwise ({@code 1e55} -> {@code "1e+55"}, {@code 0.000001} ->
+     * {@code "0.000001"}, {@code 1e21} -> {@code "1e+21"}). Java's
+     * {@code Double.toString} format differs ({@code "1.0E55"}) and would
+     * leak into property keys ({@code {[1e55]: v}}), template strings and
+     * String() results.
+     */
     public static String numberToString(double d) {
         if (Double.isNaN(d)) {
             return "NaN";
@@ -382,10 +391,33 @@ public class OpUtils {
         if (d == Double.NEGATIVE_INFINITY) {
             return "-Infinity";
         }
-        if (d == Math.floor(d) && Math.abs(d) < 1e21) {
-            return new java.math.BigDecimal(d).toBigInteger().toString();
+        if (d == 0) {
+            return "0"; // +0 and -0 both stringify as "0"
         }
-        return Double.toString(d);
+        // valueOf uses Double.toString (the shortest decimal), unlike the
+        // exact binary expansion of `new BigDecimal(double)`
+        java.math.BigDecimal bd = java.math.BigDecimal.valueOf(d).stripTrailingZeros();
+        // the decimal exponent of the shortest representation
+        int e = bd.precision() - bd.scale() - 1;
+        if (bd.scale() <= 0 && e >= 0 && e < 21) {
+            // an integer below 1e21: plain digits
+            return bd.toBigInteger().toString();
+        }
+        if (e >= -6 && e < 21) {
+            // a plain decimal within the range (0.000001 .. < 1e21 non-integer)
+            return bd.toPlainString();
+        }
+        // exponential form: d.ddde±X (k == 1 omits the fraction)
+        String digits = bd.unscaledValue().abs().toString();
+        StringBuilder sb = new StringBuilder();
+        sb.append(digits.charAt(0));
+        if (digits.length() > 1) {
+            sb.append('.').append(digits.substring(1));
+        }
+        sb.append('e');
+        sb.append(e < 0 ? '-' : '+');
+        sb.append(Math.abs(e));
+        return sb.toString();
     }
 
     /**

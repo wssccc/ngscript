@@ -415,6 +415,23 @@ public class Machine {
      */
     public static final boolean TRACE = Boolean.getBoolean("ngscript.trace");
 
+    /**
+     * Replaces the exception-state stack with an empty one, returning the
+     * saved stack: an isolated execution (eval / CompiledScript, synchronous
+     * callbacks) must not let restore_machine_state consume the caller's
+     * try contexts. Pair with {@link #restoreMss}.
+     */
+    public FastStack<Context> isolateMss() {
+        FastStack<Context> saved = machineStateStack;
+        machineStateStack = new FastStack<>(8);
+        return saved;
+    }
+
+    /** Restores the exception-state stack saved by {@link #isolateMss}. */
+    public void restoreMss(FastStack<Context> saved) {
+        machineStateStack = saved;
+    }
+
     public int getEip() {
         return eip.get();
     }

@@ -579,12 +579,11 @@ public class NgsObject implements Scope {
 
     /** Returns the member names of this scope (not the parent chain). */
     public java.util.Set<String> keys() {
+        java.util.Set<String> all = new java.util.LinkedHashSet<>(data.keySet());
         if (accessors != null && !accessors.isEmpty()) {
-            java.util.Set<String> all = new java.util.HashSet<>(data.keySet());
             all.addAll(accessors.keySet());
-            return all;
         }
-        return data.keySet();
+        return esOrderedKeys(all);
     }
 
     /**
@@ -596,13 +595,59 @@ public class NgsObject implements Scope {
         if (nonEnumerable == null || nonEnumerable.isEmpty()) {
             return all;
         }
-        java.util.Set<String> out = new java.util.HashSet<>();
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
         for (String k : all) {
             if (!nonEnumerable.contains(k)) {
                 out.add(k);
             }
         }
         return out;
+    }
+
+    /**
+     * ES [[OwnPropertyKeys]] order: canonical array-index keys (0 ..
+     * 2^32−2 without leading zeros) ascending first, then the remaining
+     * string keys in insertion order.
+     */
+    static java.util.Set<String> esOrderedKeys(java.util.Collection<String> keys) {
+        java.util.List<String> ints = new java.util.ArrayList<>();
+        java.util.List<String> rest = new java.util.ArrayList<>();
+        for (String k : keys) {
+            if (isArrayIndexKey(k)) {
+                ints.add(k);
+            } else {
+                rest.add(k);
+            }
+        }
+        ints.sort((a, b) -> Integer.compare(Integer.parseInt(a), Integer.parseInt(b)));
+        java.util.Set<String> out = new java.util.LinkedHashSet<>(ints.size() + rest.size());
+        out.addAll(ints);
+        out.addAll(rest);
+        return out;
+    }
+
+    private static boolean isArrayIndexKey(String k) {
+        if (k.isEmpty() || k.length() > 10) {
+            return false;
+        }
+        if (k.equals("0")) {
+            return true;
+        }
+        if (k.charAt(0) == '0') {
+            return false; // leading zeros are not canonical
+        }
+        long v = 0;
+        for (int i = 0; i < k.length(); i++) {
+            char c = k.charAt(i);
+            if (c < '0' || c > '9') {
+                return false;
+            }
+            v = v * 10 + (c - '0');
+            if (v >= 4294967295L) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public NgsObject getParent() {

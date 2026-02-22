@@ -2616,6 +2616,11 @@ public class NgParser {
      * keyword itself, e.g. "if").
      */
     private static String tokenName(Token t) {
+        if (t.type.equals("double")) {
+            // ToPropertyKey canonicalizes numeric keys: 1E+9 -> "1000000000",
+            // 0.5e1 -> "5" (class accessor/method/field names, object keys)
+            return org.ngscript.runtime.OpUtils.toStringValue(Double.parseDouble(t.value));
+        }
         return t.value != null ? t.value : t.type;
     }
 

@@ -52,6 +52,14 @@ public class CompiledScript implements Script {
         Machine machine = engine.vm;
         Machine.MachineState state = machine.captureState();
         machine.execNesting++;
+        // isolate the exception-state stack: an exception inside this
+        // replace-style execution (eval/CompiledScript) must propagate to
+        // the *caller's* run loop as a wrapped value, not consume the
+        // caller's try contexts via restore_machine_state (the machine
+        // stack is reset for this execution, so restoring a caller context
+        // would resume with an empty stack and later drop_machine_state
+        // would pop an empty exception-state stack)
+        org.ngscript.util.FastStack<org.ngscript.runtime.Context> savedMss = machine.isolateMss();
         try {
             machine.installInstructions(boundInstructions);
             machine.env.write(new NgsObject(machine.getInitialEnvironment()));
@@ -64,6 +72,7 @@ public class CompiledScript implements Script {
             machine.run();
             return machine.eax.read();
         } finally {
+            machine.restoreMss(savedMss);
             machine.execNesting--;
             machine.restoreState(state);
         }
