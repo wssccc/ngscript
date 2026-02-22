@@ -374,7 +374,13 @@ public class OpCall {
             vm.env.write(null);
             return;
         }
-        throw new NgScriptRuntimeException(vm, "unexpected callee " + callee + " (" + (callee == null ? "null" : callee.getClass()) + ")");
+            throw new IllegalArgumentException("unexpected callee " + callee
+                    + " (" + (callee == null ? "null" : callee.getClass()) + ")"
+                    + " eip=" + vm.getEip()
+                    + " stack=" + vm.stack.size()
+                    + " top0=" + (vm.stack.size() > 0 ? vm.stack.peek(0) : "empty")
+                    + " top1=" + (vm.stack.size() > 1 ? vm.stack.peek(1) : "empty")
+                    + " top3=" + (vm.stack.size() > 3 ? vm.stack.peek(3) : "empty"));
     }
 
     public static void save_machine_state(Machine vm, String param, String param_extend) {

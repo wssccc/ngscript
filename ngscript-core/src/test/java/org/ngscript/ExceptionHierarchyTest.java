@@ -51,9 +51,10 @@ public class ExceptionHierarchyTest {
     @Test
     public void compileErrorIsNgScriptException() {
         try {
-            // `with` parses and compiles; a genuinely unsupported construct
-            // (dynamic import) still raises a ParserException
-            new NgScriptEngine().eval("import('x');");
+            // ES module imports (import x from 'm') are not supported: the
+            // dynamic import expression import(...) now parses and yields
+            // a rejected promise instead
+            new NgScriptEngine().eval("import x from 'm';");
             fail("expected ParserException");
         } catch (NgScriptException e) {
             assertTrue("should be a ParserException", e instanceof ParserException);

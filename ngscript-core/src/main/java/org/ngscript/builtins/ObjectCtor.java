@@ -51,6 +51,14 @@ public class ObjectCtor implements Invokable {
      */
     public static MemRef lookup(ObjectCtor ctor, String member, Machine vm) {
         switch (member) {
+            case "is":
+                // Object.is: the SameValue comparison (no type coercion,
+                // NaN equals NaN, +0 differs from -0)
+                return new MemRef((Invokable) (vm2, args) -> {
+                    vm2.eax.write(org.ngscript.runtime.OpUtils.strictEquals(
+                            args.length > 0 ? args[0] : null,
+                            args.length > 1 ? args[1] : null));
+                });
             case "keys":
                 return new MemRef((Invokable) (vm2, args) -> {
                     NgsObject o = objectArg(vm2, args, 0);

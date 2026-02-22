@@ -206,7 +206,8 @@ public class OpUtils {
         if (callee instanceof ScriptFunction) {
             return vm.callFunctionSync(callee, args, receiver);
         }
-        throw new NgScriptRuntimeException(vm, (callee == null ? "null" : callee.toString()) + " is not callable");
+        // ES: calling a non-callable is a TypeError, not a ReferenceError
+        throw new IllegalArgumentException((callee == null ? "null" : callee.toString()) + " is not callable");
     }
 
     static double getNumber(Machine vm, Object obj) throws NgScriptRuntimeException {

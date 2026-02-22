@@ -54,6 +54,7 @@ import org.ngscript.ast.ImportStmt;
 import org.ngscript.ast.IndexExpr;
 import org.ngscript.ast.Kvp;
 import org.ngscript.ast.LabeledStmt;
+import org.ngscript.ast.ImportCallExpr;
 import org.ngscript.ast.LambdaExpr;
 import org.ngscript.ast.LetDeclExpr;
 import org.ngscript.ast.LiteralExpr;
@@ -274,6 +275,17 @@ public class Compiler {
      * undefined.
      */
     private void compilePattern(Pattern p) throws CompilerException {
+        compilePattern(p, null);
+    }
+
+    /**
+     * Compiles a destructuring pattern match: the value to destructure must
+     * be in eax. {@code inferredName} is the binding name for ES
+     * SetFunctionName: an anonymous function expression used as the
+     * pattern's default ({@code [gen = function* () {}] = vals}) takes the
+     * bound name.
+     */
+    private void compilePattern(Pattern p, String inferredName) throws CompilerException {
         if (p == null) {
             return; // hole
         }
@@ -281,6 +293,12 @@ public class Compiler {
             String skip = assembler.label("pat_default", p);
             assembler.emit("jnundef", skip);
             compileExpr(p.defaultValue);
+            if (inferredName != null && p.defaultValue instanceof LambdaExpr
+                    && ((LambdaExpr) p.defaultValue).name == null) {
+                // ES SetFunctionName: the anonymous default takes the
+                // pattern's binding name
+                assembler.emit("set_func_name", inferredName);
+            }
             emitLabel(skip);
         }
         if (p instanceof Pattern.IdentP) {
@@ -289,13 +307,15 @@ public class Compiler {
             Pattern.ArrayP arr = (Pattern.ArrayP) p;
             assembler.emit("push_eax");
             assembler.emit("destr_iter_init");
-            for (Pattern item : arr.items) {
+            for (int i = 0; i < arr.items.size(); i++) {
                 assembler.emit("destr_iter_next");
-                compilePattern(item);
+                compilePattern(arr.items.get(i), arr.items.get(i) instanceof Pattern.IdentP
+                        ? ((Pattern.IdentP) arr.items.get(i)).name : null);
             }
             if (arr.rest != null) {
                 assembler.emit("destr_iter_rest");
-                compilePattern(arr.rest);
+                compilePattern(arr.rest, arr.rest instanceof Pattern.IdentP
+                        ? ((Pattern.IdentP) arr.rest).name : null);
             } else {
                 assembler.emit("destr_iter_done");
             }
@@ -328,7 +348,8 @@ public class Compiler {
                     assembler.emit("member_ref");
                 }
                 assembler.emit("deref", "%eax");
-                compilePattern(prop.pattern);
+                compilePattern(prop.pattern, prop.pattern instanceof Pattern.IdentP
+                        ? ((Pattern.IdentP) prop.pattern).name : null);
                 if (prop.keyExpr == null) {
                     // only static keys travel in the param list; computed
                     // keys are pushed on the stack for destr_obj_rest
@@ -344,7 +365,8 @@ public class Compiler {
                 // computed keys sit above the object and are popped by
                 // destr_obj_rest (static keys travel in param)
                 assembler.emit("destr_obj_rest", consumed.toString() + ";" + computedKeys);
-                compilePattern(obj.rest);
+                compilePattern(obj.rest, obj.rest instanceof Pattern.IdentP
+                        ? ((Pattern.IdentP) obj.rest).name : null);
                 // only the object itself remains (destr_obj_rest popped
                 // the computed key strings)
                 assembler.emit("pop");
@@ -958,6 +980,17 @@ public class Compiler {
             assembler.emit("template_join", tpl.exprs.size() * 2 + 1 + "");
         } else if (expr instanceof TaggedTemplateExpr) {
             compileTaggedTemplate((TaggedTemplateExpr) expr);
+        } else if (expr instanceof ImportCallExpr) {
+            ImportCallExpr imp = (ImportCallExpr) expr;
+            // ES: import(specifier) evaluates the specifier and returns a
+            // Promise; the host has no module loader, so the result is a
+            // rejected promise (the specifier string is still produced)
+            if (!imp.args.isEmpty()) {
+                compileExpr(imp.args.get(0));
+            } else {
+                assembler.emit("undefined");
+            }
+            assembler.emit("import_call");
         } else if (expr instanceof LambdaExpr) {
             LambdaExpr lambda = (LambdaExpr) expr;
             Block body = lambda.body;
@@ -1878,6 +1911,18 @@ public class Compiler {
             assembler.emit("push_eax");
             assembler.emit("string", member.name);
             assembler.emit("member_ref");
+            assembler.emit("deref", "%eax");
+            assembler.emit("push_eax");
+        } else if (callee instanceof IndexExpr && !isNew) {
+            // obj[key](...): the base object is the receiver (this), a
+            // duplicate feeds array_ref
+            IndexExpr ix = (IndexExpr) callee;
+            compileExpr(ix.object);
+            assembler.emit("push_eax");
+            assembler.emit("peek", "0");
+            assembler.emit("push_eax");
+            compileExpr(ix.index);
+            assembler.emit("array_ref");
             assembler.emit("deref", "%eax");
             assembler.emit("push_eax");
         } else {

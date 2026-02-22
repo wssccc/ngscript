@@ -52,6 +52,7 @@ import org.ngscript.ast.FunctionDecl;
 import org.ngscript.ast.GoStmt;
 import org.ngscript.ast.IdentExpr;
 import org.ngscript.ast.IfStmt;
+import org.ngscript.ast.ImportCallExpr;
 import org.ngscript.ast.ImportStmt;
 import org.ngscript.ast.IndexExpr;
 import org.ngscript.ast.Kvp;
@@ -641,6 +642,16 @@ public class NgParser {
                 return new ContinueStmt(t.line);
             }
             case "import":
+                // `import(` on the same line is a dynamic import expression
+                // (statement position); otherwise the statement-level
+                // `import Java包` extension applies
+                {
+                    Token it = peek();
+                    Token nx2 = peekN(2);
+                    if (nx2 != null && nx2.type.equals("lparen") && nx2.line == it.line) {
+                        return parseExprStmt();
+                    }
+                }
                 return parseImport();
             case "go":
                 return parseGo();
@@ -2389,6 +2400,31 @@ public class NgParser {
                     return new SuperMemberExpr(name.value, t.line);
                 }
                 throw new ParserException("invalid use of super",
+                        new org.ngscript.api.Source(null, t.line));
+            }
+            case "import": {
+                // dynamic import: import( AssignmentExpression ,opt ) at an
+                // expression position (the statement-level `import Java包`
+                // extension is handled in parseStatement); the optional
+                // second argument is the ES import-attributes proposal
+                Token it = peek();
+                Token nx = peekN(2);
+                if (nx != null && nx.type.equals("lparen") && nx.line == it.line) {
+                    next(); // import
+                    next(); // (
+                    java.util.List<Expr> args = new java.util.ArrayList<>();
+                    args.add(parseAssignment());
+                    if (peekIs("comma")) {
+                        next();
+                        if (!peekIs("rparen")) {
+                            args.add(parseAssignment());
+                        }
+                    }
+                    expect("rparen");
+                    return new ImportCallExpr(args, t.line);
+                }
+                throw new ParserException(
+                        "import is only supported as import(...) or a statement",
                         new org.ngscript.api.Source(null, t.line));
             }
             case "lsqr":

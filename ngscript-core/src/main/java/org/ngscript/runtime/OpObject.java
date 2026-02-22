@@ -176,6 +176,10 @@ public class OpObject {
         }
         //member of native
         if (objs[0] instanceof ScriptFunction) {
+            if (Machine.TRACE) {
+                System.err.println("[fn-member] " + member + " hostProps="
+                        + (vm.hostProps.get(objs[0]) == null ? "null" : vm.hostProps.get(objs[0]).keySet()));
+            }
             // class-defined static members (static m() {}, static x = 1)
             // take precedence over the intrinsic function properties
             // (call/apply/bind/name/length/prototype), per ES: class
@@ -588,6 +592,24 @@ public class OpObject {
     }
 
     /** Converts the current eax value to a property key string. */
+    /**
+     * Dynamic import {@code import(specifier)}: evaluates the specifier in
+     * eax and yields a rejected Promise (the host has no module loader yet;
+     * ES always returns a promise from import()).
+     */
+    public static void import_call(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object specifier = vm.eax.read();
+        String spec = OpUtils.toStringValue(specifier);
+        try {
+            vm.eax.write(org.ngscript.builtins.PromiseBuiltins.rejectStatic(vm,
+                    new NgScriptRuntimeException(vm,
+                            "dynamic import of '" + spec + "' is not supported by this host")));
+        } catch (Exception e) {
+            throw new NgScriptRuntimeException(vm, e.getMessage() == null
+                    ? e.toString() : e.getMessage());
+        }
+    }
+
     public static void to_string(Machine vm, String param, String param_extend) {
         Object v = vm.eax.read();
         if (v instanceof org.ngscript.value.SymbolValue) {
@@ -1121,6 +1143,10 @@ public class OpObject {
             return;
         }
         Object t = vm.thisRef.read();
+        if (Machine.TRACE) {
+            System.err.println("[super_ref] this=" + t + " proto="
+                    + (t instanceof NgsObject ? ((NgsObject) t).getPrototype() : "n/a"));
+        }
         if (t instanceof NgsObject) {
             MemRef ref = findInProtoChain(((NgsObject) t).getPrototype(), param);
             if (ref != null) {

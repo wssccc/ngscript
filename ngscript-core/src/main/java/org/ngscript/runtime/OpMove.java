@@ -84,6 +84,22 @@ public class OpMove {
         vm.exception.write(vm.eax.read());
     }
 
+    /**
+     * ES SetFunctionName for destructuring defaults: names the anonymous
+     * function expression in eax after the pattern binding it initializes
+     * ({@code [gen = function* () {}] = vals} infers {@code gen.name}).
+     * An already-named function expression keeps its own name.
+     */
+    public static void set_func_name(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object fn = vm.eax.read();
+        if (fn instanceof org.ngscript.value.ScriptFunction) {
+            org.ngscript.value.ScriptFunction f = (org.ngscript.value.ScriptFunction) fn;
+            if (f.name == null || f.name.isEmpty()) {
+                f.name = param;
+            }
+        }
+    }
+
     public static void mov_eax_exception(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         vm.eax.write(vm.exception.read());
     }
