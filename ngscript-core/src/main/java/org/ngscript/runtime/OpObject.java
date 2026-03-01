@@ -587,6 +587,46 @@ public class OpObject {
         }
     }
 
+    /**
+     * Strict-mode delete: like {@link #delete_op} but a failed deletion
+     * (a non-configurable property) throws a TypeError, as ES requires in
+     * strict code.
+     */
+    public static void delete_op_strict(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        Object obj = objs[0];
+        String key = OpArray.keyString(objs[1]);
+        boolean ok;
+        if (obj instanceof ProxyValue) {
+            try {
+                ok = ((ProxyValue) obj).proxyDelete(vm, key);
+            } catch (Exception e) {
+                throw new NgScriptRuntimeException(vm, e.getMessage() == null
+                        ? e.toString() : e.getMessage());
+            }
+        } else if (obj instanceof NgsObject) {
+            ok = ((NgsObject) obj).remove(key);
+        } else if (obj instanceof NgsArray) {
+            ok = ((NgsArray) obj).remove(key);
+        } else {
+            java.util.Map<String, MemRef> own = vm.hostProps.get(obj);
+            ok = own == null || own.remove(key) != null;
+            if (own != null) {
+                java.util.Set<String> nonEnum = vm.hostNonEnumerable.get(obj);
+                if (nonEnum != null) {
+                    nonEnum.remove(key);
+                }
+            }
+        }
+        if (!ok) {
+            // ES strict: deleting a non-configurable property is a TypeError
+            throw new IllegalArgumentException(
+                    "Cannot delete property '" + key + "' of "
+                            + (obj == null ? "null" : obj.getClass().getSimpleName()));
+        }
+        vm.eax.write(Boolean.TRUE);
+    }
+
     public static void void_op(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         vm.eax.write(Undefined.value);
     }
@@ -836,7 +876,9 @@ public class OpObject {
         long budget = vm.runBudget;
         long n = 0;
         boolean done = false;
-        if (iterator instanceof java.util.Iterator) {
+        boolean completed = false;
+        try {
+            if (iterator instanceof java.util.Iterator) {
             java.util.Iterator it = (java.util.Iterator) iterator;
             while (it.hasNext()) {
                 if (budget >= 0 && ++n > budget) {
@@ -862,10 +904,18 @@ public class OpObject {
                 }
             }
         }
-        // a rest pattern exhausts the iterator: IteratorClose applies only
-        // when the iteration is abandoned early (done here means completed)
-        if (!done) {
-            closeIterator(vm, iterator);
+            // a rest pattern exhausts the iterator: IteratorClose applies
+            // only when the iteration is abandoned early (done means completed)
+            if (!done) {
+                closeIterator(vm, iterator);
+            }
+            completed = true;
+        } finally {
+            if (!completed) {
+                // the iterator stays on the stack when the iteration throws,
+                // so the enclosing restore/cleanup stays balanced
+                vm.stack.push(iterator);
+            }
         }
         vm.eax.write(arr);
     }

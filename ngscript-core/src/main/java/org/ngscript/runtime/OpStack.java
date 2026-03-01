@@ -144,41 +144,48 @@ public class OpStack {
     /** Spreads the iterable in eax into the collector on the stack top. */
     public static void args_spread_add(Machine vm, String param, String param_extend) throws Exception {
         java.util.ArrayList<Object> list = (java.util.ArrayList<Object>) vm.stack.pop();
-        Object iterator = OpUtils.getIterator(vm, vm.eax.read());
-        if (iterator instanceof java.util.Iterator) {
-            java.util.Iterator it = (java.util.Iterator) iterator;
-            long budget = vm.runBudget;
-            long n = 0;
-            while (it.hasNext()) {
-                if (budget >= 0 && ++n > budget) {
-                    throw new NgScriptRuntimeException(vm,
-                            "instruction budget exceeded while spreading an iterator");
+        try {
+            Object iterator = OpUtils.getIterator(vm, vm.eax.read());
+            if (iterator instanceof java.util.Iterator) {
+                java.util.Iterator it = (java.util.Iterator) iterator;
+                long budget = vm.runBudget;
+                long n = 0;
+                while (it.hasNext()) {
+                    if (budget >= 0 && ++n > budget) {
+                        throw new NgScriptRuntimeException(vm,
+                                "instruction budget exceeded while spreading an iterator");
+                    }
+                    list.add(it.next());
                 }
-                list.add(it.next());
-            }
-        } else {
-            // generic ES iterator protocol: poll next() until done
-            long budget = vm.runBudget;
-            long n = 0;
-            while (true) {
-                if (budget >= 0 && ++n > budget) {
-                    throw new NgScriptRuntimeException(vm,
-                            "instruction budget exceeded while spreading an iterator");
-                }
-                Object method = OpUtils.getMember(vm, iterator, "next");
-                Object result = OpUtils.callValue(vm, method, iterator, new Object[0]);
-                if (result instanceof NgsObject) {
-                    if (!OpUtils.testValue(((NgsObject) result).get("done"))) {
-                        list.add(((NgsObject) result).get("value"));
+            } else {
+                // generic ES iterator protocol: poll next() until done
+                long budget = vm.runBudget;
+                long n = 0;
+                while (true) {
+                    if (budget >= 0 && ++n > budget) {
+                        throw new NgScriptRuntimeException(vm,
+                                "instruction budget exceeded while spreading an iterator");
+                    }
+                    Object method = OpUtils.getMember(vm, iterator, "next");
+                    Object result = OpUtils.callValue(vm, method, iterator, new Object[0]);
+                    if (result instanceof NgsObject) {
+                        if (!OpUtils.testValue(((NgsObject) result).get("done"))) {
+                            list.add(((NgsObject) result).get("value"));
+                        } else {
+                            break;
+                        }
                     } else {
                         break;
                     }
-                } else {
-                    break;
                 }
             }
+        } finally {
+            // keep the collector on the stack even when the iteration
+            // throws: the exception propagates to the nearest JS try/catch
+            // whose restore truncates the stack, and the caller's cleanup
+            // stays balanced otherwise
+            vm.stack.push(list);
         }
-        vm.stack.push(list);
     }
 
     /** Converts the collector to a call argument array. */

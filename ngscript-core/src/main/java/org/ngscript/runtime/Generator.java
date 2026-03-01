@@ -123,6 +123,20 @@ public class Generator extends NgsObject {
      * -1) or the body returns.
      */
     private void runBodyLoop() throws NgScriptRuntimeException {
+        // isolate the exception-state stack: a throw inside the generator
+        // body must propagate to the caller as a wrapped value, not consume
+        // the caller's try contexts via restore_machine_state (the body's
+        // restore would otherwise resume the caller's code inside this
+        // loop, corrupting the machine stack)
+        org.ngscript.util.FastStack<Context> savedMss = vm.isolateMss();
+        try {
+            runBodyLoopInner();
+        } finally {
+            vm.restoreMss(savedMss);
+        }
+    }
+
+    private void runBodyLoopInner() throws NgScriptRuntimeException {
         while (true) {
             int eip = vm.getEip();
             if (eip < 0) {
@@ -206,47 +220,55 @@ public class Generator extends NgsObject {
         vm.stack.push(-1);    // return address: the halt sentinel
         Integer nipObj = vm.labels.get(fn.functionLabel);
         vm.setEip(nipObj == null ? 0 : nipObj);
+        // isolate the exception-state stack like runBodyLoop: a throw
+        // during parameter binding must not consume the caller's try
+        // contexts (the binding runs synchronously at call time)
+        org.ngscript.util.FastStack<Context> savedMss = vm.isolateMss();
         boolean bound = false;
-        while (true) {
-            int eip = vm.getEip();
-            if (eip < 0 || eip >= vm.instructions.length) {
-                break;
-            }
-            vm.setEip(eip + 1);
-            try {
-                org.ngscript.runtime.opcache.OpBinding ins = vm.instructions[eip];
-                if (ins.op.equals("gen_body_enter")) {
-                    // parameters are bound: record the resume point and the
-                    // frame for the first next(), then restore the caller
-                    bound = true;
-                    resumeEip = vm.getEip();
-                    int n = vm.stack.size() - callerStackSize;
-                    frameSlot = new Object[n];
-                    for (int i = n - 1; i >= 0; i--) {
-                        frameSlot[i] = vm.stack.pop();
-                    }
+        try {
+            while (true) {
+                int eip = vm.getEip();
+                if (eip < 0 || eip >= vm.instructions.length) {
                     break;
                 }
-                ins.invoke(vm);
-            } catch (Throwable ex) {
+                vm.setEip(eip + 1);
                 try {
-                    vm.exception.write(OpCall.unwrapThrown(ex));
-                    OpCall.restore_machine_state(vm, null, null);
-                } catch (NgScriptRuntimeException re) {
-                    closed = true;
-                    yielded = false;
-                    vm.setEip(callerEip);
-                    vm.env.write(callerEnv);
-                    while (vm.stack.size() > callerStackSize) {
-                        vm.stack.pop();
+                    org.ngscript.runtime.opcache.OpBinding ins = vm.instructions[eip];
+                    if (ins.op.equals("gen_body_enter")) {
+                        // parameters are bound: record the resume point and the
+                        // frame for the first next(), then restore the caller
+                        bound = true;
+                        resumeEip = vm.getEip();
+                        int n = vm.stack.size() - callerStackSize;
+                        frameSlot = new Object[n];
+                        for (int i = n - 1; i >= 0; i--) {
+                            frameSlot[i] = vm.stack.pop();
+                        }
+                        break;
                     }
-                    throw re;
+                    ins.invoke(vm);
+                } catch (Throwable ex) {
+                    try {
+                        vm.exception.write(OpCall.unwrapThrown(ex));
+                        OpCall.restore_machine_state(vm, null, null);
+                    } catch (NgScriptRuntimeException re) {
+                        closed = true;
+                        yielded = false;
+                        vm.setEip(callerEip);
+                        vm.env.write(callerEnv);
+                        while (vm.stack.size() > callerStackSize) {
+                            vm.stack.pop();
+                        }
+                        throw re;
+                    }
+                    // a JS try/catch handled it: the machine state (eip, env,
+                    // stack) has been restored to the catch site; the frame was
+                    // already popped by restore. Return without touching state.
+                    return;
                 }
-                // a JS try/catch handled it: the machine state (eip, env,
-                // stack) has been restored to the catch site; the frame was
-                // already popped by restore. Return without touching state.
-                return;
             }
+        } finally {
+            vm.restoreMss(savedMss);
         }
         if (bound) {
             vm.setEip(callerEip);

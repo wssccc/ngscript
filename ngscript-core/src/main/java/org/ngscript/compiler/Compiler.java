@@ -1419,15 +1419,20 @@ public class Compiler {
                     compileExpr(member.object);
                     assembler.emit("push_eax");
                     assembler.emit("string", member.name);
-                    assembler.emit("delete_op");
+                    assembler.emit(currentStrict ? "delete_op_strict" : "delete_op");
                 } else if (unary.operand instanceof IndexExpr) {
                     // delete obj[key]: compile the key expression too
                     IndexExpr index = (IndexExpr) unary.operand;
                     compileExpr(index.object);
                     assembler.emit("push_eax");
                     compileExpr(index.index);
-                    assembler.emit("delete_op");
+                    assembler.emit(currentStrict ? "delete_op_strict" : "delete_op");
                 } else if (unary.operand instanceof IdentExpr) {
+                    if (currentStrict) {
+                        // ES early error: deleting an unqualified identifier
+                        // is illegal in strict mode
+                        throw compileError("Delete of an unqualified identifier in strict mode");
+                    }
                     // deleting a plain variable binding yields false in ES;
                     // the variable is not read (delete x with an undeclared
                     // x is true in sloppy mode, but the binding read would
