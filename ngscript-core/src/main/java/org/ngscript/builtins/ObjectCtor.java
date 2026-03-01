@@ -115,7 +115,9 @@ public class ObjectCtor implements Invokable {
                         if (v == null) {
                             // class-defined static members live in hostProps
                             java.util.Map<String, MemRef> own = vm2.hostProps.get(f);
-                            if (own == null || !own.containsKey(name)) {
+                            if (own == null || !own.containsKey(name)
+                                    || (name.length() > 0 && name.charAt(0) == '#')) {
+                                // private names are not ordinary properties
                                 vm2.eax.write(Undefined.value);
                                 return;
                             }

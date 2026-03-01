@@ -565,10 +565,14 @@ public class Machine {
             NgsObject frame = new NgsObject((NgsObject) c.environment);
             frame.functionScope = true;
             env.write(frame);
-            // arrows keep their lexical this; ordinary functions bind the receiver
+            // arrows keep their lexical this; ordinary functions bind the
+            // receiver (null/undefined receivers bind the global object in
+            // sloppy mode and undefined in strict mode)
             thisRef.write(c.arrow
                     ? (c.capturedThis != null ? c.capturedThis : Undefined.value)
-                    : (receiver != null ? receiver : Undefined.value));
+                    : (receiver != null && receiver != Undefined.value
+                            ? receiver
+                            : (c.strict ? Undefined.value : Machine.globalThis)));
             stack.push(receiver != null ? receiver : null);
             stack.push(callee);
             stack.push(args);

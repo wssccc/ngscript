@@ -296,6 +296,10 @@ public class NgsObject implements Scope {
      * Whether an own property exists (data or accessor).
      */
     public boolean has(String key) {
+        if (isPrivateKey(key)) {
+            // private members are not ordinary properties
+            return false;
+        }
         if (accessors != null && accessors.containsKey(key)) {
             return true;
         }
@@ -579,11 +583,30 @@ public class NgsObject implements Scope {
 
     /** Returns the member names of this scope (not the parent chain). */
     public java.util.Set<String> keys() {
-        java.util.Set<String> all = new java.util.LinkedHashSet<>(data.keySet());
+        java.util.Set<String> all = new java.util.LinkedHashSet<>();
+        for (String k : data.keySet()) {
+            if (!isPrivateKey(k)) {
+                all.add(k);
+            }
+        }
         if (accessors != null && !accessors.isEmpty()) {
-            all.addAll(accessors.keySet());
+            for (String k : accessors.keySet()) {
+                if (!isPrivateKey(k)) {
+                    all.add(k);
+                }
+            }
         }
         return esOrderedKeys(all);
+    }
+
+    /**
+     * Private class members ({@code #x}) are stored as ordinary data keys
+     * but must never surface as properties: ES private names live in a
+     * separate private environment, invisible to hasOwnProperty, ownKeys,
+     * Object.keys, for-in and delete.
+     */
+    private static boolean isPrivateKey(String k) {
+        return k.length() > 0 && k.charAt(0) == '#';
     }
 
     /**

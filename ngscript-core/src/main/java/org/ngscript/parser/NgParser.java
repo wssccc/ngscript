@@ -514,6 +514,16 @@ public class NgParser {
     //----------------------------------------------------------------------
 
     private Stmt parseStatement() throws ParserException {
+        // any statement that is not a leading string-literal expression
+        // ends the directive prologue (ES: only ExpressionStatements of
+        // string literals form the prologue; an empty statement or a
+        // non-string statement terminates it)
+        if (directivePrologue) {
+            Token t0 = peek();
+            if (t0 == null || !t0.type.equals("string")) {
+                directivePrologue = false;
+            }
+        }
         Token t = peek();
         if (t == null) {
             return null;

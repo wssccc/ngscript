@@ -43,9 +43,11 @@ public class ObjectProto {
                 vm.eax.write(((NgsObject) t).has(key));
             } else {
                 // host objects (class constructors): class-defined static
-                // members live in the shared hostProps map
+                // members live in the shared hostProps map; private names
+                // (#x) are not ordinary properties and stay invisible
                 java.util.Map<String, org.ngscript.value.MemRef> own = vm.hostProps.get(t);
-                vm.eax.write(own != null && own.containsKey(key));
+                vm.eax.write(own != null && own.containsKey(key)
+                        && (key.length() == 0 || key.charAt(0) != '#'));
             }
         });
         proto.set("propertyIsEnumerable", (Invokable) (vm, args) -> {
