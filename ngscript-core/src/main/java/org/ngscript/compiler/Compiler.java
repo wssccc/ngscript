@@ -302,10 +302,11 @@ public class Compiler {
             String skip = assembler.label("pat_default", p);
             assembler.emit("jnundef", skip);
             compileExpr(p.defaultValue);
-            if (inferredName != null && p.defaultValue instanceof LambdaExpr
-                    && ((LambdaExpr) p.defaultValue).name == null) {
-                // ES SetFunctionName: the anonymous default takes the
-                // pattern's binding name
+            if (inferredName != null && (p.defaultValue instanceof LambdaExpr
+                    ? ((LambdaExpr) p.defaultValue).name == null
+                    : p.defaultValue instanceof ClassExpr)) {
+                // ES SetFunctionName: an anonymous function/class expression
+                // used as the default takes the pattern's binding name
                 assembler.emit("set_func_name", inferredName);
             }
             emitLabel(skip);

@@ -137,6 +137,21 @@ public class ObjectCtor implements Invokable {
                         desc.set("writable", Boolean.TRUE);
                         desc.set("enumerable", Boolean.FALSE);
                         desc.set("configurable", Boolean.TRUE);
+                        if (("name".equals(name) || "prototype".equals(name))
+                                && f.deletedProps != null
+                                && f.deletedProps.contains(name)) {
+                            // the property was deleted: no own descriptor
+                            vm2.eax.write(Undefined.value);
+                            return;
+                        }
+                        if ("name".equals(name) || "length".equals(name)) {
+                            // ES: function name/length are non-writable
+                            desc.set("writable", Boolean.FALSE);
+                        }
+                        if ("prototype".equals(name)) {
+                            // ES: F.prototype is non-configurable
+                            desc.set("configurable", Boolean.FALSE);
+                        }
                         vm2.eax.write(desc);
                         return;
                     }

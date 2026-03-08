@@ -41,10 +41,23 @@ public class ObjectProto {
             Object t = vm.thisRef.read();
             if (t instanceof NgsObject) {
                 vm.eax.write(((NgsObject) t).has(key));
+            } else if (t instanceof org.ngscript.value.ScriptFunction) {
+                // intrinsic function properties (name/length/prototype,
+                // call/apply/bind placeholders) are own properties of the
+                // function object; class-defined static members live in
+                // hostProps (private names #x stay invisible)
+                org.ngscript.value.ScriptFunction fn = (org.ngscript.value.ScriptFunction) t;
+                boolean intrinsic = "name".equals(key) || "length".equals(key)
+                        || "prototype".equals(key)
+                        || "call".equals(key) || "apply".equals(key) || "bind".equals(key);
+                java.util.Map<String, org.ngscript.value.MemRef> own = vm.hostProps.get(t);
+                vm.eax.write((intrinsic
+                            && (fn.deletedProps == null || !fn.deletedProps.contains(key)))
+                        || (own != null && own.containsKey(key)
+                            && (key.length() == 0 || key.charAt(0) != '#')));
             } else {
-                // host objects (class constructors): class-defined static
-                // members live in the shared hostProps map; private names
-                // (#x) are not ordinary properties and stay invisible
+                // host objects: class-defined static members live in the
+                // shared hostProps map; private names (#x) stay invisible
                 java.util.Map<String, org.ngscript.value.MemRef> own = vm.hostProps.get(t);
                 vm.eax.write(own != null && own.containsKey(key)
                         && (key.length() == 0 || key.charAt(0) != '#'));

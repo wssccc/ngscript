@@ -54,6 +54,26 @@ public class Test262Runner {
     private final NgParser parser = new NgParser();
     private final Set<String> excludelist = new HashSet<>();
     private final List<String> enabledFeatures = new ArrayList<>();
+
+    /**
+     * Features the host does not implement: cases depending on them are
+     * excluded when no explicit feature filter is given (the proposals
+     * behind them would fail on missing syntax or intrinsics).
+     */
+    private static final java.util.Set<String> UNSUPPORTED_FEATURES =
+            new java.util.HashSet<>(java.util.Arrays.asList(
+                    "import-defer", "import-attributes", "import-source",
+                    "top-level-await", "atomics", "sharedarraybuffer",
+                    "resizable-arraybuffer", "arraybuffer-transfer",
+                    "structured-clone", "temporal", "intl-enumeration",
+                    "intl-duration-format", "intl-locale-info",
+                    "Intl-enumeration", "Intl.DurationFormat", "Intl.Locale-info",
+                    "float16array", "Float16Array", "regexp-duplicate-named-groups",
+                    "regexp-modifiers", "decorators", "explicit-resource-management",
+                    "iterator-helpers", "set-methods", "symbol-predicates",
+                    "promise-try", "array-grouping", "array-from-async",
+                    "async-iteration", "for-await-of", "shadowrealm",
+                    "json-parse-with-source", "object-groupby", "regexp-unicode-sets"));
     private boolean execMode;
     private boolean es5Only;
     private String harnessDir;
@@ -237,6 +257,15 @@ public class Test262Runner {
         if (!enabledFeatures.isEmpty()) {
             for (String f : features) {
                 if (!enabledFeatures.contains(f)) {
+                    ++excluded;
+                    return;
+                }
+            }
+        } else {
+            // no explicit feature filter: exclude cases that depend on
+            // proposals/intrinsics the host does not implement
+            for (String f : features) {
+                if (UNSUPPORTED_FEATURES.contains(f)) {
                     ++excluded;
                     return;
                 }

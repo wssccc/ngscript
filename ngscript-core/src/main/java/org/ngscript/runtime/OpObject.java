@@ -463,8 +463,14 @@ public class OpObject {
     public static MemRef functionMember(ScriptFunction fn, String member, Machine vm) {
         switch (member) {
             case "prototype":
+                if (fn.deletedProps != null && fn.deletedProps.contains("prototype")) {
+                    return new MemRef(Undefined.value);
+                }
                 return new MemRef(fn.getPrototypeObject());
             case "name":
+                if (fn.deletedProps != null && fn.deletedProps.contains("name")) {
+                    return new MemRef(Undefined.value);
+                }
                 return new MemRef(fn.name == null ? "" : fn.name);
             case "length":
                 return new MemRef(fn.params);
@@ -570,6 +576,41 @@ public class OpObject {
             vm.eax.write(((NgsObject) obj).remove(key) ? Boolean.TRUE : Boolean.FALSE);
         } else if (obj instanceof NgsArray) {
             vm.eax.write(((NgsArray) obj).remove(key) ? Boolean.TRUE : Boolean.FALSE);
+        } else if (obj instanceof org.ngscript.value.ScriptFunction) {
+            // intrinsic function properties: delete removes the backing
+            // slot (name -> "", prototype -> recreated lazily) so the
+            // property stops being an own property, per ES configurability
+            org.ngscript.value.ScriptFunction f =
+                    (org.ngscript.value.ScriptFunction) obj;
+            boolean ok;
+            if ("name".equals(key)) {
+                f.name = null;
+                if (f.deletedProps == null) {
+                    f.deletedProps = new java.util.HashSet<>();
+                }
+                f.deletedProps.add("name");
+                ok = true;
+            } else if ("prototype".equals(key)) {
+                f.prototype = null; // recreated lazily by getPrototypeObject
+                if (f.deletedProps == null) {
+                    f.deletedProps = new java.util.HashSet<>();
+                }
+                f.deletedProps.add("prototype");
+                ok = true;
+            } else if ("length".equals(key)) {
+                ok = false; // ES: length is configurable, but the backing
+                            // slot is intrinsic; treat as non-configurable
+            } else {
+                java.util.Map<String, MemRef> own = vm.hostProps.get(obj);
+                ok = own != null && own.remove(key) != null;
+                if (ok) {
+                    java.util.Set<String> nonEnum = vm.hostNonEnumerable.get(obj);
+                    if (nonEnum != null) {
+                        nonEnum.remove(key);
+                    }
+                }
+            }
+            vm.eax.write(ok ? Boolean.TRUE : Boolean.FALSE);
         } else {
             // host objects (class constructors): static members live in the
             // shared hostProps map; deleting them must succeed (ES delete

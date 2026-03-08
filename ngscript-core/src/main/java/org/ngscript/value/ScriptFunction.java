@@ -40,6 +40,12 @@ public class ScriptFunction {
     public String name;
 
     /**
+     * Intrinsic function properties removed by delete (ES configurability):
+     * name/prototype reads and own-property checks must treat them as gone.
+     */
+    public java.util.Set<String> deletedProps;
+
+    /**
      * The declared parameter count (ES Function.length).
      */
     public int params;
