@@ -490,9 +490,11 @@ public class Lexer {
      */
     private Token scanString(char quote) throws LexerException {
         stringBuilder.setLength(0);
+        boolean escaped = false;
         while (true) {
             char c = reader.read();
             if (c == '\\') {
+                escaped = true;
                 char next = reader.read();
                 switch (next) {
                     case 'n': stringBuilder.append('\n'); break;
@@ -552,7 +554,11 @@ public class Lexer {
                         break;
                 }
             } else if (c == quote) {
-                return token("string", stringBuilder.toString());
+                Token t = token("string", stringBuilder.toString());
+                // a directive is only "use strict" when written without
+                // escapes (ES: the exact source text must match)
+                t.hasEscape = escaped;
+                return t;
             } else if (c == SourceReader.EOF || c == '\n' || c == '\r' || c == '\u2028' || c == '\u2029') {
                 throw new LexerException("unclosed string literal");
             } else {

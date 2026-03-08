@@ -28,6 +28,9 @@ public class LiteralExpr extends Expr {
     public final Kind kind;
     public final String value;
 
+    /** Whether a string literal contained an escape (directive matching). */
+    public boolean hasEscape;
+
     public LiteralExpr(Kind kind, String value, int line) {
         this.kind = kind;
         this.value = value;

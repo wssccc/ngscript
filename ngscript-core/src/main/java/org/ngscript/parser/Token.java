@@ -33,6 +33,10 @@ public class Token {
      */
     public String raw;
 
+    /** Whether a string literal contained an escape sequence (a directive
+     * with escapes is not "use strict" per ES). */
+    public boolean hasEscape;
+
     public boolean isValidPos() {
         return line != -1;
     }

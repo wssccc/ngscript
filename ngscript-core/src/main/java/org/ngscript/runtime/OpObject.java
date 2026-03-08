@@ -1372,6 +1372,20 @@ public class OpObject {
     }
 
     /**
+     * ES class restriction: a static member whose computed key is
+     * "prototype" is a TypeError at definition time (eax holds the key;
+     * a computed "constructor" is legal — only the plain name form is an
+     * early error, checked at compile time).
+     */
+    public static void static_name_check(Machine vm, String param, String param_extend) {
+        Object k = vm.eax.read();
+        if (k != null && "prototype".equals(k.toString())) {
+            throw new IllegalArgumentException(
+                    "Class static members may not be named 'prototype'");
+        }
+    }
+
+    /**
      * The class-method variant of {@link #own_member_ref}: the defined
      * member is marked non-enumerable, as ES class methods (and accessors)
      * are { [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: true }

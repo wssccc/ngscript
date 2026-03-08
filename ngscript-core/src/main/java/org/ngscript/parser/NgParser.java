@@ -1502,13 +1502,15 @@ public class NgParser {
         consumeSemicolon();
         if (directivePrologue && expr instanceof LiteralExpr
                 && ((LiteralExpr) expr).kind == LiteralExpr.Kind.STRING) {
-            // ES directive prologue: a leading string-literal statement;
-            // "use strict" switches the script/function to strict mode
-            if ("use strict".equals(((LiteralExpr) expr).value)) {
+            // ES directive prologue: every leading string-literal statement
+            // stays in the prologue; "use strict" (written without escapes)
+            // switches the script or function to strict mode
+            if ("use strict".equals(((LiteralExpr) expr).value)
+                    && !((LiteralExpr) expr).hasEscape) {
                 strictMode = true;
-            } else {
-                directivePrologue = false;
             }
+        } else {
+            directivePrologue = false;
         }
         return new ExprStmt(expr, expr.line);
     }
@@ -2410,7 +2412,9 @@ public class NgParser {
                 return new LiteralExpr(LiteralExpr.Kind.BIGINT, t.value, t.line);
             case "string":
                 next();
-                return new LiteralExpr(LiteralExpr.Kind.STRING, t.value, t.line);
+                LiteralExpr str = new LiteralExpr(LiteralExpr.Kind.STRING, t.value, t.line);
+                str.hasEscape = t.hasEscape;
+                return str;
             case "regex":
                 next();
                 return new RegExpLiteral(t.value, t.line);

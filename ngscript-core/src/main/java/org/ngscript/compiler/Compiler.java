@@ -2156,6 +2156,12 @@ public class Compiler {
      * own member reference and assigns the compiled method closure.
      */
     private void emitMethodDefine(ClassExpr.MethodDef m) throws CompilerException {
+        if (m.isStatic && m.name != null
+                && ("prototype".equals(m.name) || "constructor".equals(m.name))) {
+            // ES early error: static members may not be named prototype or
+            // constructor (the computed-key forms are allowed)
+            throw compileError("Class static members may not be named '" + m.name + "'");
+        }
         assembler.emit("peek", "0");
         assembler.emit("push_eax");
         if (m.computedKey != null) {
@@ -2166,6 +2172,10 @@ public class Compiler {
         }
         String marker = m.async ? (m.generator ? "5" : "3")
                 : (m.generator ? "2" : "0");
+        if (m.isStatic) {
+            // ES: static members may not be named prototype/constructor
+            assembler.emit("static_name_check");
+        }
         if (m.isGetter || m.isSetter) {
             // accessor methods: [proto, key]; the key string stays on the
             // stack for accessor_define (no member reference is needed);
