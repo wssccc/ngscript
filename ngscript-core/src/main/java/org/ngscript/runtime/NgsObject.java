@@ -282,14 +282,18 @@ public class NgsObject implements Scope {
     }
 
     /**
-     * Removes an own property; returns false when it did not exist or when
-     * the property is non-configurable.
+     * Removes an own property (data or accessor); returns false when it did
+     * not exist or when the property is non-configurable.
      */
     public boolean remove(String key) {
         if (nonConfigurable != null && nonConfigurable.contains(key)) {
             return false;
         }
-        return data.remove(key) != null;
+        boolean removed = data.remove(key) != null;
+        if (accessors != null && accessors.remove(key) != null) {
+            removed = true;
+        }
+        return removed;
     }
 
     /**
@@ -334,16 +338,7 @@ public class NgsObject implements Scope {
                     // ES: the getter/setter runs with the *accessing object*
                     // as this (obj.v reads through a prototype accessor with
                     // this=obj), not with the prototype that owns it
-                    final NgsObject receiver = this;
-                    final Object[] acc = chainAccessor;
-                    return new MemRef(acc[0] != null ? invokeAccessor(acc[0], receiver) : Undefined.value) {
-                        @Override
-                        public void write(Object v) {
-                            if (acc[1] != null) {
-                                invokeAccessorWrite(acc[1], receiver, v, vm);
-                            }
-                        }
-                    };
+                    return accessorRef(member, this, (NgsObject) chainAccessor[2], vm);
                 }
                 MemRef ref = data.get(member);
                 if (ref != null) {
@@ -405,6 +400,52 @@ public class NgsObject implements Scope {
     }
 
     /**
+     * A reference through an accessor property. The getter is invoked at
+     * read time with {@code receiver} as this; a write re-checks the
+     * accessor: ES PutValue semantics — a getter that deleted its own
+     * accessor ({@code delete this.x}) turns the write into a plain data
+     * property creation, a still-present accessor routes through its setter
+     * (getter-only properties ignore writes in sloppy mode).
+     */
+    private static MemRef accessorRef(final String member, final NgsObject receiver,
+                                      final NgsObject owner, final Machine vm) {
+        final Object[] acc = owner.accessors.get(member);
+        Object read;
+        try {
+            read = acc[0] != null ? org.ngscript.runtime.OpUtils.callValue(
+                    Machine.getCurrent(), acc[0], receiver, new Object[0])
+                    : Undefined.value;
+        } catch (Exception e) {
+            throw e instanceof RuntimeException
+                    ? (RuntimeException) e
+                    : new RuntimeException(e.getMessage() == null
+                            ? e.toString() : e.getMessage());
+        }
+        final Object initial = read;
+        return new MemRef(initial) {
+            @Override
+            public void write(Object v) {
+                if (owner.accessors != null && owner.accessors.containsKey(member)) {
+                    Object[] cur = owner.accessors.get(member);
+                    if (cur[1] != null) {
+                        try {
+                            org.ngscript.runtime.OpUtils.callValue(vm, cur[1], receiver,
+                                    new Object[]{v});
+                        } catch (Exception e) {
+                            throw e instanceof RuntimeException
+                                    ? (RuntimeException) e
+                                    : new RuntimeException(e.getMessage() == null
+                                            ? e.toString() : e.getMessage());
+                        }
+                    }
+                } else {
+                    receiver.data.put(member, new MemRef(v));
+                }
+            }
+        };
+    }
+
+    /**
      * A {@code with (obj)} scope frame: variable lookups consult the
      * object's own data and its [[Prototype]] chain first, then fall
      * through to the outer environment. The frame itself stays empty, so
@@ -423,6 +464,11 @@ public class NgsObject implements Scope {
         public MemRef lookup(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {
             NgsObject p = object;
             while (p != null) {
+                if (p.accessors != null && p.accessors.containsKey(member)) {
+                    // ES: the accessor runs with the with-object as this
+                    // (the object environment record reads bindingObject.name)
+                    return accessorRef(member, object, p, vm);
+                }
                 MemRef ref = p.getRef(member);
                 if (ref != null) {
                     return ref;

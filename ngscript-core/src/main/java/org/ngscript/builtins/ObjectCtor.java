@@ -100,7 +100,8 @@ public class ObjectCtor implements Invokable {
                 });
             case "getOwnPropertyDescriptor":
                 return new MemRef((Invokable) (vm2, args) -> {
-                    String name = args.length > 1 ? args[1].toString() : "undefined";
+                    String name = args.length > 1
+                            ? org.ngscript.runtime.OpArray.keyString(args[1]) : "undefined";
                     if (args.length > 0 && args[0] instanceof org.ngscript.value.ScriptFunction) {
                         org.ngscript.value.ScriptFunction f =
                                 (org.ngscript.value.ScriptFunction) args[0];
@@ -211,7 +212,8 @@ public class ObjectCtor implements Invokable {
             case "defineProperty":
                 return new MemRef((Invokable) (vm2, args) -> {
                     NgsObject o = objectArg(vm2, args, 0);
-                    String name = args.length > 1 ? args[1].toString() : "undefined";
+                    String name = args.length > 1
+                            ? org.ngscript.runtime.OpArray.keyString(args[1]) : "undefined";
                     Object desc = args.length > 2 ? args[2] : null;
                     if (desc instanceof NgsObject) {
                         NgsObject d = (NgsObject) desc;
@@ -309,7 +311,8 @@ public class ObjectCtor implements Invokable {
                                 NgsObject p = (NgsObject) pair;
                                 Object k = p.get("0");
                                 Object v = p.get("1");
-                                out.set(k == null ? "undefined" : k.toString(), v);
+                                out.set(k == null ? "undefined"
+                                        : org.ngscript.runtime.OpArray.keyString(k), v);
                             }
                         }
                     }

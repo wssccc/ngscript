@@ -37,7 +37,8 @@ public class ObjectProto {
             vm.eax.write(t == null ? Undefined.value : t);
         });
         proto.set("hasOwnProperty", (Invokable) (vm, args) -> {
-            String key = args.length > 0 ? args[0].toString() : "undefined";
+            String key = args.length > 0
+                    ? org.ngscript.runtime.OpArray.keyString(args[0]) : "undefined";
             Object t = vm.thisRef.read();
             if (t instanceof NgsObject) {
                 vm.eax.write(((NgsObject) t).has(key));
@@ -64,7 +65,8 @@ public class ObjectProto {
             }
         });
         proto.set("propertyIsEnumerable", (Invokable) (vm, args) -> {
-            String key = args.length > 0 ? args[0].toString() : "undefined";
+            String key = args.length > 0
+                    ? org.ngscript.runtime.OpArray.keyString(args[0]) : "undefined";
             Object t = vm.thisRef.read();
             if (t instanceof NgsObject) {
                 NgsObject obj = (NgsObject) t;

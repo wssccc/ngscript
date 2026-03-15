@@ -129,7 +129,8 @@ public class ProxyBuiltins {
     /** Reflect.get(target, key[, receiver]) */
     private static void reflectGet(Machine vm, Object[] args) throws Exception {
         Object target = requireObject(vm, args.length > 0 ? args[0] : null, "Reflect.get target");
-        String key = args.length > 1 ? args[1].toString() : "undefined";
+        String key = args.length > 1
+                ? org.ngscript.runtime.OpArray.keyString(args[1]) : "undefined";
         Object receiver = args.length > 2 ? args[2] : null;
         if (target instanceof ProxyValue) {
             if (receiver != null && receiver != Undefined.value) {
@@ -157,7 +158,8 @@ public class ProxyBuiltins {
     /** Reflect.set(target, key, value[, receiver]) */
     private static void reflectSet(Machine vm, Object[] args) throws Exception {
         Object target = requireObject(vm, args.length > 0 ? args[0] : null, "Reflect.set target");
-        String key = args.length > 1 ? args[1].toString() : "undefined";
+        String key = args.length > 1
+                ? org.ngscript.runtime.OpArray.keyString(args[1]) : "undefined";
         Object value = args.length > 2 ? args[2] : Undefined.value;
         Object receiver = args.length > 3 ? args[3] : null;
         if (target instanceof ProxyValue) {
@@ -195,7 +197,8 @@ public class ProxyBuiltins {
     /** Reflect.has(target, key) */
     private static void reflectHas(Machine vm, Object[] args) throws Exception {
         Object target = requireObject(vm, args.length > 0 ? args[0] : null, "Reflect.has target");
-        String key = args.length > 1 ? args[1].toString() : "undefined";
+        String key = args.length > 1
+                ? org.ngscript.runtime.OpArray.keyString(args[1]) : "undefined";
         if (target instanceof ProxyValue) {
             vm.eax.write(((ProxyValue) target).proxyHas(vm, key) ? Boolean.TRUE : Boolean.FALSE);
             return;
@@ -210,7 +213,8 @@ public class ProxyBuiltins {
     /** Reflect.deleteProperty(target, key) */
     private static void reflectDelete(Machine vm, Object[] args) throws Exception {
         Object target = requireObject(vm, args.length > 0 ? args[0] : null, "Reflect.deleteProperty target");
-        String key = args.length > 1 ? args[1].toString() : "undefined";
+        String key = args.length > 1
+                ? org.ngscript.runtime.OpArray.keyString(args[1]) : "undefined";
         if (target instanceof ProxyValue) {
             vm.eax.write(((ProxyValue) target).proxyDelete(vm, key) ? Boolean.TRUE : Boolean.FALSE);
             return;
@@ -354,7 +358,8 @@ public class ProxyBuiltins {
     private static void reflectGetOwnDesc(Machine vm, Object[] args) {
         Object target = requireObject(vm, args.length > 0 ? args[0] : null,
                 "Reflect.getOwnPropertyDescriptor target");
-        String key = args.length > 1 ? args[1].toString() : "undefined";
+        String key = args.length > 1
+                ? org.ngscript.runtime.OpArray.keyString(args[1]) : "undefined";
         Object real = target instanceof ProxyValue ? ((ProxyValue) target).target : target;
         Object value = null;
         if (real instanceof NgsObject) {
