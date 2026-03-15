@@ -93,6 +93,33 @@ public class OpStack {
         vm.eax.write(ref);
     }
 
+    /**
+     * Rewires the arguments object's entry for parameter {@code param} to
+     * the shared reference just created by {@link #pickarg_ref}. The
+     * arguments snapshot is created before the parameters (a default
+     * parameter expression or a direct eval inside one must see the
+     * arguments binding), so mapped aliasing is established afterwards:
+     * arguments[i] and the parameter binding share the same MemRef.
+     */
+    public static void map_args(Machine vm, String param, String param_extend) {
+        int offset = Integer.parseInt(param);
+        Object[] args = (Object[]) vm.stack.peek(2);
+        // only arguments that were actually supplied get an index on the
+        // arguments object (its length counts the supplied arguments); a
+        // missing argument keeps the binding-only reference from eax
+        if (offset >= args.length) {
+            return;
+        }
+        Object v = args[offset];
+        if (v instanceof MemRef) {
+            NgsObject env = (NgsObject) vm.env.read();
+            MemRef argsRef = env.getRef("arguments");
+            if (argsRef != null && argsRef.read() instanceof NgsArray) {
+                ((NgsArray) argsRef.read()).putRef("" + offset, (MemRef) v);
+            }
+        }
+    }
+
     public static void packargs(Machine vm, String param, String param_extend) {
         int n = Integer.parseInt(param);
         Object[] args = new Object[n];

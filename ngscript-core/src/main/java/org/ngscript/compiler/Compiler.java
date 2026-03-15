@@ -622,10 +622,14 @@ public class Compiler {
     }
 
     private String _compile_function_body(Params params, Block body) throws CompilerException {
-        return _compile_function_body(params, body, false);
+        return _compile_function_body(params, body, false, false);
     }
 
     private String _compile_function_body(Params params, Block body, boolean generatorBody) throws CompilerException {
+        return _compile_function_body(params, body, generatorBody, false);
+    }
+
+    private String _compile_function_body(Params params, Block body, boolean generatorBody, boolean arrow) throws CompilerException {
         String exit = assembler.label("func_exit", body);
         String enter = assembler.label("func_enter", body);
         emitJump(exit);
@@ -644,6 +648,34 @@ public class Compiler {
                 && !hasNonNull(params.defaults)
                 && !hasNonNull(params.patterns);
         try {
+            // the arguments object: a snapshot of the actual arguments (ES
+            // gives it the parameter names as accessor properties; the
+            // snapshot approximation covers length/index/callee reads). It is
+            // bound before the parameters: a default parameter expression (or
+            // a direct eval inside it) must see the arguments binding, and
+            // declaring "arguments" in such an eval is a SyntaxError.
+            // Arrows never create an arguments object: the identifier
+            // resolves through the caller's chain instead.
+            if (!arrow) {
+                assembler.emit("rest_args", "0");
+                assembler.emit("bind_callee");
+                assembler.emit("set", "arguments", "%eax");
+            }
+            // ES: with a non-simple parameter list, the parameter environment
+            // binds every parameter name (as an uninitialized binding)
+            // before any default value runs — a default expression (or a
+            // direct eval inside one) that references a later parameter gets
+            // a ReferenceError, and declaring "arguments" in such an eval is
+            // a SyntaxError when the parameter list contains "arguments"
+            // (even before that parameter is bound).
+            if (!simpleParams) {
+                for (int i = 0; i < params.names.size(); i++) {
+                    String n = params.names.get(i);
+                    if (n != null) {
+                        assembler.emit("decl_let", n, "0");
+                    }
+                }
+            }
             for (int i = 0; i < params.names.size(); i++) {
                 Pattern pat = params.patterns != null ? params.patterns.get(i) : null;
                 if (pat != null) {
@@ -666,6 +698,11 @@ public class Compiler {
                 if (simpleParams) {
                     // shared reference so arguments[i] aliases the parameter
                     assembler.emit("pickarg_ref", i + "");
+                    // the arguments snapshot was created before the
+                    // parameters (a default expression or a direct eval in
+                    // one must see the arguments binding): rewire its entry
+                    // to the shared reference (ES mapped arguments)
+                    assembler.emit("map_args", i + "");
                 } else {
                     assembler.emit("pickarg", i + "");
                 }
@@ -685,12 +722,6 @@ public class Compiler {
                     emitLabel(skip);
                 }
             }
-            // the arguments object: a snapshot of the actual arguments
-            // (ES gives it the parameter names as accessor properties; the
-            // snapshot approximation covers length/index/callee reads)
-            assembler.emit("rest_args", "0");
-            assembler.emit("bind_callee");
-            assembler.emit("set", "arguments", "%eax");
             if (generatorBody) {
                 // parameter binding (including destructuring/defaults) runs
                 // synchronously at generator call time; the body starts only
@@ -1024,7 +1055,7 @@ public class Compiler {
             }
             boolean savedStrict = currentStrict;
             currentStrict = lambda.strict;
-            String enter = _compile_function_body(lambda.params, body, lambda.generator);
+            String enter = _compile_function_body(lambda.params, body, lambda.generator, lambda.isArrow);
             currentStrict = savedStrict;
             String marker = lambda.async
                     ? (lambda.generator ? "5" : (lambda.isArrow ? "4" : "3"))
