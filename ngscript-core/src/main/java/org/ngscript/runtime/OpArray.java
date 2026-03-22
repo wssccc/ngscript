@@ -80,6 +80,12 @@ public class OpArray {
             }
             return;
         }
+        if (objs[0] == null || objs[0] == Undefined.value) {
+            // ES: reading a property of null/undefined is a TypeError
+            throw new IllegalArgumentException(
+                    "Cannot read properties of " + (objs[0] == null ? "null" : "undefined")
+                            + " (reading '" + keyString(objs[1]) + "')");
+        }
         if (objs[0] instanceof ScriptFunction) {
             // bracket access on a script function: class-defined static
             // members first, then the intrinsic function properties

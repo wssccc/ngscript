@@ -1403,6 +1403,11 @@ public class OpObject {
                 env.putRef(member, ref);
             }
             env.markNonEnumerable(member);
+            if (member.length() > 0 && member.charAt(0) == '#') {
+                // a private method: ES PrivateSet throws a TypeError when
+                // the compound assignment (or any write) targets it
+                env.markWriteThrows(member);
+            }
             vm.eax.write(ref);
             return;
         }

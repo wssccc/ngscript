@@ -56,6 +56,12 @@ public class NgsObject implements Scope {
     private java.util.Set<String> nonWritable;
 
     /**
+     * Private-method keys: ES PrivateSet throws a TypeError on assignment
+     * (a private method cannot be written through a compound assignment).
+     */
+    private java.util.Set<String> writeThrows;
+
+    /**
      * Property names made non-enumerable via Object.defineProperty
      * ({enumerable: false}): Object.keys, for-in and object-rest skip
      * them. Literal properties default to enumerable.
@@ -99,6 +105,29 @@ public class NgsObject implements Scope {
     /** Whether a script write to this own property is ignored. */
     public boolean isNonWritable(String name) {
         return nonWritable != null && nonWritable.contains(name);
+    }
+
+    public void markWriteThrows(String name) {
+        if (writeThrows == null) {
+            writeThrows = new java.util.HashSet<>();
+        }
+        writeThrows.add(name);
+    }
+
+    public boolean isWriteThrows(String name) {
+        return writeThrows != null && writeThrows.contains(name);
+    }
+
+    /** Whether a write to {@code member} throws anywhere on the prototype chain. */
+    private boolean writeThrowsOnChain(String member) {
+        NgsObject p = this;
+        while (p != null) {
+            if (p.isWriteThrows(member)) {
+                return true;
+            }
+            p = p.proto;
+        }
+        return false;
     }
 
     /**
@@ -342,6 +371,18 @@ public class NgsObject implements Scope {
                 }
                 MemRef ref = data.get(member);
                 if (ref != null) {
+                    if (isWriteThrows(member)) {
+                        // ES PrivateSet: writing a private method is a TypeError
+                        final MemRef inner = ref;
+                        final String key = member;
+                        return new MemRef(inner.read()) {
+                            @Override
+                            public void write(Object v) {
+                                throw new IllegalArgumentException(
+                                        "Cannot write to private method '" + key + "'");
+                            }
+                        };
+                    }
                     if (isNonWritable(member)) {
                         // non-writable property (defineProperty writable:
                         // false): script writes are silently ignored
@@ -376,6 +417,16 @@ public class NgsObject implements Scope {
                         // (obj.x = v must not mutate Object.prototype.x)
                         final MemRef inherited = ref;
                         final String key = member;
+                        if (writeThrowsOnChain(member)) {
+                            // ES PrivateSet: a private method cannot be assigned
+                            return new MemRef(inherited.read()) {
+                                @Override
+                                public void write(Object v) {
+                                    throw new IllegalArgumentException(
+                                            "Cannot write to private method '" + key + "'");
+                                }
+                            };
+                        }
                         return new MemRef(inherited.read()) {
                             @Override
                             public void write(Object v) {
