@@ -247,7 +247,8 @@ public class Compiler {
 
     /** Declares every name bound by a pattern (let: TDZ bindings, var: set). */
     private void declarePatternNames(Pattern p, boolean isVar) throws CompilerException {
-        if (p == null) {
+        if (p == null || p instanceof Pattern.RefP) {
+            // a member reference target binds nothing
             return;
         }
         if (p instanceof Pattern.IdentP) {
@@ -313,6 +314,16 @@ public class Compiler {
         }
         if (p instanceof Pattern.IdentP) {
             emitAssignToName(((Pattern.IdentP) p).name);
+        } else if (p instanceof Pattern.RefP) {
+            // a member reference target ([obj.x, arr[0]] = vals): the
+            // reference is resolved (not read) and the matched value is
+            // stored through it, ES PutValue semantics
+            assembler.emit("push_eax"); // keep the matched value
+            compileExpr(((Pattern.RefP) p).target, true);
+            assembler.emit("push_eax"); // [value, ref]
+            assembler.emit("peek", "1"); // eax = value
+            assembler.emit("assign");
+            assembler.emit("pop"); // the saved value
         } else if (p instanceof Pattern.ArrayP) {
             Pattern.ArrayP arr = (Pattern.ArrayP) p;
             assembler.emit("push_eax");

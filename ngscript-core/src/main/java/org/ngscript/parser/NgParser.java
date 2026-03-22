@@ -1768,6 +1768,11 @@ public class NgParser {
         if (e instanceof IdentExpr) {
             return new Pattern.IdentP(((IdentExpr) e).name, e.line);
         }
+        if (e instanceof MemberExpr || e instanceof IndexExpr) {
+            // [obj.x, arr[0]] = vals: member references are valid
+            // assignment-pattern targets
+            return new Pattern.RefP(e, e.line);
+        }
         if (e instanceof ArrayLiteral || e instanceof ObjectLiteral) {
             return patternFromLiteral(e);
         }
@@ -2690,10 +2695,22 @@ public class NgParser {
                     superDepth = savedSuper;
                 }
             }
-            if (second != null && (second.type.equals("comma") || second.type.equals("rcurly"))) {
-                // shorthand property: { a } means { a: a }
+            if (second != null && (second.type.equals("comma") || second.type.equals("rcurly")
+                    || second.type.equals("assign"))) {
+                // shorthand property: { a } means { a: a }; { a = 1 } is a
+                // shorthand with a destructuring default (valid only when
+                // the literal becomes an assignment pattern, but parsed
+                // here and converted by patternFromLiteral)
                 next();
                 String sname = tokenName(name);
+                if (peekIs("assign")) {
+                    next();
+                    Expr init = parseAssignment();
+                    return new Kvp(sname,
+                            new AssignExpr(new IdentExpr(sname, name.line),
+                                    init, name.line, "="),
+                            name.line);
+                }
                 return new Kvp(sname, new IdentExpr(sname, name.line), name.line);
             }
         }

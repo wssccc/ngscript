@@ -45,6 +45,25 @@ public abstract class Pattern extends AstNode {
         }
     }
 
+    /**
+     * A member/array reference as an assignment-pattern target
+     * ({@code [obj.x, arr[0]] = vals}): only valid in assignment
+     * destructuring, never in declarations.
+     */
+    public static class RefP extends Pattern {
+        public final Expr target;
+
+        public RefP(Expr target, int line) {
+            this.target = target;
+            this.line = line;
+        }
+
+        @Override
+        protected String toString(int indent) {
+            return childrenToString(indent, target);
+        }
+    }
+
     /** An array pattern: {@code [a, , ...rest]}. Null items are holes. */
     public static class ArrayP extends Pattern {
         public final List<Pattern> items;
