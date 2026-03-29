@@ -205,7 +205,8 @@ public class NgParser {
      * semantics: no implicit globals, with() is illegal, plain-call this
      * is undefined, and several early errors apply.
      */
-    private boolean strictMode;
+    /** ES strict mode of the current directive prologue (script or function). */
+    public boolean strictMode;
 
     /**
      * Whether the current statement list position is still the directive
@@ -288,6 +289,10 @@ public class NgParser {
         this.lexerBuf.clear();
         this.tokens = null;
         this.index = 0;
+        // a fresh script: reset the directive prologue and strictness (the
+        // parser instance is shared, so a previous parse must not leak)
+        this.directivePrologue = true;
+        this.strictMode = false;
         List<Stmt> stmts = new ArrayList<>();
         while (peek() != null) {
             Stmt stmt = parseStatement();
@@ -310,6 +315,8 @@ public class NgParser {
         this.lexerBuf.clear();
         this.tokens = null;
         this.index = 0;
+        this.directivePrologue = true;
+        this.strictMode = false;
         int savedSuper = superDepth;
         superDepth = 1;
         List<Stmt> stmts = new ArrayList<>();

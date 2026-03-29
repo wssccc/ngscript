@@ -36,11 +36,15 @@ public class CompiledScript implements Script {
     private final NgScriptEngine engine;
     private final OpBinding[] boundInstructions;
     private final String sourceName;
+    /** ES global var bindings of the script (non-configurable). */
+    private final java.util.Set<String> topLevelVars;
 
-    CompiledScript(NgScriptEngine engine, List<Instruction> instructions, String sourceName) {
+    CompiledScript(NgScriptEngine engine, List<Instruction> instructions,
+                   String sourceName, java.util.Set<String> topLevelVars) {
         this.engine = engine;
         this.boundInstructions = engine.vm.bindInstructions(instructions);
         this.sourceName = sourceName;
+        this.topLevelVars = topLevelVars;
     }
 
     public String getSourceName() {
@@ -61,6 +65,16 @@ public class CompiledScript implements Script {
         // would pop an empty exception-state stack)
         org.ngscript.util.FastStack<org.ngscript.runtime.Context> savedMss = machine.isolateMss();
         try {
+            // ES global code: top-level var declarations create
+            // non-configurable global bindings (delete of a top-level var
+            // is false); pre-create them with the attribute (var hoisting)
+            for (String name : topLevelVars) {
+                if (!Machine.globalThis.has(name)) {
+                    Machine.globalThis.putRef(name,
+                            new org.ngscript.value.MemRef(org.ngscript.value.Undefined.value));
+                    Machine.globalThis.markNonConfigurable(name);
+                }
+            }
             machine.installInstructions(boundInstructions);
             machine.env.write(new NgsObject(machine.getInitialEnvironment()));
             // top-level var declarations bind to the global object (the

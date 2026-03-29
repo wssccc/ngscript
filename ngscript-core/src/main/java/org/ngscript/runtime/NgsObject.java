@@ -275,6 +275,40 @@ public class NgsObject implements Scope {
         accessors = freshAccessors;
     }
 
+    /** Snapshot of the property-attribute marker sets (runner isolation). */
+    public java.util.Map<String, java.util.Set<String>> snapshotFlags() {
+        java.util.Map<String, java.util.Set<String>> snap = new java.util.HashMap<>();
+        snap.put("nonConfigurable", nonConfigurable == null
+                ? java.util.Collections.<String>emptySet()
+                : new java.util.HashSet<>(nonConfigurable));
+        snap.put("nonWritable", nonWritable == null
+                ? java.util.Collections.<String>emptySet()
+                : new java.util.HashSet<>(nonWritable));
+        snap.put("nonEnumerable", nonEnumerable == null
+                ? java.util.Collections.<String>emptySet()
+                : new java.util.HashSet<>(nonEnumerable));
+        snap.put("writeThrows", writeThrows == null
+                ? java.util.Collections.<String>emptySet()
+                : new java.util.HashSet<>(writeThrows));
+        return snap;
+    }
+
+    /** Restores the property-attribute marker sets from {@link #snapshotFlags}. */
+    public void restoreFlags(java.util.Map<String, java.util.Set<String>> snapshot) {
+        nonConfigurable = snapshot.containsKey("nonConfigurable")
+                && !snapshot.get("nonConfigurable").isEmpty()
+                ? new java.util.HashSet<>(snapshot.get("nonConfigurable")) : null;
+        nonWritable = snapshot.containsKey("nonWritable")
+                && !snapshot.get("nonWritable").isEmpty()
+                ? new java.util.HashSet<>(snapshot.get("nonWritable")) : null;
+        nonEnumerable = snapshot.containsKey("nonEnumerable")
+                && !snapshot.get("nonEnumerable").isEmpty()
+                ? new java.util.HashSet<>(snapshot.get("nonEnumerable")) : null;
+        writeThrows = snapshot.containsKey("writeThrows")
+                && !snapshot.get("writeThrows").isEmpty()
+                ? new java.util.HashSet<>(snapshot.get("writeThrows")) : null;
+    }
+
     public NgsObject getPrototype() {
         return proto;
     }

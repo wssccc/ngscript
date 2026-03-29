@@ -111,10 +111,12 @@ public class NgScriptEngine {
         // the global eval() builtin runs scripts against this engine; a
         // direct eval shares the caller's scope (the env passed by the
         // builtin), an indirect/global eval (null caller) gets a fresh
-        // root scope on the baseline environment
+        // root scope on the baseline environment with ES global eval
+        // semantics (sloppy var declarations bind globally and are
+        // deletable, strict ones stay in the eval frame)
         Machine.evalHook = (code, callerEnv) -> {
             try {
-                Object r = callerEnv == null ? eval(code) : evalIn(code, callerEnv);
+                Object r = callerEnv == null ? evalInGlobal(code) : evalIn(code, callerEnv);
                 // an empty completion (bare block, no expression) is the
                 // undefined value, not the Java null used for empty eax
                 return r == null ? org.ngscript.value.Undefined.value : r;
@@ -146,7 +148,87 @@ public class NgScriptEngine {
     public Script compile(String code) throws NgScriptException {
         Program program = parser.parse(code);
         List<Instruction> ins = compiler.compileCode(program, code);
-        return new CompiledScript(this, ins, code);
+        // ES: global script var declarations create non-configurable global
+        // bindings (delete of a top-level var is false); collect the names
+        // so the execution can pre-create them with the attribute
+        java.util.Set<String> topVars = new HashSet<>();
+        collectTopLevelVarNames(program.statements, topVars);
+        return new CompiledScript(this, ins, code, topVars);
+    }
+
+    /** Top-level var declaration names (recursing into blocks, not bodies). */
+    private static void collectTopLevelVarNames(List<Stmt> stmts, Set<String> out) {
+        if (stmts == null) {
+            return;
+        }
+        for (Stmt s : stmts) {
+            if (s instanceof ExprStmt) {
+                collectVarNamesInExpr(((ExprStmt) s).expr, out);
+            } else if (s instanceof BlockStmt) {
+                collectTopLevelVarNames(((BlockStmt) s).block.statements, out);
+            } else if (s instanceof IfStmt) {
+                IfStmt st = (IfStmt) s;
+                collectTopLevelVarNames(singleton(st.thenBody), out);
+                collectTopLevelVarNames(singleton(st.elseBody), out);
+            } else if (s instanceof ForStmt) {
+                collectVarNamesInExpr(((ForStmt) s).init, out);
+                collectTopLevelVarNames(singleton(((ForStmt) s).body), out);
+            } else if (s instanceof ForInStmt) {
+                collectVarNamesInExpr(((ForInStmt) s).target, out);
+                collectTopLevelVarNames(singleton(((ForInStmt) s).body), out);
+            } else if (s instanceof ForOfStmt) {
+                collectVarNamesInExpr(((ForOfStmt) s).target, out);
+                collectTopLevelVarNames(singleton(((ForOfStmt) s).body), out);
+            } else if (s instanceof WhileStmt) {
+                collectTopLevelVarNames(singleton(((WhileStmt) s).body), out);
+            } else if (s instanceof DoWhileStmt) {
+                collectTopLevelVarNames(singleton(((DoWhileStmt) s).body), out);
+            } else if (s instanceof TryStmt) {
+                TryStmt st = (TryStmt) s;
+                if (st.tryBody != null) {
+                    collectTopLevelVarNames(st.tryBody.statements, out);
+                }
+                if (st.catchBody != null) {
+                    collectTopLevelVarNames(st.catchBody.statements, out);
+                }
+                if (st.finallyBody != null) {
+                    collectTopLevelVarNames(st.finallyBody.statements, out);
+                }
+            } else if (s instanceof SwitchStmt) {
+                SwitchStmt st = (SwitchStmt) s;
+                if (st.cases != null) {
+                    for (SwitchCase c : st.cases) {
+                        if (c.body != null) {
+                            collectTopLevelVarNames(c.body.statements, out);
+                        }
+                    }
+                }
+                if (st.defaultBody != null) {
+                    collectTopLevelVarNames(st.defaultBody.statements, out);
+                }
+            } else if (s instanceof LabeledStmt) {
+                collectTopLevelVarNames(singleton(((LabeledStmt) s).statement), out);
+            } else if (s instanceof WithStmt) {
+                collectTopLevelVarNames(singleton(((WithStmt) s).body), out);
+            }
+        }
+    }
+
+    private static void collectVarNamesInExpr(Expr e, Set<String> out) {
+        if (e instanceof VarDeclExpr) {
+            VarDeclExpr v = (VarDeclExpr) e;
+            if (v.name != null) {
+                out.add(v.name);
+            }
+        } else if (e instanceof AssignExpr) {
+            AssignExpr a = (AssignExpr) e;
+            collectVarNamesInExpr(a.target, out);
+            collectVarNamesInExpr(a.value, out);
+        } else if (e instanceof CommaExpr) {
+            for (Expr x : ((CommaExpr) e).operands) {
+                collectVarNamesInExpr(x, out);
+            }
+        }
     }
 
     /**
@@ -163,6 +245,55 @@ public class NgScriptEngine {
             return vm.eax.read();
         }
         return compile(code).execute();
+    }
+
+    /**
+     * Indirect/global eval: runs in a fresh root scope on the baseline
+     * environment. ES EvalDeclarationInstantiation: a function declaration
+     * colliding with a non-configurable global property is a TypeError
+     * before any var binding is created; sloppy var declarations bind on
+     * the global object (deletable), strict eval vars stay in the eval
+     * frame.
+     */
+    private Object evalInGlobal(String code) throws NgScriptException {
+        if (configuration.isInteractive()) {
+            return eval(code);
+        }
+        Program program = parser.parse(code);
+        checkGlobalFunctionDeclarations(program);
+        boolean strictCode = parser.strictMode;
+        List<Instruction> ins = compiler.compileCode(program, code);
+        return runProgram(program, code, ins,
+                vm.getInitialEnvironment(), strictCode);
+    }
+
+    /** The shared execution core of evalIn/evalInGlobal. */
+    private Object runProgram(Program program, String code, List<Instruction> ins,
+                              NgsObject parentEnv, boolean frameIsFunctionScope)
+            throws NgScriptException {
+        OpBinding[] bound = vm.bindInstructions(ins);
+        Machine.MachineState state = vm.captureState();
+        vm.execNesting++;
+        // isolate the exception-state stack like CompiledScript.execute:
+        // an exception inside the eval must propagate to the caller's run
+        // loop instead of consuming its try contexts (see CompiledScript)
+        org.ngscript.util.FastStack<org.ngscript.runtime.Context> savedMss = vm.isolateMss();
+        try {
+            vm.installInstructions(bound);
+            NgsObject frame = new NgsObject(parentEnv);
+            // a strict eval frame keeps its var declarations (ES binds
+            // strict eval vars in the eval's declarative environment);
+            // sloppy eval vars hoist into the caller's function/global scope
+            frame.functionScope = frameIsFunctionScope;
+            vm.env.write(frame);
+            vm.resetForExecution();
+            vm.run();
+            return vm.eax.read();
+        } finally {
+            vm.restoreMss(savedMss);
+            vm.execNesting--;
+            vm.restoreState(state);
+        }
     }
 
     /**
@@ -203,25 +334,14 @@ public class NgScriptEngine {
                 || (containsSuperProperty(program) && !callerChainHasSuperProto(callerEnv))) {
             throw new ParserException("invalid use of super");
         }
-        List<Instruction> ins = compiler.compileCode(program, code);
-        OpBinding[] bound = vm.bindInstructions(ins);
-        Machine.MachineState state = vm.captureState();
-        vm.execNesting++;
-        // isolate the exception-state stack like CompiledScript.execute:
-        // an exception inside the eval must propagate to the caller's run
-        // loop instead of consuming its try contexts (see CompiledScript)
-        org.ngscript.util.FastStack<org.ngscript.runtime.Context> savedMss = vm.isolateMss();
-        try {
-            vm.installInstructions(bound);
-            vm.env.write(new NgsObject(callerEnv));
-            vm.resetForExecution();
-            vm.run();
-            return vm.eax.read();
-        } finally {
-            vm.restoreMss(savedMss);
-            vm.execNesting--;
-            vm.restoreState(state);
+        // a global-scope direct eval declares global functions: a name
+        // colliding with a non-configurable global property is a TypeError
+        if (!callerChainHasFunctionScope(callerEnv)) {
+            checkGlobalFunctionDeclarations(program);
         }
+        List<Instruction> ins = compiler.compileCode(program, code);
+        // sloppy direct eval vars hoist into the caller's scope
+        return runProgram(program, code, ins, callerEnv, false);
     }
 
     /**
@@ -298,9 +418,99 @@ public class NgScriptEngine {
         return false;
     }
 
-    /** Whether the eval source uses super (super.x / super(...)). */
-    private static boolean containsSuper(Program program) {
-        return containsSuperCall(program) || containsSuperProperty(program);
+    /** Whether any frame on the caller's chain is a function scope. */
+    private static boolean callerChainHasFunctionScope(NgsObject env) {
+        NgsObject f = env;
+        while (f != null && f.getParent() != null) {
+            if (f.functionScope) {
+                return true;
+            }
+            f = f.getParent();
+        }
+        return false;
+    }
+
+    /**
+     * ES EvalDeclarationInstantiation: a global function declaration whose
+     * name collides with a non-configurable global property (NaN,
+     * Infinity, undefined, or a defineProperty configurable:false binding)
+     * throws a TypeError before any var binding is created.
+     */
+    private static void checkGlobalFunctionDeclarations(Program program) {
+        Set<String> names = new HashSet<>();
+        collectFunctionDeclNames(program.statements, names);
+        for (String name : names) {
+            NgsObject g = Machine.globalThis;
+            if (g.has(name)
+                    && (g.isNonConfigurable(name)
+                            || "NaN".equals(name) || "Infinity".equals(name)
+                            || "undefined".equals(name))) {
+                throw new IllegalArgumentException(
+                        "Cannot declare global function '" + name + "'");
+            }
+        }
+    }
+
+    /** Collects function-declaration names in the statement tree (not into bodies). */
+    private static void collectFunctionDeclNames(List<Stmt> stmts, Set<String> out) {
+        if (stmts == null) {
+            return;
+        }
+        for (Stmt s : stmts) {
+            if (s instanceof FunctionDecl) {
+                FunctionDecl f = (FunctionDecl) s;
+                if (f.name != null) {
+                    out.add(f.name);
+                }
+            } else if (s instanceof BlockStmt) {
+                collectFunctionDeclNames(((BlockStmt) s).block.statements, out);
+            } else if (s instanceof IfStmt) {
+                IfStmt st = (IfStmt) s;
+                collectFunctionDeclNames(singleton(st.thenBody), out);
+                collectFunctionDeclNames(singleton(st.elseBody), out);
+            } else if (s instanceof ForStmt) {
+                collectFunctionDeclNames(singleton(((ForStmt) s).body), out);
+            } else if (s instanceof ForInStmt) {
+                collectFunctionDeclNames(singleton(((ForInStmt) s).body), out);
+            } else if (s instanceof ForOfStmt) {
+                collectFunctionDeclNames(singleton(((ForOfStmt) s).body), out);
+            } else if (s instanceof WhileStmt) {
+                collectFunctionDeclNames(singleton(((WhileStmt) s).body), out);
+            } else if (s instanceof DoWhileStmt) {
+                collectFunctionDeclNames(singleton(((DoWhileStmt) s).body), out);
+            } else if (s instanceof TryStmt) {
+                TryStmt st = (TryStmt) s;
+                if (st.tryBody != null) {
+                    collectFunctionDeclNames(st.tryBody.statements, out);
+                }
+                if (st.catchBody != null) {
+                    collectFunctionDeclNames(st.catchBody.statements, out);
+                }
+                if (st.finallyBody != null) {
+                    collectFunctionDeclNames(st.finallyBody.statements, out);
+                }
+            } else if (s instanceof SwitchStmt) {
+                SwitchStmt st = (SwitchStmt) s;
+                if (st.cases != null) {
+                    for (SwitchCase c : st.cases) {
+                        if (c.body != null) {
+                            collectFunctionDeclNames(c.body.statements, out);
+                        }
+                    }
+                }
+                if (st.defaultBody != null) {
+                    collectFunctionDeclNames(st.defaultBody.statements, out);
+                }
+            } else if (s instanceof LabeledStmt) {
+                collectFunctionDeclNames(singleton(((LabeledStmt) s).statement), out);
+            } else if (s instanceof WithStmt) {
+                collectFunctionDeclNames(singleton(((WithStmt) s).body), out);
+            }
+        }
+    }
+
+    private static List<Stmt> singleton(Stmt s) {
+        return s == null ? Collections.<Stmt>emptyList() : Collections.singletonList(s);
     }
 
     private static boolean containsSuperCall(Program program) {

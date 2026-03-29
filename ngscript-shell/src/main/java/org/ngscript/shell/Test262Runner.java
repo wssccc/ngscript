@@ -81,10 +81,13 @@ public class Test262Runner {
     private org.ngscript.api.NgScriptEngine sharedEngine;
     private org.ngscript.runtime.Machine machine;
     private java.util.Map<String, org.ngscript.value.MemRef> globalBaseline;
+    private java.util.Map<String, java.util.Set<String>> globalFlagsBaseline;
     private java.util.Map<Object, java.util.Map<String, org.ngscript.value.MemRef>> hostBaseline;
     private java.util.Map<Object, java.util.Set<String>> hostNonEnumBaseline;
     private java.util.Map<String, org.ngscript.value.MemRef> objectProtoBaseline;
+    private java.util.Map<String, java.util.Set<String>> objectProtoFlagsBaseline;
     private java.util.Map<String, org.ngscript.value.MemRef> arrayProtoBaseline;
+    private java.util.Map<String, java.util.Set<String>> arrayProtoFlagsBaseline;
 
     private int total;
     private int passed;
@@ -331,13 +334,16 @@ public class Test262Runner {
                 // polluted eval made every subsequent eval() recurse)
                 machine = sharedEngine.getMachine();
                 globalBaseline = org.ngscript.runtime.Machine.globalThis.snapshotData();
+                globalFlagsBaseline = org.ngscript.runtime.Machine.globalThis.snapshotFlags();
                 hostBaseline = machine.snapshotHostProps();
                 hostNonEnumBaseline = machine.snapshotHostNonEnumerable();
                 // the shared prototypes are mutable too: a case that defines
                 // an accessor on Object.prototype (or Array.prototype) would
                 // otherwise redirect every property lookup in later cases
                 objectProtoBaseline = machine.objectPrototype.snapshotData();
+                objectProtoFlagsBaseline = machine.objectPrototype.snapshotFlags();
                 arrayProtoBaseline = machine.arrayPrototype.snapshotData();
+                arrayProtoFlagsBaseline = machine.arrayPrototype.snapshotFlags();
             }
             // guard against runaway loops in test bodies
             sharedEngine.setRunBudget(50_000_000L);
@@ -378,10 +384,13 @@ public class Test262Runner {
             // exception aborts the eval mid-way, leaving the global object,
             // host props and shared prototypes polluted for later cases
             org.ngscript.runtime.Machine.globalThis.restoreData(globalBaseline);
+            org.ngscript.runtime.Machine.globalThis.restoreFlags(globalFlagsBaseline);
             machine.restoreHostProps(hostBaseline);
             machine.restoreHostNonEnumerable(hostNonEnumBaseline);
             machine.objectPrototype.restoreData(objectProtoBaseline);
+            machine.objectPrototype.restoreFlags(objectProtoFlagsBaseline);
             machine.arrayPrototype.restoreData(arrayProtoBaseline);
+            machine.arrayPrototype.restoreFlags(arrayProtoFlagsBaseline);
         }
     }
 
