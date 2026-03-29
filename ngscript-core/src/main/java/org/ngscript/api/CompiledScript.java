@@ -63,9 +63,11 @@ public class CompiledScript implements Script {
         try {
             machine.installInstructions(boundInstructions);
             machine.env.write(new NgsObject(machine.getInitialEnvironment()));
-            // the script root scope is a function scope: top-level var
-            // declarations bind here rather than to the builtins baseline
-            ((NgsObject) machine.env.read()).functionScope = true;
+            // top-level var declarations bind to the global object (the
+            // baseline environment carries functionScope), so a later
+            // eval/execute sees them — ES global code declares vars on the
+            // global object; let/const bindings stay on this script frame
+            // and are discarded when the execution ends
             machine.resetForExecution();
             // top-level `this` is the global object (restored afterwards)
             machine.thisRef.write(Machine.globalThis);

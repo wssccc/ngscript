@@ -50,10 +50,14 @@ public class GlobalBuiltins {
             Object code = arg(args, 0);
             String src = code instanceof String ? (String) code
                     : OpUtils.toStringValue(code);
-            // direct eval shares the caller's environment: pass the current
-            // env so eval can see (and declare into) the caller's scope
+            // a direct eval (the compiler marks the call when the callee is
+            // the IdentifierReference `eval`) shares the caller's scope;
+            // an indirect eval ((0, eval)(...)) runs in the global scope
+            boolean direct = vm.evalDirectFlag;
+            vm.evalDirectFlag = false;
             vm.eax.write(Machine.evalHook == null ? Undefined.value
-                    : Machine.evalHook.apply(src, (NgsObject) vm.env.read()));
+                    : Machine.evalHook.apply(src,
+                            direct ? (NgsObject) vm.env.read() : null));
         }));
         map.put("decodeURI", new MemRef((Invokable) (vm, args) ->
                 vm.eax.write(decodeUri(OpUtils.toStringValue(arg(args, 0)), false))));

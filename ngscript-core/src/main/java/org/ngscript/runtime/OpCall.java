@@ -321,14 +321,16 @@ public class OpCall {
             }
             try {
                 ((Invokable) callee).invoke(vm, args);
-            } catch (Exception ex) {
-                Object e = ex.getCause();
+            } catch (Exception ex) {                Object e = ex.getCause();
                 if (e == null) {
                     e = ex;
                 }
                 vm.exception.write(e);
                 restore_machine_state(vm, null, null);
             }
+            // a direct-eval marker applies to this call only: clear it so a
+            // reassigned eval (or a later plain call) cannot leak the flag
+            vm.evalDirectFlag = false;
             vm.thisRef.write(savedThis);
             return;
         }

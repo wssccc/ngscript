@@ -299,6 +299,34 @@ public class NgParser {
     }
 
     /**
+     * Parses direct-eval source: the top level may use super (ES: a direct
+     * eval inside a method inherits the caller's method environment, so
+     * {@code eval('super.x')} in a class field initializer is legal; the
+     * caller-context check happens at runtime in evalIn). Nested plain
+     * functions still reset the super context.
+     */
+    public Program parseEval(String code) throws ParserException {
+        this.lexer = new Lexer(code);
+        this.lexerBuf.clear();
+        this.tokens = null;
+        this.index = 0;
+        int savedSuper = superDepth;
+        superDepth = 1;
+        List<Stmt> stmts = new ArrayList<>();
+        try {
+            while (peek() != null) {
+                Stmt stmt = parseStatement();
+                if (stmt != null) {
+                    stmts.add(stmt);
+                }
+            }
+        } finally {
+            superDepth = savedSuper;
+        }
+        return new Program(stmts, 1);
+    }
+
+    /**
      * Feeds a batch of tokens into the streaming parser and blocks until the batch has been
      * fully consumed. Returns true when the batch completed at least one statement
      * (which has already been dispatched to the statement listener).
@@ -874,7 +902,16 @@ public class NgParser {
                 Expr init = null;
                 if (after.type.equals("assign")) {
                     next();
-                    init = parseAssignment();
+                    // field initializers run in a method context: super is
+                    // available (ES: the initializer's environment is a
+                    // method environment with a HomeObject)
+                    int savedSuper = superDepth;
+                    ++superDepth;
+                    try {
+                        init = parseAssignment();
+                    } finally {
+                        superDepth = savedSuper;
+                    }
                 }
                 fields.add(new ClassExpr.FieldDef(
                         mname == null ? null : tokenName(mname),
@@ -2243,8 +2280,8 @@ public class NgParser {
      */
     private Expr parseArrowRest(Params params, int line) throws ParserException {
         ++functionDepth;
-        int savedSuper = superDepth;
-        superDepth = 0;
+        // arrows lexically inherit the enclosing super context (ES: an arrow
+        // inside a method may use super); only plain functions reset it
         try {
             if (peekIs("lcurly")) {
                 Block body = parseFunctionBody();
@@ -2258,7 +2295,6 @@ public class NgParser {
             return ae;
         } finally {
             --functionDepth;
-            superDepth = savedSuper;
         }
     }
 
@@ -2305,10 +2341,9 @@ public class NgParser {
         ++functionDepth;
         int savedGen = generatorDepth;
         int savedAsync = asyncDepth;
-        int savedSuper = superDepth;
+        // async arrows lexically inherit the enclosing super context
         generatorDepth = 0;
         ++asyncDepth;
-        superDepth = 0;
         try {
             LambdaExpr lambda;
             if (peekIs("lcurly")) {
@@ -2324,7 +2359,6 @@ public class NgParser {
             --functionDepth;
             generatorDepth = savedGen;
             asyncDepth = savedAsync;
-            superDepth = savedSuper;
         }
     }
 

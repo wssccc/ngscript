@@ -33,12 +33,12 @@ import org.ngscript.ast.AwaitExpr;
 import org.ngscript.ast.BinaryExpr;
 import org.ngscript.ast.Block;
 import org.ngscript.ast.BlockStmt;
-import org.ngscript.ast.BreakStmt;
-import org.ngscript.ast.CallExpr;
+import org.ngscript.ast.BreakStmt;import org.ngscript.ast.CallExpr;
 import org.ngscript.ast.ClassExpr;
 import org.ngscript.ast.CommaExpr;
 import org.ngscript.ast.CondExpr;
 import org.ngscript.ast.ContinueStmt;
+import org.ngscript.ast.DefinePropExpr;
 import org.ngscript.ast.DestructureExpr;
 import org.ngscript.ast.DoWhileStmt;
 import org.ngscript.ast.Expr;
@@ -837,6 +837,21 @@ public class Compiler {
                 compileExpr(assign.value);
                 assembler.emit("assign");
             }
+        } else if (expr instanceof DefinePropExpr) {
+            // class field initializer: define an own data property on the
+            // object (CreateDataProperty), skipping the prototype chain
+            DefinePropExpr d = (DefinePropExpr) expr;
+            compileExpr(d.object);
+            assembler.emit("push_eax");
+            if (d.key != null) {
+                compileExpr(d.key);
+                assembler.emit("to_string");
+            } else {
+                assembler.emit("string", d.name);
+            }
+            assembler.emit("push_eax");
+            compileExpr(d.value);
+            assembler.emit("define_prop");
         } else if (expr instanceof CommaExpr) {
             // each operand evaluates with a balanced stack; the value of the
             // last operand is left in eax and earlier values are simply
@@ -2013,6 +2028,15 @@ public class Compiler {
         //params
         emitArgs(args);
 
+        if (callee instanceof IdentExpr && "eval".equals(((IdentExpr) callee).name)) {
+            // ES direct eval: the callee is the IdentifierReference `eval` —
+            // the call shares the caller's scope (and super context). The
+            // marker is emitted after the arguments (no nested calls can
+            // interfere) and consumed by the eval builtin; every native
+            // call clears it afterwards so a reassigned `eval` cannot leak
+            // the flag into a later call.
+            assembler.emit("eval_direct_mark");
+        }
         assembler.emit("push_env");
         assembler.emit("call");
     }
@@ -2090,14 +2114,15 @@ public class Compiler {
         }
         List<Stmt> fieldStmts = new ArrayList<>();
         for (ClassExpr.FieldDef f : instFields) {
-            Expr target = f.computedKey != null
-                    ? new IndexExpr(new IdentExpr("this", cls.line),
-                            f.computedKey, cls.line)
-                    : new MemberExpr(new IdentExpr("this", cls.line),
-                            f.name, cls.line);
+            // ES: a field initializer defines the field on the instance
+            // (CreateDataProperty) — the prototype chain is not consulted,
+            // so a same-named prototype accessor is shadowed, not invoked
+            Expr target = new IdentExpr("this", cls.line);
             Expr value = f.initializer != null ? f.initializer
                     : new LiteralExpr(LiteralExpr.Kind.UNDEFINED, "undefined", cls.line);
-            fieldStmts.add(new ExprStmt(new AssignExpr(target, value, cls.line), cls.line));
+            fieldStmts.add(new ExprStmt(f.computedKey != null
+                    ? new DefinePropExpr(target, f.computedKey, null, value, cls.line)
+                    : new DefinePropExpr(target, null, f.name, value, cls.line), cls.line));
         }
         Params ctorParams;
         Block ctorBody;
@@ -2166,6 +2191,11 @@ public class Compiler {
                 if (!f.isStatic) {
                     continue;
                 }
+                if (f.name != null && "constructor".equals(f.name) && f.computedKey == null) {
+                    // ES early error: a static field may not be named
+                    // constructor (the computed-key form is allowed)
+                    throw compileError("Class static fields may not be named 'constructor'");
+                }
                 assembler.emit("peek", "0");
                 assembler.emit("push_eax");
                 assembler.emit("set_this");
@@ -2198,11 +2228,11 @@ public class Compiler {
      * own member reference and assigns the compiled method closure.
      */
     private void emitMethodDefine(ClassExpr.MethodDef m) throws CompilerException {
-        if (m.isStatic && m.name != null
-                && ("prototype".equals(m.name) || "constructor".equals(m.name))) {
-            // ES early error: static members may not be named prototype or
-            // constructor (the computed-key forms are allowed)
-            throw compileError("Class static members may not be named '" + m.name + "'");
+        if (m.isStatic && m.name != null && "prototype".equals(m.name)) {
+            // ES early error: static members may not be named prototype
+            // (the computed-key form is allowed); static methods named
+            // "constructor" are legal ({ static constructor() {} })
+            throw compileError("Class static members may not be named 'prototype'");
         }
         assembler.emit("peek", "0");
         assembler.emit("push_eax");

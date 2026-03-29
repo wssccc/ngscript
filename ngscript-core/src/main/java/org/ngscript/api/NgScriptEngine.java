@@ -181,7 +181,7 @@ public class NgScriptEngine {
         if (configuration.isInteractive()) {
             return eval(code);
         }
-        Program program = parser.parse(code);
+        Program program = parser.parseEval(code);
         // ES EvalDeclarationInstantiation: a non-strict direct eval that
         // declares "arguments" (via var or a function declaration) throws a
         // SyntaxError when the caller's environment chain carries an
@@ -194,6 +194,14 @@ public class NgScriptEngine {
         if (declaresArguments(program) && callerChainHasArguments(callerEnv)) {
             throw new ParserException(
                     "SyntaxError: Identifier 'arguments' has already been declared");
+        }
+        // ES: a direct eval containing super(...) is always a SyntaxError
+        // (the eval code is not a constructor method); super.x is only legal
+        // inside a method context — a class frame on the caller's chain
+        // carries %superproto (a class field initializer, a method body)
+        if (containsSuperCall(program)
+                || (containsSuperProperty(program) && !callerChainHasSuperProto(callerEnv))) {
+            throw new ParserException("invalid use of super");
         }
         List<Instruction> ins = compiler.compileCode(program, code);
         OpBinding[] bound = vm.bindInstructions(ins);
@@ -274,6 +282,217 @@ public class NgScriptEngine {
                 return true;
             }
             f = f.getParent();
+        }
+        return false;
+    }
+
+    /** Whether the caller is inside a method context (a class frame carries %superproto). */
+    private static boolean callerChainHasSuperProto(NgsObject env) {
+        NgsObject f = env;
+        while (f != null && f.getParent() != null) {
+            if (f.has("%superproto")) {
+                return true;
+            }
+            f = f.getParent();
+        }
+        return false;
+    }
+
+    /** Whether the eval source uses super (super.x / super(...)). */
+    private static boolean containsSuper(Program program) {
+        return containsSuperCall(program) || containsSuperProperty(program);
+    }
+
+    private static boolean containsSuperCall(Program program) {
+        for (Stmt s : program.statements) {
+            if (stmtContainsSuper(s, true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsSuperProperty(Program program) {
+        for (Stmt s : program.statements) {
+            if (stmtContainsSuper(s, false)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean stmtContainsSuper(Stmt s, boolean wantCall) {
+        if (s instanceof BlockStmt) {
+            for (Stmt c : ((BlockStmt) s).block.statements) {
+                if (stmtContainsSuper(c, wantCall)) {
+                    return true;
+                }
+            }
+        } else if (s instanceof IfStmt) {
+            IfStmt st = (IfStmt) s;
+            return stmtContainsSuper(st.thenBody, wantCall) || stmtContainsSuper(st.elseBody, wantCall);
+        } else if (s instanceof ForStmt) {
+            ForStmt st = (ForStmt) s;
+            return exprContainsSuper(st.init, wantCall) || exprContainsSuper(st.test, wantCall)
+                    || exprContainsSuper(st.step, wantCall) || stmtContainsSuper(st.body, wantCall);
+        } else if (s instanceof ForInStmt) {
+            ForInStmt st = (ForInStmt) s;
+            return exprContainsSuper(st.target, wantCall) || exprContainsSuper(st.object, wantCall)
+                    || stmtContainsSuper(st.body, wantCall);
+        } else if (s instanceof ForOfStmt) {
+            ForOfStmt st = (ForOfStmt) s;
+            return exprContainsSuper(st.target, wantCall) || exprContainsSuper(st.object, wantCall)
+                    || stmtContainsSuper(st.body, wantCall);
+        } else if (s instanceof WhileStmt) {
+            WhileStmt st = (WhileStmt) s;
+            return exprContainsSuper(st.condition, wantCall) || stmtContainsSuper(st.body, wantCall);
+        } else if (s instanceof DoWhileStmt) {
+            DoWhileStmt st = (DoWhileStmt) s;
+            return stmtContainsSuper(st.body, wantCall) || exprContainsSuper(st.condition, wantCall);
+        } else if (s instanceof TryStmt) {
+            TryStmt st = (TryStmt) s;
+            return (st.tryBody != null && stmtContainsSuper(new BlockStmt(st.tryBody, st.line), wantCall))
+                    || (st.catchBody != null && stmtContainsSuper(new BlockStmt(st.catchBody, st.line), wantCall))
+                    || (st.finallyBody != null && stmtContainsSuper(new BlockStmt(st.finallyBody, st.line), wantCall));
+        } else if (s instanceof SwitchStmt) {
+            SwitchStmt st = (SwitchStmt) s;
+            if (exprContainsSuper(st.value, wantCall)) {
+                return true;
+            }
+            if (st.cases != null) {
+                for (SwitchCase c : st.cases) {
+                    if ((c.value != null && exprContainsSuper(c.value, wantCall))
+                            || (c.body != null && stmtContainsSuper(new BlockStmt(c.body, st.line), wantCall))) {
+                        return true;
+                    }
+                }
+            }
+            return st.defaultBody != null
+                    && stmtContainsSuper(new BlockStmt(st.defaultBody, st.line), wantCall);
+        } else if (s instanceof LabeledStmt) {
+            return stmtContainsSuper(((LabeledStmt) s).statement, wantCall);
+        } else if (s instanceof WithStmt) {
+            WithStmt st = (WithStmt) s;
+            return exprContainsSuper(st.object, wantCall) || stmtContainsSuper(st.body, wantCall);
+        } else if (s instanceof FunctionDecl) {
+            // nested plain functions reset the super context at parse time,
+            // so nothing to scan here
+            return false;
+        } else if (s instanceof ExprStmt) {
+            return exprContainsSuper(((ExprStmt) s).expr, wantCall);
+        } else if (s instanceof ReturnStmt) {
+            return exprContainsSuper(((ReturnStmt) s).expr, wantCall);
+        } else if (s instanceof ThrowStmt) {
+            return exprContainsSuper(((ThrowStmt) s).expr, wantCall);
+        }
+        return false;
+    }
+
+    private static boolean exprContainsSuper(Expr e, boolean wantCall) {
+        if (e == null) {
+            return false;
+        }
+        if (e instanceof org.ngscript.ast.SuperCallExpr) {
+            return wantCall;
+        }
+        if (e instanceof org.ngscript.ast.SuperMemberExpr) {
+            return !wantCall;
+        }
+        if (e instanceof AssignExpr) {
+            AssignExpr a = (AssignExpr) e;
+            return exprContainsSuper(a.target, wantCall) || exprContainsSuper(a.value, wantCall);
+        } else if (e instanceof LambdaExpr) {
+            // arrows inherit the super context: scan their bodies too
+            LambdaExpr l = (LambdaExpr) e;
+            if (l.body != null) {
+                for (Stmt c : l.body.statements) {
+                    if (stmtContainsSuper(c, wantCall)) {
+                        return true;
+                    }
+                }
+            }
+            return exprContainsSuper(l.bodyExpr, wantCall);
+        } else if (e instanceof CallExpr) {
+            CallExpr c = (CallExpr) e;
+            if (exprContainsSuper(c.callee, wantCall)) {
+                return true;
+            }
+            for (Expr a : c.args) {
+                if (exprContainsSuper(a, wantCall)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof NewExpr) {
+            NewExpr n = (NewExpr) e;
+            if (exprContainsSuper(n.callee, wantCall)) {
+                return true;
+            }
+            for (Expr a : n.args) {
+                if (exprContainsSuper(a, wantCall)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof CommaExpr) {
+            for (Expr x : ((CommaExpr) e).operands) {
+                if (exprContainsSuper(x, wantCall)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof CondExpr) {
+            CondExpr c = (CondExpr) e;
+            return exprContainsSuper(c.condition, wantCall) || exprContainsSuper(c.thenExpr, wantCall)
+                    || exprContainsSuper(c.elseExpr, wantCall);
+        } else if (e instanceof BinaryExpr) {
+            BinaryExpr b = (BinaryExpr) e;
+            return exprContainsSuper(b.left, wantCall) || exprContainsSuper(b.right, wantCall);
+        } else if (e instanceof UnaryExpr) {
+            return exprContainsSuper(((UnaryExpr) e).operand, wantCall);
+        } else if (e instanceof MemberExpr) {
+            return exprContainsSuper(((MemberExpr) e).object, wantCall);
+        } else if (e instanceof IndexExpr) {
+            IndexExpr x = (IndexExpr) e;
+            return exprContainsSuper(x.object, wantCall) || exprContainsSuper(x.index, wantCall);
+        } else if (e instanceof ObjectLiteral) {
+            for (Object item : ((ObjectLiteral) e).items) {
+                if (item instanceof Kvp) {
+                    Kvp k = (Kvp) item;
+                    if (exprContainsSuper(k.keyExpr, wantCall) || exprContainsSuper(k.value, wantCall)) {
+                        return true;
+                    }
+                } else if (item instanceof SpreadExpr
+                        && exprContainsSuper(((SpreadExpr) item).expr, wantCall)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof ArrayLiteral) {
+            for (Expr x : ((ArrayLiteral) e).items) {
+                if (exprContainsSuper(x, wantCall)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof SpreadExpr) {
+            return exprContainsSuper(((SpreadExpr) e).expr, wantCall);
+        } else if (e instanceof TemplateExpr) {
+            for (Expr x : ((TemplateExpr) e).exprs) {
+                if (exprContainsSuper(x, wantCall)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof TaggedTemplateExpr) {
+            TaggedTemplateExpr t = (TaggedTemplateExpr) e;
+            return exprContainsSuper(t.tag, wantCall) || exprContainsSuper(t.template, wantCall);
+        } else if (e instanceof AwaitExpr) {
+            return exprContainsSuper(((AwaitExpr) e).operand, wantCall);
+        } else if (e instanceof YieldExpr) {
+            return exprContainsSuper(((YieldExpr) e).operand, wantCall);
+        } else if (e instanceof DestructureExpr) {
+            return false;
         }
         return false;
     }

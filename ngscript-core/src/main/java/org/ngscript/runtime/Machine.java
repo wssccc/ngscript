@@ -170,6 +170,13 @@ public class Machine {
     public static volatile java.util.function.BiFunction<String, NgsObject, Object> evalHook;
 
     /**
+     * Set by the compiler right before a direct eval call (the callee is
+     * the IdentifierReference {@code eval}); consumed by the eval builtin
+     * to share the caller's scope. Every native call clears it afterwards.
+     */
+    public boolean evalDirectFlag;
+
+    /**
      * Depth of replace-style executions (direct eval / CompiledScript) on
      * this machine. Closures created while it is > 0 get marked as eval
      * closures so calls can dispatch by their own instruction array.
@@ -507,7 +514,14 @@ public class Machine {
                     break;
                 }
                 setEip(eip + 1);
-                instructions[eip].invoke(this);
+                try {
+                    instructions[eip].invoke(this);
+                } catch (NullPointerException npe) {
+                    if (System.getProperty("dbg.npe") != null) {
+                        npe.printStackTrace(System.err);
+                    }
+                    throw npe;
+                }
             }
             return eax.read();
         } finally {
@@ -578,7 +592,21 @@ public class Machine {
             stack.push(args);
             stack.push(frame);
             stack.push(SYNC_CALL_RET);
-            setEip(labels.get(c.functionLabel));
+            Integer lab = labels.get(c.functionLabel);
+            if (lab == null && c.instructions != null
+                    && c.instructions != instructions) {
+                // the body lives in another instruction array (a getter
+                // defined outside an eval closure, called from inside one):
+                // run it against its own array like OpCall.call does
+                FastStack<Context> savedMss = machineStateStack;
+                machineStateStack = new FastStack<>(8);
+                try {
+                    return callClosureSync(c, args, receiver, c.instructions, frame);
+                } finally {
+                    machineStateStack = savedMss;
+                }
+            }
+            setEip(lab);
             // isolate the exception-state stack for the duration of the
             // synchronous call: a throw inside the callee (a getter or
             // callback) must propagate out of the call, so the caller's

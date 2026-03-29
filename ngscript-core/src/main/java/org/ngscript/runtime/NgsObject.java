@@ -358,16 +358,13 @@ public class NgsObject implements Scope {
             case "%exception":
                 return vm.exception;
             default:
-                // accessor properties live on the prototype chain too:
-                // { get v() } on a class prototype makes obj.v go through
-                // the getter (and obj.v = x through the setter) for any
-                // instance without an own data property
-                Object[] chainAccessor = findAccessorOnChain(member);
-                if (chainAccessor != null) {
-                    // ES: the getter/setter runs with the *accessing object*
-                    // as this (obj.v reads through a prototype accessor with
-                    // this=obj), not with the prototype that owns it
-                    return accessorRef(member, this, (NgsObject) chainAccessor[2], vm);
+                // an own accessor or data property shadows prototype
+                // accessors: check own data first, then the own accessor,
+                // then the [[Prototype]] chain (accessor or data)
+                if (accessors != null && accessors.containsKey(member)) {
+                    // own accessor: the getter/setter runs with this object
+                    // as its this
+                    return accessorRef(member, this, this, vm);
                 }
                 MemRef ref = data.get(member);
                 if (ref != null) {
@@ -396,46 +393,53 @@ public class NgsObject implements Scope {
                         };
                     }
                     return ref;
-                } else {
-                    ref = lookupEnv(member, vm, isMember);
-                    if (ref == null) {
-                        // an unset member read as undefined (kept from the legacy
-                        // behavior: reading a member creates the reference).
-                        // A found binding is returned as-is: copying it into
-                        // the root frame would leak local bindings into the
-                        // global object (and shadow them there forever)
-                        ref = new MemRef(Undefined.value);
-                        if (isMember) {
-                            data.put(member, ref);
-                        } else {
-                            rootFrame().data.put(member, ref);
-                        }
-                    } else if (isMember) {
-                        // the reference lives on the [[Prototype]] chain (or
-                        // an outer frame): a script write must create an own
-                        // property here, not rewrite the inherited slot
-                        // (obj.x = v must not mutate Object.prototype.x)
-                        final MemRef inherited = ref;
-                        final String key = member;
-                        if (writeThrowsOnChain(member)) {
-                            // ES PrivateSet: a private method cannot be assigned
-                            return new MemRef(inherited.read()) {
-                                @Override
-                                public void write(Object v) {
-                                    throw new IllegalArgumentException(
-                                            "Cannot write to private method '" + key + "'");
-                                }
-                            };
-                        }
+                }
+                Object[] chainAccessor = findAccessorOnChain(member);
+                if (chainAccessor != null) {
+                    // ES: a prototype getter/setter runs with the *accessing
+                    // object* as this (obj.v reads through a prototype
+                    // accessor with this=obj), not with the prototype that
+                    // owns it
+                    return accessorRef(member, this, (NgsObject) chainAccessor[2], vm);
+                }
+                ref = lookupEnv(member, vm, isMember);
+                if (ref == null) {
+                    // an unset member read as undefined (kept from the legacy
+                    // behavior: reading a member creates the reference).
+                    // A found binding is returned as-is: copying it into
+                    // the root frame would leak local bindings into the
+                    // global object (and shadow them there forever)
+                    ref = new MemRef(Undefined.value);
+                    if (isMember) {
+                        data.put(member, ref);
+                    } else {
+                        rootFrame().data.put(member, ref);
+                    }
+                } else if (isMember) {
+                    // the reference lives on the [[Prototype]] chain (or
+                    // an outer frame): a script write must create an own
+                    // property here, not rewrite the inherited slot
+                    // (obj.x = v must not mutate Object.prototype.x)
+                    final MemRef inherited = ref;
+                    final String key = member;
+                    if (writeThrowsOnChain(member)) {
+                        // ES PrivateSet: a private method cannot be assigned
                         return new MemRef(inherited.read()) {
                             @Override
                             public void write(Object v) {
-                                data.put(key, new MemRef(v));
+                                throw new IllegalArgumentException(
+                                        "Cannot write to private method '" + key + "'");
                             }
                         };
                     }
-                    return ref;
+                    return new MemRef(inherited.read()) {
+                        @Override
+                        public void write(Object v) {
+                            data.put(key, new MemRef(v));
+                        }
+                    };
                 }
+                return ref;
         }
     }
 

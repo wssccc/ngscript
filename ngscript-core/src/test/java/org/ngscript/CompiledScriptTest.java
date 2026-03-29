@@ -49,13 +49,12 @@ public class CompiledScriptTest {
         engine.eval("var leaked = 1;");
         Script script = engine.compile("var local = 2; local;");
         assertEquals(2, script.execute());
-        // the script must not see variables assigned by previous evaluations
-        try {
-            engine.eval("leaked;");
-            fail("expected runtime error for undeclared variable");
-        } catch (NgScriptException expected) {
-            assertTrue(expected.getMessage().contains("leaked"));
-        }
+        // ES: top-level var declarations bind on the global object, so the
+        // variable is visible to later evaluations (global code declares
+        // vars globally); let/const bindings stay on the script frame
+        assertEquals(Integer.valueOf(1), engine.eval("leaked;"));
+        assertEquals(Integer.valueOf(3), engine.eval("var c = 1; let l = 2; c + l;"));
+        assertEquals(Integer.valueOf(3), engine.eval("c + 2;"));
     }
 
     @Test

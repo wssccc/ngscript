@@ -133,8 +133,28 @@ public class OpObject {
         vm.eax.write(sh);
     }
 
-    public static void member_ref(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
-        Object[] objs = OpUtils.get2OpParam(vm);
+    /** Marks the next call as a direct eval call (ES IdentifierReference eval). */
+    public static void eval_direct_mark(Machine vm, String param, String param_extend) {
+        vm.evalDirectFlag = true;
+    }
+
+    /**
+     * Defines an own data property on the object (class field initializer):
+     * the stack holds [obj, key] and eax the value; the prototype chain is
+     * not consulted (CreateDataProperty — a same-named prototype accessor is
+     * shadowed, not invoked).
+     */
+    public static void define_prop(Machine vm, String param, String param_extend) {
+        Object key = vm.stack.pop();
+        Object obj = vm.stack.pop();
+        if (obj instanceof NgsObject) {
+            ((NgsObject) obj).set(
+                    key instanceof String ? (String) key : org.ngscript.runtime.OpArray.keyString(key),
+                    vm.eax.read());
+        }
+    }
+
+    public static void member_ref(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {        Object[] objs = OpUtils.get2OpParam(vm);
         String member = (String) objs[1];
         if (objs[0] instanceof NgsObject) {
             NgsObject env = (NgsObject) objs[0];
