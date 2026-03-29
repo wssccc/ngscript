@@ -387,13 +387,24 @@ public class OpObject {
                 }
             }
         }
-        // an unset property of a host object reads/writes as undefined
-        java.util.Map<String, MemRef> created = vm.hostProps.computeIfAbsent(objs[0],
-                k -> new java.util.HashMap<>());
-        MemRef slot = created.get(member);
+        // an unset property of a host object reads as undefined without
+        // creating an own property (ES: reading a missing property must not
+        // make hasOwnProperty see it); writes create the slot instead — the
+        // MemRef returned here is the shared slot when it exists, else a
+        // transient undefined reference whose write installs the property
+        java.util.Map<String, MemRef> created = vm.hostProps.get(objs[0]);
+        MemRef slot = created != null ? created.get(member) : null;
         if (slot == null) {
-            slot = new MemRef(Undefined.value);
-            created.put(member, slot);
+            final java.util.Map<String, MemRef> target =
+                    created != null ? created : vm.hostProps.computeIfAbsent(objs[0],
+                            k -> new java.util.HashMap<>());
+            final String key = member;
+            slot = new MemRef(Undefined.value) {
+                @Override
+                public void write(Object v) {
+                    target.put(key, new MemRef(v));
+                }
+            };
         }
         vm.eax.write(slot);
     }
