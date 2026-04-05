@@ -2510,6 +2510,9 @@ public class NgParser {
             }
             case "super": {
                 next();
+                if (System.getProperty("dbg.super") != null) {
+                    System.err.println("PARSER super: superDepth=" + superDepth);
+                }
                 if (superDepth == 0) {
                     // super is only allowed directly inside a method body
                     // (class or object literal); anywhere else is an early

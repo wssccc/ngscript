@@ -156,6 +156,9 @@ public class OpObject {
 
     public static void member_ref(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {        Object[] objs = OpUtils.get2OpParam(vm);
         String member = (String) objs[1];
+        if (System.getProperty("dbg.mr") != null && "length".equals(member)) {
+            System.err.println("MR length: obj=" + objs[0].getClass().getSimpleName() + "@" + System.identityHashCode(objs[0]));
+        }
         if (objs[0] instanceof NgsObject) {
             NgsObject env = (NgsObject) objs[0];
             MemRef ref = env.lookup(member, vm, true);
@@ -988,6 +991,9 @@ public class OpObject {
                 // so the enclosing restore/cleanup stays balanced
                 vm.stack.push(iterator);
             }
+        }
+        if (System.getProperty("dbg.rest") != null) {
+            System.err.println("REST collected i=" + i);
         }
         vm.eax.write(arr);
     }

@@ -227,6 +227,14 @@ public class ProxyValue extends NgsObject {
 
     @Override
     public MemRef lookup(String member, Machine vm, boolean isMember) {
+        if (member.startsWith("#")) {
+            // ES PrivateGet/PrivateSet: private names are brand-checked
+            // slots, never proxy traps — a proxy has no private slots, so
+            // accessing a private member through it is always a TypeError
+            // even when the target carries the same-named key
+            throw new IllegalArgumentException(
+                    "Cannot access private member '" + member + "'");
+        }
         return new ProxyMemRef(this, member, vm);
     }
 }

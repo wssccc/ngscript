@@ -33,7 +33,8 @@ import org.ngscript.ast.AwaitExpr;
 import org.ngscript.ast.BinaryExpr;
 import org.ngscript.ast.Block;
 import org.ngscript.ast.BlockStmt;
-import org.ngscript.ast.BreakStmt;import org.ngscript.ast.CallExpr;
+import org.ngscript.ast.BreakStmt;
+import org.ngscript.ast.CallExpr;
 import org.ngscript.ast.ClassExpr;
 import org.ngscript.ast.CommaExpr;
 import org.ngscript.ast.CondExpr;
@@ -50,11 +51,11 @@ import org.ngscript.ast.FunctionDecl;
 import org.ngscript.ast.GoStmt;
 import org.ngscript.ast.IdentExpr;
 import org.ngscript.ast.IfStmt;
+import org.ngscript.ast.ImportCallExpr;
 import org.ngscript.ast.ImportStmt;
 import org.ngscript.ast.IndexExpr;
 import org.ngscript.ast.Kvp;
 import org.ngscript.ast.LabeledStmt;
-import org.ngscript.ast.ImportCallExpr;
 import org.ngscript.ast.LambdaExpr;
 import org.ngscript.ast.LetDeclExpr;
 import org.ngscript.ast.LiteralExpr;
@@ -141,6 +142,57 @@ public class Compiler {
      * frame (wild jumps / opaque NgsObject@hash failures).
      */
     private int tryDepth;
+
+    /**
+     * Stack of per-class private-name scopes: the source private name
+     * "#m" maps to a unique per-class runtime key ("#m@N") so nested
+     * classes with same-named private members do not alias each other (ES
+     * private names are unique per class definition: accessing B's #m on
+     * a C instance where C has its own #m is still a TypeError).
+     */
+    private final Deque<Map<String, String>> privateNameScopes = new ArrayDeque<>();
+    private int privateNameSeq;
+
+    /** The unique runtime key for a private name inside the current class. */
+    private String privateKey(String name) {
+        return privateKey(name, true);
+    }
+
+    /**
+     * Resolves a private name to its unique runtime key. {@code define}
+     * binds the name in the innermost class scope (a field/method
+     * declaration always creates the current class's own private name);
+     * a reference walks the class-scope stack outward, so a nested class
+     * reads an enclosing class's same-named private member (ES lexical
+     * private-name scoping).
+     */
+    private String privateKey(String name, boolean define) {
+        if (name == null || !name.startsWith("#")) {
+            return name;
+        }
+        if (!define) {
+            for (java.util.Iterator<Map<String, String>> it = privateNameScopes.iterator();
+                    it.hasNext(); ) {
+                Map<String, String> scope = it.next();
+                String key = scope.get(name);
+                if (key != null) {
+                    return key;
+                }
+            }
+        }
+        Map<String, String> scope = privateNameScopes.peek();
+        if (scope == null) {
+            // outside a class body the literal name stays (reading it on
+            // an object without the key throws the runtime TypeError)
+            return name;
+        }
+        String key = scope.get(name);
+        if (key == null) {
+            key = name + "@" + (++privateNameSeq);
+            scope.put(name, key);
+        }
+        return key;
+    }
 
     /**
      * The try-context depth at which each label was emitted, used to emit
@@ -847,7 +899,7 @@ public class Compiler {
                 compileExpr(d.key);
                 assembler.emit("to_string");
             } else {
-                assembler.emit("string", d.name);
+                assembler.emit("string", privateKey(d.name));
             }
             assembler.emit("push_eax");
             compileExpr(d.value);
@@ -883,7 +935,7 @@ public class Compiler {
             } else {
                 compileExpr(member.object);
                 assembler.emit("push_eax");
-                assembler.emit("string", member.name);
+                assembler.emit("string", privateKey(member.name, false));
                 assembler.emit("member_ref");
                 if (!byref) {
                     assembler.emit("deref", "%eax");
@@ -1113,7 +1165,7 @@ public class Compiler {
             // the other feeds member_ref
             assembler.emit("peek", "0");
             assembler.emit("push_eax");
-            assembler.emit("string", member.name);
+            assembler.emit("string", privateKey(member.name, false));
             assembler.emit("member_ref");
             assembler.emit("deref", "%eax");
             assembler.emit("push_eax");
@@ -1476,7 +1528,7 @@ public class Compiler {
                     MemberExpr member = (MemberExpr) unary.operand;
                     compileExpr(member.object);
                     assembler.emit("push_eax");
-                    assembler.emit("string", member.name);
+                    assembler.emit("string", privateKey(member.name, false));
                     assembler.emit(currentStrict ? "delete_op_strict" : "delete_op");
                 } else if (unary.operand instanceof IndexExpr) {
                     // delete obj[key]: compile the key expression too
@@ -1999,7 +2051,7 @@ public class Compiler {
             // the other feeds member_ref
             assembler.emit("peek", "0");
             assembler.emit("push_eax");
-            assembler.emit("string", member.name);
+            assembler.emit("string", privateKey(member.name, false));
             assembler.emit("member_ref");
             assembler.emit("deref", "%eax");
             assembler.emit("push_eax");
@@ -2085,6 +2137,22 @@ public class Compiler {
      * prototype, static methods on the constructor).
      */
     private void compileClass(ClassExpr cls) throws CompilerException {
+        Map<String, String> privateScope = new HashMap<>();
+        privateNameScopes.push(privateScope);
+        // pre-register every private name of this class: a nested class
+        // compiled later (inside a field initializer) resolves a private
+        // reference lexically to this class's key even before the member
+        // itself is compiled (ES private-name scoping is static)
+        for (ClassExpr.MethodDef m : cls.methods) {
+            if (m.name != null && m.name.startsWith("#") && !privateScope.containsKey(m.name)) {
+                privateScope.put(m.name, m.name + "@" + (++privateNameSeq));
+            }
+        }
+        for (ClassExpr.FieldDef f : cls.fields) {
+            if (f.name != null && f.name.startsWith("#") && !privateScope.containsKey(f.name)) {
+                privateScope.put(f.name, f.name + "@" + (++privateNameSeq));
+            }
+        }
         if (cls.name != null) {
             // TDZ binding so `class C extends C` throws like ES
             assembler.emit("decl_let", cls.name, "0");
@@ -2203,7 +2271,7 @@ public class Compiler {
                     compileExpr(f.computedKey);
                     assembler.emit("to_string");
                 } else {
-                    assembler.emit("string", f.name);
+                    assembler.emit("string", privateKey(f.name));
                 }
                 assembler.emit("own_member_ref");
                 assembler.emit("push_eax");
@@ -2220,6 +2288,7 @@ public class Compiler {
         if (cls.name != null) {
             emitAssignToName(cls.name);
         }
+        privateNameScopes.pop();
     }
 
     /**
@@ -2240,7 +2309,7 @@ public class Compiler {
             compileExpr(m.computedKey);
             assembler.emit("to_string");
         } else {
-            assembler.emit("string", m.name);
+            assembler.emit("string", privateKey(m.name));
         }
         String marker = m.async ? (m.generator ? "5" : "3")
                 : (m.generator ? "2" : "0");

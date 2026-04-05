@@ -408,6 +408,14 @@ public class NgScriptEngine {
 
     /** Whether the caller is inside a method context (a class frame carries %superproto). */
     private static boolean callerChainHasSuperProto(NgsObject env) {
+        if (System.getProperty("dbg.super") != null) {
+            NgsObject f = env; int i = 0;
+            while (f != null) {
+                System.err.println("  chain[" + i + "] fs=" + f.functionScope
+                        + " superproto=" + f.has("%superproto") + " cls=" + f.getClass().getSimpleName());
+                f = f.getParent(); i++;
+            }
+        }
         NgsObject f = env;
         while (f != null && f.getParent() != null) {
             if (f.has("%superproto")) {

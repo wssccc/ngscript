@@ -438,17 +438,29 @@ public class NgsObject implements Scope {
                 }
                 ref = lookupEnv(member, vm, isMember);
                 if (ref == null) {
-                    // an unset member read as undefined (kept from the legacy
-                    // behavior: reading a member creates the reference).
-                    // A found binding is returned as-is: copying it into
-                    // the root frame would leak local bindings into the
-                    // global object (and shadow them there forever)
-                    ref = new MemRef(Undefined.value);
-                    if (isMember) {
-                        data.put(member, ref);
-                    } else {
-                        rootFrame().data.put(member, ref);
+                    // ES [[Get]]: reading a missing member yields undefined
+                    // without creating the property — creating it polluted
+                    // destructuring rest arrays with ghost numeric keys
+                    // (breaking array length) and leaked keys into
+                    // Object.keys. The transient reference writes through
+                    // to the receiver's own data ([[Set]] creates the
+                    // property). A missing private member (#name) is a
+                    // TypeError (ES PrivateGet/PrivateSet).
+                    final String key = member;
+                    if (isMember && member.startsWith("#")) {
+                        throw new IllegalArgumentException(
+                                "Cannot access private member '" + member + "'");
                     }
+                    if (isMember) {
+                        return new MemRef(Undefined.value) {
+                            @Override
+                            public void write(Object v) {
+                                data.put(key, new MemRef(v));
+                            }
+                        };
+                    }
+                    ref = new MemRef(Undefined.value);
+                    rootFrame().data.put(member, ref);
                 } else if (isMember) {
                     // the reference lives on the [[Prototype]] chain (or
                     // an outer frame): a script write must create an own

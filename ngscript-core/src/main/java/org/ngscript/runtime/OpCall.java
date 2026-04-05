@@ -130,6 +130,10 @@ public class OpCall {
                     ? Undefined.value : receiver;
             try {
                 vm.eax.write(proxy.proxyApply(vm, thisArg, args));
+            } catch (RuntimeException e) {
+                // keep the original type: a TypeError (IllegalArgumentException)
+                // must survive for `instanceof TypeError` checks
+                throw e;
             } catch (Exception e) {
                 throw new NgScriptRuntimeException(vm, e.getMessage() == null
                         ? e.toString() : e.getMessage());
@@ -179,6 +183,10 @@ public class OpCall {
                         System.arraycopy(args, 1, callArgs, 0, callArgs.length);
                         vm.eax.write(OpUtils.callValue(vm, target, recv, callArgs));
                     }
+                } catch (RuntimeException e) {
+                    // keep the original type: a TypeError (IllegalArgumentException)
+                    // must survive for `instanceof TypeError` checks
+                    throw e;
                 } catch (Exception e) {
                     throw new NgScriptRuntimeException(vm, e.getMessage() == null
                             ? e.toString() : e.getMessage());
@@ -242,6 +250,10 @@ public class OpCall {
                     AsyncContext ctx = new AsyncContext(vm, c, args);
                     ctx.start();
                     vm.eax.write(ctx.promise);
+                } catch (RuntimeException e) {
+                    // keep the original type: a TypeError (IllegalArgumentException)
+                    // must survive for `instanceof TypeError` checks
+                    throw e;
                 } catch (Exception e) {
                     throw new NgScriptRuntimeException(vm, e.getMessage() == null
                             ? e.toString() : e.getMessage());
@@ -292,13 +304,15 @@ public class OpCall {
                 try {
                     vm.eax.write(vm.callClosureSync(
                             c, args, receiver, c.instructions, env));
-                } catch (Exception e) {
+                } catch (RuntimeException e) {
                     if (e instanceof ClosureBudgetExceeded) {
                         throw (ClosureBudgetExceeded) e;
                     }
-                    // keep the original exception as the jsError: a thrown
-                    // script value wrapped by restore_machine_state must
-                    // survive so the enclosing JS catch can unwrap it
+                    // keep the original exception: a TypeError
+                    // (IllegalArgumentException) or a thrown script value
+                    // must survive for `instanceof` checks and JS catch
+                    throw e;
+                } catch (Exception e) {
                     Object jsError = (e instanceof NgScriptRuntimeException)
                             ? ((NgScriptRuntimeException) e).getJsError() : null;
                     throw new NgScriptRuntimeException(vm, e.getMessage() == null

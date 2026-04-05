@@ -114,12 +114,18 @@ public class NgsArray extends NgsObject implements java.util.Iterator<Object>, j
             MemRef ref = getRef(member);
             if (ref == null) {
                 int len = 0;
+                StringBuilder dbg = new StringBuilder();
                 for (String key : keys()) {
                     try {
                         len = Math.max(len, Integer.parseInt(key) + 1);
                     } catch (NumberFormatException ignored) {
-                        // non-numeric keys do not affect length
+                        if (System.getProperty("dbg.len") != null) {
+                            dbg.append("[" + key + "]");
+                        }
                     }
+                }
+                if (System.getProperty("dbg.len") != null) {
+                    System.err.println("LEN calc=" + len + " keys=" + keys() + dbg);
                 }
                 ref = new MemRef(len);
                 define(member);

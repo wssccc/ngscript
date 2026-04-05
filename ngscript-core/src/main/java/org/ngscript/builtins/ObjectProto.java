@@ -95,6 +95,32 @@ public class ObjectProto {
             }
             vm.eax.write(false);
         });
+        // annexB: __lookupGetter__/__lookupSetter__ walk the [[Prototype]]
+        // chain (including the object itself) for an accessor property and
+        // return its getter/setter function (undefined when absent)
+        proto.set("__lookupGetter__", (Invokable) (vm, args) -> {
+            String key = args.length > 0
+                    ? org.ngscript.runtime.OpArray.keyString(args[0]) : "undefined";
+            vm.eax.write(lookupAccessor(vm.thisRef.read(), key, "get"));
+        });
+        proto.set("__lookupSetter__", (Invokable) (vm, args) -> {
+            String key = args.length > 0
+                    ? org.ngscript.runtime.OpArray.keyString(args[0]) : "undefined";
+            vm.eax.write(lookupAccessor(vm.thisRef.read(), key, "set"));
+        });
         return proto;
+    }
+
+    /** Finds an accessor's getter/setter on the object or its prototype chain. */
+    private static Object lookupAccessor(Object t, String key, String which) {
+        NgsObject p = t instanceof NgsObject ? (NgsObject) t : null;
+        while (p != null) {
+            Object fn = p.getAccessor(key, which);
+            if (fn != null) {
+                return fn;
+            }
+            p = p.getPrototype();
+        }
+        return Undefined.value;
     }
 }
