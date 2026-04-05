@@ -116,6 +116,11 @@ public class Machine {
     Instruction hints;
     FastStack<Object> stack = new FastStack<>(32);
     FastStack<ScriptFunction> callstack = new FastStack<ScriptFunction>(32);
+
+    /** The active script-function call stack (innermost call last). */
+    public FastStack<ScriptFunction> getCallstack() {
+        return callstack;
+    }
     //temp var for clear callStackSize op
     int callStackSize;
     //registers
@@ -175,6 +180,24 @@ public class Machine {
      * to share the caller's scope. Every native call clears it afterwards.
      */
     public boolean evalDirectFlag;
+
+    /**
+     * Set by eval_init_mark when the eval call site sits inside a class
+     * field initializer: such an eval is subject to the eval-in-initializer
+     * early errors (ContainsArguments is a SyntaxError). The builtin clears
+     * it after reading so a stray flag cannot leak into later evals.
+     */
+    public boolean evalInInitializer;
+
+    /**
+     * The value of {@code new.target} in the current execution context:
+     * set to the constructor by new-calls, cleared to undefined by plain
+     * calls and field initializers (new_target_enter/leave save/restore
+     * the surrounding value on this stack). Arrows inherit the value
+     * lexically (their call does not touch it).
+     */
+    public Object newTarget;
+    FastStack<Object> newTargetStack = new FastStack<>(8);
 
     /**
      * Depth of replace-style executions (direct eval / CompiledScript) on

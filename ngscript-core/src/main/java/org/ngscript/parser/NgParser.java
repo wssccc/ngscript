@@ -62,6 +62,7 @@ import org.ngscript.ast.LetDeclExpr;
 import org.ngscript.ast.LiteralExpr;
 import org.ngscript.ast.MemberExpr;
 import org.ngscript.ast.NewExpr;
+import org.ngscript.ast.NewTargetExpr;
 import org.ngscript.ast.ObjectLiteral;
 import org.ngscript.ast.OptionalChainExpr;
 import org.ngscript.ast.Params;
@@ -2201,6 +2202,16 @@ public class NgParser {
 
     private Expr parseNew(Token newTok) throws ParserException {
         next();
+        if (peekIs("dot")) {
+            // new.target: the constructor of the innermost constructor call
+            // (undefined in plain calls, field initializers, and top level)
+            Token dot = peekN(2);
+            if (dot != null && dot.type.equals("ident") && "target".equals(dot.value)) {
+                next(); // .
+                next(); // target
+                return new NewTargetExpr(newTok.line);
+            }
+        }
         Expr cls;
         if (peekIs("lparen")) {
             // new (expr) / new (() => {}): parseParenOrArrow expects the
@@ -2510,9 +2521,6 @@ public class NgParser {
             }
             case "super": {
                 next();
-                if (System.getProperty("dbg.super") != null) {
-                    System.err.println("PARSER super: superDepth=" + superDepth);
-                }
                 if (superDepth == 0) {
                     // super is only allowed directly inside a method body
                     // (class or object literal); anywhere else is an early
@@ -2530,6 +2538,13 @@ public class NgParser {
                     next();
                     Token name = expect("ident");
                     return new SuperMemberExpr(name.value, t.line);
+                }
+                if (peekIs("lsqr")) {
+                    // super[expr]: the computed-key form of super.member
+                    next();
+                    Expr key = parseExpr();
+                    expect("rsqr");
+                    return new SuperMemberExpr(null, key, t.line);
                 }
                 throw new ParserException("invalid use of super",
                         new org.ngscript.api.Source(null, t.line));

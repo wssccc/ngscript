@@ -61,6 +61,7 @@ import org.ngscript.ast.LetDeclExpr;
 import org.ngscript.ast.LiteralExpr;
 import org.ngscript.ast.MemberExpr;
 import org.ngscript.ast.NewExpr;
+import org.ngscript.ast.NewTargetExpr;
 import org.ngscript.ast.ObjectLiteral;
 import org.ngscript.ast.OptionalChainExpr;
 import org.ngscript.ast.Params;
@@ -142,6 +143,13 @@ public class Compiler {
      * frame (wild jumps / opaque NgsObject@hash failures).
      */
     private int tryDepth;
+
+    /**
+     * Compile-time depth of class field initializers: an eval call inside
+     * one is marked eval_init_mark so the runtime applies the
+     * eval-in-initializer early errors (ContainsArguments).
+     */
+    private int fieldInitCompileDepth;
 
     /**
      * Stack of per-class private-name scopes: the source private name
@@ -703,6 +711,14 @@ public class Compiler {
         blockDepth = 0;
         int savedTryDepth = tryDepth;
         tryDepth = 0;
+        // a plain function body is not a field initializer: an eval inside
+        // it is not subject to the eval-in-initializer early errors. Arrows
+        // inherit the initializer context lexically (like super/new.target),
+        // so their bodies keep the depth.
+        int savedFieldInitDepth = fieldInitCompileDepth;
+        if (!arrow) {
+            fieldInitCompileDepth = 0;
+        }
         // mapped arguments require a simple parameter list: no defaults,
         // rest, or destructuring (ES unmaps the arguments object otherwise);
         // defaults/patterns are parallel lists whose entries are null when
@@ -802,6 +818,7 @@ public class Compiler {
         } finally {
             blockDepth = savedBlockDepth;
             tryDepth = savedTryDepth;
+            fieldInitCompileDepth = savedFieldInitDepth;
         }
         emitLabel(exit);
         return enter;
@@ -902,7 +919,15 @@ public class Compiler {
                 assembler.emit("string", privateKey(d.name));
             }
             assembler.emit("push_eax");
+            // ES: a field initializer runs as a fresh execution context in
+            // which new.target is undefined (not the constructor); the
+            // surrounding value is restored after the initializer. An eval
+            // call inside the initializer is marked (eval_init_mark).
+            ++fieldInitCompileDepth;
+            assembler.emit("new_target_enter");
             compileExpr(d.value);
+            assembler.emit("new_target_leave");
+            --fieldInitCompileDepth;
             assembler.emit("define_prop");
         } else if (expr instanceof CommaExpr) {
             // each operand evaluates with a balanced stack; the value of the
@@ -962,6 +987,11 @@ public class Compiler {
             NewExpr newExpr = (NewExpr) expr;
             _compile_funcall(newExpr.callee, newExpr.args, true);
             assembler.emit("new_op");
+        } else if (expr instanceof NewTargetExpr) {
+            // new.target: the constructor of the innermost constructor
+            // call, read from the machine register (set by new-calls and
+            // cleared by plain calls / field initializers)
+            assembler.emit("new_target");
         } else if (expr instanceof IndexExpr) {
             IndexExpr indexExpr = (IndexExpr) expr;
             if (hasOptionalChain(indexExpr.object)) {
@@ -1074,8 +1104,18 @@ public class Compiler {
             // %superproto by class definitions); object literal methods
             // have no such binding, so super_ref falls back to the dynamic
             // prototype of `this` (the object's [[Prototype]] chain)
+            if (sm.key != null) {
+                // super[expr]: the key expression is evaluated first and
+                // pushed; super_ref_k pops it and resolves the member
+                compileExpr(sm.key);
+                assembler.emit("push_eax");
+            }
             assembler.emit("super_proto");
-            assembler.emit("super_ref", sm.name);
+            if (sm.key != null) {
+                assembler.emit("super_ref_k");
+            } else {
+                assembler.emit("super_ref", sm.name);
+            }
             if (!byref) {
                 assembler.emit("deref", "%eax");
             }
@@ -2088,6 +2128,11 @@ public class Compiler {
             // call clears it afterwards so a reassigned `eval` cannot leak
             // the flag into a later call.
             assembler.emit("eval_direct_mark");
+            if (fieldInitCompileDepth > 0) {
+                // the call site is inside a class field initializer: mark it
+                // for the eval-in-initializer early errors
+                assembler.emit("eval_init_mark");
+            }
         }
         assembler.emit("push_env");
         assembler.emit("call");

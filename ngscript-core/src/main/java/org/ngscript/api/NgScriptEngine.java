@@ -28,6 +28,7 @@ import org.ngscript.ast.AwaitExpr;
 import org.ngscript.ast.BinaryExpr;
 import org.ngscript.ast.BlockStmt;
 import org.ngscript.ast.CallExpr;
+import org.ngscript.ast.ClassExpr;
 import org.ngscript.ast.CommaExpr;
 import org.ngscript.ast.CondExpr;
 import org.ngscript.ast.DestructureExpr;
@@ -38,6 +39,7 @@ import org.ngscript.ast.ForInStmt;
 import org.ngscript.ast.ForOfStmt;
 import org.ngscript.ast.ForStmt;
 import org.ngscript.ast.FunctionDecl;
+import org.ngscript.ast.IdentExpr;
 import org.ngscript.ast.IfStmt;
 import org.ngscript.ast.ImportCallExpr;
 import org.ngscript.ast.IndexExpr;
@@ -47,6 +49,7 @@ import org.ngscript.ast.LambdaExpr;
 import org.ngscript.ast.LetDeclExpr;
 import org.ngscript.ast.MemberExpr;
 import org.ngscript.ast.NewExpr;
+import org.ngscript.ast.NewTargetExpr;
 import org.ngscript.ast.ObjectLiteral;
 import org.ngscript.ast.OptionalChainExpr;
 import org.ngscript.ast.Program;
@@ -256,10 +259,17 @@ public class NgScriptEngine {
      * frame.
      */
     private Object evalInGlobal(String code) throws NgScriptException {
+        vm.evalInInitializer = false;
         if (configuration.isInteractive()) {
             return eval(code);
         }
         Program program = parser.parse(code);
+        // an indirect eval runs as a script in the global scope: new.target
+        // (including inside arrows) is a SyntaxError — there is no
+        // enclosing constructor invocation to inherit from
+        if (containsNewTarget(program)) {
+            throw new ParserException("invalid use of new.target");
+        }
         checkGlobalFunctionDeclarations(program);
         boolean strictCode = parser.strictMode;
         List<Instruction> ins = compiler.compileCode(program, code);
@@ -312,6 +322,11 @@ public class NgScriptEngine {
         if (configuration.isInteractive()) {
             return eval(code);
         }
+        // the eval call site inside a class field initializer set this flag
+        // (eval_init_mark); it applies to this eval only — clear it now so a
+        // stray flag (or an exception below) cannot leak into later evals
+        boolean inInitializer = vm.evalInInitializer;
+        vm.evalInInitializer = false;
         Program program = parser.parseEval(code);
         // ES EvalDeclarationInstantiation: a non-strict direct eval that
         // declares "arguments" (via var or a function declaration) throws a
@@ -326,6 +341,15 @@ public class NgScriptEngine {
             throw new ParserException(
                     "SyntaxError: Identifier 'arguments' has already been declared");
         }
+        // ES eval-in-initializer early error: a direct eval inside a class
+        // field initializer whose source contains the IdentifierReference
+        // "arguments" (including inside arrows, which inherit the
+        // initializer's environment) is a SyntaxError — the initializer has
+        // no arguments binding to inherit
+        if (inInitializer && containsArguments(program)) {
+            throw new ParserException(
+                    "SyntaxError: 'arguments' is not allowed in a field initializer eval");
+        }
         // ES: a direct eval containing super(...) is always a SyntaxError
         // (the eval code is not a constructor method); super.x is only legal
         // inside a method context — a class frame on the caller's chain
@@ -333,6 +357,14 @@ public class NgScriptEngine {
         if (containsSuperCall(program)
                 || (containsSuperProperty(program) && !callerChainHasSuperProto(callerEnv))) {
             throw new ParserException("invalid use of super");
+        }
+        // ES: a direct eval outside any function context containing
+        // new.target is a SyntaxError — arrows inherit the check (their
+        // bodies recurse, arrows do not create a new.target context of
+        // their own), while nested plain functions carry their own
+        // new.target binding and are skipped
+        if (containsNewTarget(program) && !callerHasNewTargetContext(vm)) {
+            throw new ParserException("invalid use of new.target");
         }
         // a global-scope direct eval declares global functions: a name
         // colliding with a non-configurable global property is a TypeError
@@ -408,14 +440,6 @@ public class NgScriptEngine {
 
     /** Whether the caller is inside a method context (a class frame carries %superproto). */
     private static boolean callerChainHasSuperProto(NgsObject env) {
-        if (System.getProperty("dbg.super") != null) {
-            NgsObject f = env; int i = 0;
-            while (f != null) {
-                System.err.println("  chain[" + i + "] fs=" + f.functionScope
-                        + " superproto=" + f.has("%superproto") + " cls=" + f.getClass().getSimpleName());
-                f = f.getParent(); i++;
-            }
-        }
         NgsObject f = env;
         while (f != null && f.getParent() != null) {
             if (f.has("%superproto")) {
@@ -434,6 +458,22 @@ public class NgScriptEngine {
                 return true;
             }
             f = f.getParent();
+        }
+        return false;
+    }
+
+    /**
+     * Whether the current call stack carries a non-arrow function: only
+     * plain functions (and constructors) establish a new.target context —
+     * arrows inherit it lexically, so a direct eval inside a top-level
+     * arrow (or at script level) referencing new.target is a SyntaxError.
+     */
+    private static boolean callerHasNewTargetContext(Machine vm) {
+        for (int i = 0; i < vm.getCallstack().size(); i++) {
+            org.ngscript.value.ScriptFunction f = vm.getCallstack().peek(i);
+            if (!f.arrow) {
+                return true;
+            }
         }
         return false;
     }
@@ -519,6 +559,377 @@ public class NgScriptEngine {
 
     private static List<Stmt> singleton(Stmt s) {
         return s == null ? Collections.<Stmt>emptyList() : Collections.singletonList(s);
+    }
+
+    /**
+     * Whether the eval source references the IdentifierReference
+     * "arguments" outside a nested plain function or class (arrows recurse:
+     * they inherit the surrounding environment). Used by the
+     * eval-in-initializer early error.
+     */
+    private static boolean containsArguments(Program program) {
+        for (Stmt s : program.statements) {
+            if (stmtContainsArguments(s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean stmtContainsArguments(Stmt s) {
+        if (s instanceof BlockStmt) {
+            for (Stmt c : ((BlockStmt) s).block.statements) {
+                if (stmtContainsArguments(c)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (s instanceof IfStmt) {
+            IfStmt st = (IfStmt) s;
+            return stmtContainsArguments(st.thenBody) || stmtContainsArguments(st.elseBody);
+        } else if (s instanceof ForStmt) {
+            ForStmt st = (ForStmt) s;
+            return exprContainsArguments(st.init) || exprContainsArguments(st.test)
+                    || exprContainsArguments(st.step) || stmtContainsArguments(st.body);
+        } else if (s instanceof ForInStmt) {
+            ForInStmt st = (ForInStmt) s;
+            return exprContainsArguments(st.target) || exprContainsArguments(st.object)
+                    || stmtContainsArguments(st.body);
+        } else if (s instanceof ForOfStmt) {
+            ForOfStmt st = (ForOfStmt) s;
+            return exprContainsArguments(st.target) || exprContainsArguments(st.object)
+                    || stmtContainsArguments(st.body);
+        } else if (s instanceof WhileStmt) {
+            WhileStmt st = (WhileStmt) s;
+            return exprContainsArguments(st.condition) || stmtContainsArguments(st.body);
+        } else if (s instanceof DoWhileStmt) {
+            DoWhileStmt st = (DoWhileStmt) s;
+            return stmtContainsArguments(st.body) || exprContainsArguments(st.condition);
+        } else if (s instanceof TryStmt) {
+            TryStmt st = (TryStmt) s;
+            return (st.tryBody != null && stmtContainsArguments(new BlockStmt(st.tryBody, st.line)))
+                    || (st.catchBody != null && stmtContainsArguments(new BlockStmt(st.catchBody, st.line)))
+                    || (st.finallyBody != null && stmtContainsArguments(new BlockStmt(st.finallyBody, st.line)));
+        } else if (s instanceof SwitchStmt) {
+            SwitchStmt st = (SwitchStmt) s;
+            if (exprContainsArguments(st.value)) {
+                return true;
+            }
+            if (st.cases != null) {
+                for (SwitchCase c : st.cases) {
+                    if ((c.value != null && exprContainsArguments(c.value))
+                            || (c.body != null && stmtContainsArguments(new BlockStmt(c.body, st.line)))) {
+                        return true;
+                    }
+                }
+            }
+            return st.defaultBody != null
+                    && stmtContainsArguments(new BlockStmt(st.defaultBody, st.line));
+        } else if (s instanceof LabeledStmt) {
+            return stmtContainsArguments(((LabeledStmt) s).statement);
+        } else if (s instanceof WithStmt) {
+            WithStmt st = (WithStmt) s;
+            return exprContainsArguments(st.object) || stmtContainsArguments(st.body);
+        } else if (s instanceof FunctionDecl) {
+            // nested plain functions bind their own arguments
+            return false;
+        } else if (s instanceof ExprStmt) {
+            return exprContainsArguments(((ExprStmt) s).expr);
+        } else if (s instanceof ReturnStmt) {
+            return exprContainsArguments(((ReturnStmt) s).expr);
+        } else if (s instanceof ThrowStmt) {
+            return exprContainsArguments(((ThrowStmt) s).expr);
+        }
+        return false;
+    }
+
+    private static boolean exprContainsArguments(Expr e) {
+        if (e == null) {
+            return false;
+        }
+        if (e instanceof IdentExpr) {
+            return "arguments".equals(((IdentExpr) e).name);
+        }
+        if (e instanceof LambdaExpr) {
+            LambdaExpr l = (LambdaExpr) e;
+            if (!l.isArrow) {
+                // a plain function expression binds its own arguments
+                return false;
+            }
+            if (l.body != null) {
+                for (Stmt c : l.body.statements) {
+                    if (stmtContainsArguments(c)) {
+                        return true;
+                    }
+                }
+            }
+            return exprContainsArguments(l.bodyExpr);
+        } else if (e instanceof ClassExpr) {
+            return false;
+        } else if (e instanceof AssignExpr) {
+            AssignExpr a = (AssignExpr) e;
+            return exprContainsArguments(a.target) || exprContainsArguments(a.value);
+        } else if (e instanceof CallExpr) {
+            CallExpr c = (CallExpr) e;
+            if (exprContainsArguments(c.callee)) {
+                return true;
+            }
+            for (Expr a : c.args) {
+                if (exprContainsArguments(a)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof NewExpr) {
+            NewExpr n = (NewExpr) e;
+            if (exprContainsArguments(n.callee)) {
+                return true;
+            }
+            for (Expr a : n.args) {
+                if (exprContainsArguments(a)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof CommaExpr) {
+            for (Expr x : ((CommaExpr) e).operands) {
+                if (exprContainsArguments(x)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof CondExpr) {
+            CondExpr c = (CondExpr) e;
+            return exprContainsArguments(c.condition) || exprContainsArguments(c.thenExpr)
+                    || exprContainsArguments(c.elseExpr);
+        } else if (e instanceof BinaryExpr) {
+            BinaryExpr b = (BinaryExpr) e;
+            return exprContainsArguments(b.left) || exprContainsArguments(b.right);
+        } else if (e instanceof MemberExpr) {
+            return exprContainsArguments(((MemberExpr) e).object);
+        } else if (e instanceof IndexExpr) {
+            IndexExpr ix = (IndexExpr) e;
+            return exprContainsArguments(ix.object) || exprContainsArguments(ix.index);
+        } else if (e instanceof OptionalChainExpr) {
+            org.ngscript.ast.OptionalChainExpr oc = (org.ngscript.ast.OptionalChainExpr) e;
+            if (exprContainsArguments(oc.object)) {
+                return true;
+            }
+            if (oc instanceof org.ngscript.ast.OptionalChainExpr.Index) {
+                return exprContainsArguments(((org.ngscript.ast.OptionalChainExpr.Index) oc).index);
+            }
+            if (oc instanceof org.ngscript.ast.OptionalChainExpr.Call) {
+                for (Expr a : ((org.ngscript.ast.OptionalChainExpr.Call) oc).args) {
+                    if (exprContainsArguments(a)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } else if (e instanceof ArrayLiteral) {
+            for (Expr x : ((ArrayLiteral) e).items) {
+                if (exprContainsArguments(x)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof ObjectLiteral) {
+            for (Object o : ((ObjectLiteral) e).items) {
+                if (o instanceof Kvp) {
+                    Kvp k = (Kvp) o;
+                    if (exprContainsArguments(k.keyExpr) || exprContainsArguments(k.value)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } else if (e instanceof SpreadExpr) {
+            return exprContainsArguments(((SpreadExpr) e).expr);
+        }
+        return false;
+    }
+
+    /** Whether the eval source references new.target outside a nested function/class. */
+    private static boolean containsNewTarget(Program program) {
+        for (Stmt s : program.statements) {
+            if (stmtContainsNewTarget(s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean stmtContainsNewTarget(Stmt s) {
+        if (s instanceof BlockStmt) {
+            for (Stmt c : ((BlockStmt) s).block.statements) {
+                if (stmtContainsNewTarget(c)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (s instanceof IfStmt) {
+            IfStmt st = (IfStmt) s;
+            return stmtContainsNewTarget(st.thenBody) || stmtContainsNewTarget(st.elseBody);
+        } else if (s instanceof ForStmt) {
+            ForStmt st = (ForStmt) s;
+            return exprContainsNewTarget(st.init) || exprContainsNewTarget(st.test)
+                    || exprContainsNewTarget(st.step) || stmtContainsNewTarget(st.body);
+        } else if (s instanceof ForInStmt) {
+            ForInStmt st = (ForInStmt) s;
+            return exprContainsNewTarget(st.target) || exprContainsNewTarget(st.object)
+                    || stmtContainsNewTarget(st.body);
+        } else if (s instanceof ForOfStmt) {
+            ForOfStmt st = (ForOfStmt) s;
+            return exprContainsNewTarget(st.target) || exprContainsNewTarget(st.object)
+                    || stmtContainsNewTarget(st.body);
+        } else if (s instanceof WhileStmt) {
+            WhileStmt st = (WhileStmt) s;
+            return exprContainsNewTarget(st.condition) || stmtContainsNewTarget(st.body);
+        } else if (s instanceof DoWhileStmt) {
+            DoWhileStmt st = (DoWhileStmt) s;
+            return stmtContainsNewTarget(st.body) || exprContainsNewTarget(st.condition);
+        } else if (s instanceof TryStmt) {
+            TryStmt st = (TryStmt) s;
+            return (st.tryBody != null && stmtContainsNewTarget(new BlockStmt(st.tryBody, st.line)))
+                    || (st.catchBody != null && stmtContainsNewTarget(new BlockStmt(st.catchBody, st.line)))
+                    || (st.finallyBody != null && stmtContainsNewTarget(new BlockStmt(st.finallyBody, st.line)));
+        } else if (s instanceof SwitchStmt) {
+            SwitchStmt st = (SwitchStmt) s;
+            if (exprContainsNewTarget(st.value)) {
+                return true;
+            }
+            if (st.cases != null) {
+                for (SwitchCase c : st.cases) {
+                    if ((c.value != null && exprContainsNewTarget(c.value))
+                            || (c.body != null && stmtContainsNewTarget(new BlockStmt(c.body, st.line)))) {
+                        return true;
+                    }
+                }
+            }
+            return st.defaultBody != null
+                    && stmtContainsNewTarget(new BlockStmt(st.defaultBody, st.line));
+        } else if (s instanceof LabeledStmt) {
+            return stmtContainsNewTarget(((LabeledStmt) s).statement);
+        } else if (s instanceof WithStmt) {
+            WithStmt st = (WithStmt) s;
+            return exprContainsNewTarget(st.object) || stmtContainsNewTarget(st.body);
+        } else if (s instanceof FunctionDecl) {
+            // nested plain functions bind their own new.target
+            return false;
+        } else if (s instanceof ExprStmt) {
+            return exprContainsNewTarget(((ExprStmt) s).expr);
+        } else if (s instanceof ReturnStmt) {
+            return exprContainsNewTarget(((ReturnStmt) s).expr);
+        } else if (s instanceof ThrowStmt) {
+            return exprContainsNewTarget(((ThrowStmt) s).expr);
+        }
+        return false;
+    }
+
+    private static boolean exprContainsNewTarget(Expr e) {
+        if (e == null) {
+            return false;
+        }
+        if (e instanceof NewTargetExpr) {
+            return true;
+        }
+        if (e instanceof LambdaExpr) {
+            LambdaExpr l = (LambdaExpr) e;
+            if (!l.isArrow) {
+                // a plain function expression binds its own new.target
+                return false;
+            }
+            if (l.body != null) {
+                for (Stmt c : l.body.statements) {
+                    if (stmtContainsNewTarget(c)) {
+                        return true;
+                    }
+                }
+            }
+            return exprContainsNewTarget(l.bodyExpr);
+        } else if (e instanceof ClassExpr) {
+            // a class expression carries its own new.target contexts
+            // (methods and field initializers)
+            return false;
+        } else if (e instanceof AssignExpr) {
+            AssignExpr a = (AssignExpr) e;
+            return exprContainsNewTarget(a.target) || exprContainsNewTarget(a.value);
+        } else if (e instanceof CallExpr) {
+            CallExpr c = (CallExpr) e;
+            if (exprContainsNewTarget(c.callee)) {
+                return true;
+            }
+            for (Expr a : c.args) {
+                if (exprContainsNewTarget(a)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof NewExpr) {
+            NewExpr n = (NewExpr) e;
+            if (exprContainsNewTarget(n.callee)) {
+                return true;
+            }
+            for (Expr a : n.args) {
+                if (exprContainsNewTarget(a)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof CommaExpr) {
+            for (Expr x : ((CommaExpr) e).operands) {
+                if (exprContainsNewTarget(x)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof CondExpr) {
+            CondExpr c = (CondExpr) e;
+            return exprContainsNewTarget(c.condition) || exprContainsNewTarget(c.thenExpr)
+                    || exprContainsNewTarget(c.elseExpr);
+        } else if (e instanceof BinaryExpr) {
+            BinaryExpr b = (BinaryExpr) e;
+            return exprContainsNewTarget(b.left) || exprContainsNewTarget(b.right);
+        } else if (e instanceof MemberExpr) {
+            return exprContainsNewTarget(((MemberExpr) e).object);
+        } else if (e instanceof IndexExpr) {
+            IndexExpr ix = (IndexExpr) e;
+            return exprContainsNewTarget(ix.object) || exprContainsNewTarget(ix.index);
+        } else if (e instanceof OptionalChainExpr) {
+            org.ngscript.ast.OptionalChainExpr oc = (org.ngscript.ast.OptionalChainExpr) e;
+            if (exprContainsNewTarget(oc.object)) {
+                return true;
+            }
+            if (oc instanceof org.ngscript.ast.OptionalChainExpr.Index) {
+                return exprContainsNewTarget(((org.ngscript.ast.OptionalChainExpr.Index) oc).index);
+            }
+            if (oc instanceof org.ngscript.ast.OptionalChainExpr.Call) {
+                for (Expr a : ((org.ngscript.ast.OptionalChainExpr.Call) oc).args) {
+                    if (exprContainsNewTarget(a)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } else if (e instanceof ArrayLiteral) {
+            for (Expr x : ((ArrayLiteral) e).items) {
+                if (exprContainsNewTarget(x)) {
+                    return true;
+                }
+            }
+            return false;
+        } else if (e instanceof ObjectLiteral) {
+            for (Object o : ((ObjectLiteral) e).items) {
+                if (o instanceof Kvp) {
+                    Kvp k = (Kvp) o;
+                    if (exprContainsNewTarget(k.keyExpr) || exprContainsNewTarget(k.value)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        return false;
     }
 
     private static boolean containsSuperCall(Program program) {

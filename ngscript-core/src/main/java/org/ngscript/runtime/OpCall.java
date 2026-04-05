@@ -279,15 +279,22 @@ public class OpCall {
                 // check `this instanceof Ctor` (new_op re-links idempotently)
                 env.setConstructor(c);
                 env.setPrototype(c.getPrototypeObject());
+                // ES [[Construct]]: new.target is the constructor
+                vm.newTarget = c;
             } else if (c.arrow) {
                 // arrows keep the this binding captured at creation time
+                // (and inherit new.target lexically: the register is
+                // untouched, so the value of the surrounding context stays)
                 vm.thisRef.write(c.capturedThis != null ? c.capturedThis : Undefined.value);
             } else if (receiver != null) {
                 vm.thisRef.write(receiver);
+                // a plain call has no new.target
+                vm.newTarget = null;
             } else {
                 // plain call: this is the global object in sloppy mode,
                 // undefined in strict mode
                 vm.thisRef.write(c.strict ? Undefined.value : Machine.globalThis);
+                vm.newTarget = null;
             }
             Integer nipObj = vm.labels.get(c.functionLabel);
             if ((c.evalClosure && c.instructions != null

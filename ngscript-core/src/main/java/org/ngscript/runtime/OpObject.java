@@ -156,9 +156,6 @@ public class OpObject {
 
     public static void member_ref(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {        Object[] objs = OpUtils.get2OpParam(vm);
         String member = (String) objs[1];
-        if (System.getProperty("dbg.mr") != null && "length".equals(member)) {
-            System.err.println("MR length: obj=" + objs[0].getClass().getSimpleName() + "@" + System.identityHashCode(objs[0]));
-        }
         if (objs[0] instanceof NgsObject) {
             NgsObject env = (NgsObject) objs[0];
             MemRef ref = env.lookup(member, vm, true);
@@ -771,7 +768,30 @@ public class OpObject {
             }
         } else if (ctor instanceof Class) {
             // Java classes: ordinary instanceof (e.g. e instanceof Error)
-            vm.eax.write(((Class) ctor).isInstance(obj) ? Boolean.TRUE : Boolean.FALSE);
+            Class cls = (Class) ctor;
+            if (cls.isInstance(obj)) {
+                vm.eax.write(Boolean.TRUE);
+            } else if (obj instanceof Throwable) {
+                // an exception thrown by engine internals maps to an ES
+                // error constructor by its Java type: ParserException /
+                // CompilerException surface as SyntaxError, and any engine
+                // exception is an Error (the class-based approximation
+                // cannot cover the hierarchy with plain isInstance)
+                Throwable t = (Throwable) obj;
+                boolean matched;
+                if (cls == IllegalStateException.class) {
+                    matched = t instanceof org.ngscript.parser.ParserException
+                            || t instanceof org.ngscript.compiler.CompilerException;
+                } else if (cls == Error.class) {
+                    matched = t instanceof RuntimeException
+                            || t instanceof org.ngscript.api.NgScriptException;
+                } else {
+                    matched = false;
+                }
+                vm.eax.write(matched ? Boolean.TRUE : Boolean.FALSE);
+            } else {
+                vm.eax.write(Boolean.FALSE);
+            }
         } else if (ctor instanceof org.ngscript.builtins.ObjectCtor) {
             // x instanceof Object: match the shared Object.prototype
             vm.eax.write(obj instanceof NgsObject
@@ -991,9 +1011,6 @@ public class OpObject {
                 // so the enclosing restore/cleanup stays balanced
                 vm.stack.push(iterator);
             }
-        }
-        if (System.getProperty("dbg.rest") != null) {
-            System.err.println("REST collected i=" + i);
         }
         vm.eax.write(arr);
     }
@@ -1285,6 +1302,31 @@ public class OpObject {
         vm.eax.write(new MemRef(Undefined.value));
     }
 
+    /**
+     * Computed-key {@code super[expr]}: the key sits on the stack (evaluated
+     * before super_proto), eax holds %superproto or undefined; the member is
+     * resolved like {@link #super_ref}.
+     */
+    public static void super_ref_k(Machine vm, String param, String param_extend) {
+        Object keyObj = vm.stack.pop();
+        String key = org.ngscript.runtime.OpArray.keyString(keyObj);
+        Object sp = vm.eax.read();
+        if (sp instanceof NgsObject) {
+            MemRef ref = findInProtoChain((NgsObject) sp, key);
+            vm.eax.write(ref != null ? ref : new MemRef(Undefined.value));
+            return;
+        }
+        Object t = vm.thisRef.read();
+        if (t instanceof NgsObject) {
+            MemRef ref = findInProtoChain(((NgsObject) t).getPrototype(), key);
+            if (ref != null) {
+                vm.eax.write(ref);
+                return;
+            }
+        }
+        vm.eax.write(new MemRef(Undefined.value));
+    }
+
     private static MemRef findInProtoChain(NgsObject p, String name) {
         while (p != null) {
             MemRef ref = p.getRef(name);
@@ -1458,6 +1500,38 @@ public class OpObject {
         }
         vm.hostNonEnumerable.computeIfAbsent(objs[0], k -> new java.util.HashSet<>()).add(member);
         vm.eax.write(slot);
+    }
+
+    /**
+     * Reads {@code new.target}: the constructor of the innermost
+     * constructor call (set by new_op's call path), undefined otherwise.
+     */
+    public static void new_target(Machine vm, String param, String param_extend) {
+        Object t = vm.newTarget;
+        vm.eax.write(t == null ? Undefined.value : t);
+    }
+
+    /**
+     * Enters a class field initializer context: new.target is undefined
+     * there (the initializer runs as a fresh execution context, not part
+     * of the constructor invocation); the surrounding value is saved on a
+     * dedicated stack and restored by new_target_leave.
+     */
+    public static void new_target_enter(Machine vm, String param, String param_extend) {
+        vm.newTargetStack.push(vm.newTarget);
+        vm.newTarget = Undefined.value;
+    }
+
+    /** Leaves a class field initializer context, restoring new.target. */
+    public static void new_target_leave(Machine vm, String param, String param_extend) {
+        if (!vm.newTargetStack.isEmpty()) {
+            vm.newTarget = vm.newTargetStack.pop();
+        }
+    }
+
+    /** Marks the next eval call as running inside a class field initializer. */
+    public static void eval_init_mark(Machine vm, String param, String param_extend) {
+        vm.evalInInitializer = true;
     }
 
     /**
