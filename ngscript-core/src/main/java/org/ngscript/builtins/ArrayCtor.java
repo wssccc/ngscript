@@ -32,6 +32,9 @@ import org.ngscript.value.MemRef;
  */
 public class ArrayCtor implements Invokable {
 
+    /** Shared instance: the ES Array constructor object itself. */
+    public static final ArrayCtor INSTANCE = new ArrayCtor();
+
     /** The shared Array.prototype (for instanceof and prototype access). */
     public NgsObject getPrototype() {
         return Builtins.getArrayPrototype();

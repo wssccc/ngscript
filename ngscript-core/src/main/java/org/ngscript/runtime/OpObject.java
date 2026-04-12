@@ -525,6 +525,9 @@ public class OpObject {
                     return new MemRef(Undefined.value);
                 }
                 return new MemRef(fn.getPrototypeObject());
+            case "constructor":
+                // ES: functions inherit Function.prototype.constructor
+                return new MemRef(org.ngscript.builtins.FunctionCtor.INSTANCE);
             case "name":
                 if (fn.deletedProps != null && fn.deletedProps.contains("name")) {
                     return new MemRef(Undefined.value);
@@ -794,8 +797,18 @@ public class OpObject {
                 vm.eax.write(Boolean.FALSE);
             }
         } else if (ctor instanceof Class) {
-            // Java classes: ordinary instanceof (e.g. e instanceof Error)
+            // Java classes: the interop branch is limited to the ES error
+            // constructors (e instanceof TypeError); any other Java class
+            // is not callable, so instanceof on it is a TypeError
             Class cls = (Class) ctor;
+            if (cls != Error.class && cls != IllegalArgumentException.class
+                    && cls != IndexOutOfBoundsException.class
+                    && cls != RuntimeException.class
+                    && cls != IllegalStateException.class
+                    && cls != java.net.URISyntaxException.class) {
+                throw new IllegalArgumentException(
+                        "right-hand side of instanceof is not callable");
+            }
             if (cls.isInstance(obj)) {
                 vm.eax.write(Boolean.TRUE);
             } else if (obj instanceof Throwable) {
@@ -820,10 +833,18 @@ public class OpObject {
                 vm.eax.write(Boolean.FALSE);
             }
         } else if (ctor instanceof org.ngscript.builtins.ObjectCtor) {
-            // x instanceof Object: match the shared Object.prototype
-            vm.eax.write(obj instanceof NgsObject
+            // x instanceof Object: match the shared Object.prototype (and
+            // functions, which chain through Function.prototype)
+            vm.eax.write((obj instanceof NgsObject
                     && protoChainContains((NgsObject) obj,
-                            ((org.ngscript.builtins.ObjectCtor) ctor).getPrototype())
+                            ((org.ngscript.builtins.ObjectCtor) ctor).getPrototype()))
+                    || obj instanceof org.ngscript.value.ScriptFunction
+                    || obj instanceof org.ngscript.value.Invokable
+                    ? Boolean.TRUE : Boolean.FALSE);
+        } else if (ctor instanceof org.ngscript.builtins.FunctionCtor) {
+            // x instanceof Function: script functions (and native callables)
+            vm.eax.write(obj instanceof org.ngscript.value.ScriptFunction
+                    || obj instanceof org.ngscript.value.Invokable
                     ? Boolean.TRUE : Boolean.FALSE);
         } else if (ctor instanceof org.ngscript.builtins.ArrayCtor) {
             // x instanceof Array: match the shared Array.prototype
@@ -844,9 +865,14 @@ public class OpObject {
         } else if (ctor instanceof org.ngscript.builtins.SymbolCtor) {
             vm.eax.write(obj instanceof org.ngscript.value.SymbolValue);
         } else if (ctor instanceof org.ngscript.builtins.StringCtor) {
-            vm.eax.write(obj instanceof String);
+            // ES: only objects are instanceof String — string primitives
+            // (including String(x) results) are not
+            vm.eax.write(Boolean.FALSE);
         } else {
-            throw new NgScriptRuntimeException(vm, "right-hand side of instanceof is not callable");
+            // ES: the right-hand side of instanceof must be callable (have
+            // a [[HasInstance]] method); anything else is a TypeError
+            throw new IllegalArgumentException(
+                    "right-hand side of instanceof is not callable");
         }
     }
 

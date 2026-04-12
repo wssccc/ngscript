@@ -32,6 +32,9 @@ import org.ngscript.value.Invokable;
  */
 public class FunctionCtor implements Invokable {
 
+    /** Shared instance: the ES Function constructor object itself. */
+    public static final FunctionCtor INSTANCE = new FunctionCtor();
+
     @Override
     public void invoke(Machine vm, Object[] args) {
         String body = args.length > 0 ? OpUtils.toStringValue(args[args.length - 1]) : "";

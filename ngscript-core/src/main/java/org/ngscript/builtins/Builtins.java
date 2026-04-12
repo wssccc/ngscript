@@ -59,8 +59,8 @@ public class Builtins {
         ObjectBuiltins.register(map);
         GlobalBuiltins.register(map, out);
         map.put("Coroutine", new MemRef(Coroutine.class));
-        map.put("Object", new MemRef(new ObjectCtor()));
-        map.put("Array", new MemRef(new ArrayCtor()));
+        map.put("Object", new MemRef(ObjectCtor.INSTANCE));
+        map.put("Array", new MemRef(ArrayCtor.INSTANCE));
         map.put("String", new MemRef(new StringCtor()));
         map.put("Number", new MemRef(new NumberCtor()));
         map.put("Boolean", new MemRef(new BooleanCtor()));
@@ -70,7 +70,7 @@ public class Builtins {
         map.put("WeakMap", new MemRef(new NgsWeakMap.Ctor()));
         map.put("WeakSet", new MemRef(new NgsWeakSet.Ctor()));
         map.put("Promise", new MemRef(new PromiseBuiltins.Ctor()));
-        map.put("Function", new MemRef(new FunctionCtor()));
+        map.put("Function", new MemRef(FunctionCtor.INSTANCE));
         map.put("JSON", new MemRef(new JSONBuiltins.Json()));
         map.put("Proxy", new MemRef(new ProxyBuiltins.ProxyCtor()));
         map.put("Reflect", new MemRef(ProxyBuiltins.createReflect()));

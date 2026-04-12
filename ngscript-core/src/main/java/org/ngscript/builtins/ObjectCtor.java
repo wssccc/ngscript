@@ -34,6 +34,9 @@ import org.ngscript.value.Undefined;
  */
 public class ObjectCtor implements Invokable {
 
+    /** Shared instance: the ES Object constructor object itself. */
+    public static final ObjectCtor INSTANCE = new ObjectCtor();
+
     /** The shared Object.prototype (for instanceof and prototype access). */
     public NgsObject getPrototype() {
         return Builtins.getObjectPrototype();

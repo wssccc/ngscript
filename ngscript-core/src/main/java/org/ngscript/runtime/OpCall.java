@@ -392,8 +392,17 @@ public class OpCall {
                 args = newargs;
             }
             //prepare env
-            vm.stack.push(properCons.newInstance(args));
-            vm.env.write(null);
+            Object instance = properCons.newInstance(args);
+            if (receiver == NEW_RECEIVER) {
+                // new: the instance stays on the stack for new_op
+                vm.stack.push(instance);
+                vm.env.write(null);
+            } else {
+                // plain call: the result goes to eax and the call frame is
+                // left for the caller's cleanup pops (no extra push — the
+                // stack would otherwise be unbalanced)
+                vm.eax.write(instance);
+            }
             return;
         }
             throw new IllegalArgumentException("unexpected callee " + callee

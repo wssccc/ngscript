@@ -31,6 +31,8 @@ public class ObjectProto {
 
     public static NgsObject create() {
         NgsObject proto = new NgsObject(null);
+        // ES: Object.prototype.constructor === Object
+        proto.set("constructor", org.ngscript.builtins.ObjectCtor.INSTANCE);
         proto.set("toString", (Invokable) (vm, args) -> vm.eax.write("[object Object]"));
         proto.set("valueOf", (Invokable) (vm, args) -> {
             Object t = vm.thisRef.read();

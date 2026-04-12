@@ -38,6 +38,8 @@ public class ArrayProto {
 
     public static NgsObject create() {
         NgsObject proto = new NgsObject(null);
+        // ES: Array.prototype.constructor === Array
+        proto.set("constructor", org.ngscript.builtins.ArrayCtor.INSTANCE);
         // Array.prototype's [[Prototype]] is Object.prototype: instance
         // methods like hasOwnProperty must resolve through it
         proto.setPrototype(Builtins.getObjectPrototype());
