@@ -404,6 +404,9 @@ public class Compiler {
             assembler.emit("pop");
         } else if (p instanceof Pattern.ObjectP) {
             Pattern.ObjectP obj = (Pattern.ObjectP) p;
+            // ES RequireObjectCoercible: destructuring null/undefined is a
+            // TypeError even for an empty pattern
+            assembler.emit("destr_obj_check");
             assembler.emit("push_eax");
             StringBuilder consumed = new StringBuilder();
             int computedKeys = 0;
@@ -900,6 +903,18 @@ public class Compiler {
                 assembler.emit(currentStrict ? "assign" : "assign_ref",
                         ((IdentExpr) assign.target).name);
                 assembler.emit("pop");
+            } else if (assign.target instanceof MemberExpr) {
+                // o.x = v (or a private member o.#x = v): the target is
+                // resolved in write mode (ES [[Set]] never invokes the
+                // getter; a getter-only private accessor is a TypeError)
+                MemberExpr member = (MemberExpr) assign.target;
+                compileExpr(member.object);
+                assembler.emit("push_eax");
+                assembler.emit("string", privateKey(member.name, false));
+                assembler.emit("member_ref_w");
+                assembler.emit("push_eax");
+                compileExpr(assign.value);
+                assembler.emit("assign");
             } else {
                 compileExpr(assign.target, true);
                 assembler.emit("push_eax");

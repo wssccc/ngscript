@@ -154,6 +154,25 @@ public class OpObject {
         }
     }
 
+    /**
+     * Write-mode member resolution for plain assignment targets
+     * ({@code o.x = v}): the getter is never invoked (ES [[Set]]), the
+     * accessor is checked for a setter, and a missing private member is a
+     * TypeError.
+     */
+    public static void member_ref_w(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        String member = (String) objs[1];
+        if (System.getProperty("dbg.mrw") != null) {
+            System.err.println("MRW member=" + member + " obj=" + (objs[0] == null ? "null" : objs[0].getClass().getSimpleName()));
+        }
+        if (objs[0] instanceof NgsObject) {
+            vm.eax.write(((NgsObject) objs[0]).lookupForWrite(member, vm));
+            return;
+        }
+        memberRefNative(vm, objs, member);
+    }
+
     public static void member_ref(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {        Object[] objs = OpUtils.get2OpParam(vm);
         String member = (String) objs[1];
         if (objs[0] instanceof NgsObject) {
@@ -355,6 +374,14 @@ public class OpObject {
                 vm.eax.write(dynamic);
                 return;
             }
+        }
+        if (member.startsWith("#")) {
+            // a host object (function/string/number/...) carries no private
+            // slots: reading a private member that is not one of its own
+            // static private members (checked above) is a TypeError
+            // (ES PrivateGet brand check)
+            throw new IllegalArgumentException(
+                    "Cannot access private member '" + member + "'");
         }
         if (objs[0] instanceof org.ngscript.value.BigIntValue) {
             // BigInt.prototype methods (the primitive is not an NgsObject)
@@ -922,6 +949,18 @@ public class OpObject {
             } else {
                 throw new NgScriptRuntimeException(vm, "jump to no where");
             }
+        }
+    }
+
+    /**
+     * ES RequireObjectCoercible for object destructuring: the value in eax
+     * must not be null or undefined, even for an empty pattern.
+     */
+    public static void destr_obj_check(Machine vm, String param, String param_extend) {
+        Object v = vm.eax.read();
+        if (v == null || v == Undefined.value) {
+            throw new IllegalArgumentException(
+                    "Cannot destructure " + (v == null ? "null" : "undefined"));
         }
     }
 

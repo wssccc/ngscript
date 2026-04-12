@@ -381,21 +381,37 @@ public class NgsObject implements Scope {
      * globals).
      */
     public MemRef lookup(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {
-        //registers
+        //registers (variable semantics only: a member access obj.this or
+        // obj["this"] is an ordinary property, never the this binding)
         switch (member) {
             case "this":
-                return vm.thisRef;
+                if (!isMember) {
+                    return vm.thisRef;
+                }
+                break;
             case "%eax":
-                return vm.eax;
+                if (!isMember) {
+                    return vm.eax;
+                }
+                break;
             case "%env":
-                return vm.env;
+                if (!isMember) {
+                    return vm.env;
+                }
+                break;
             case "%exception":
-                return vm.exception;
+                if (!isMember) {
+                    return vm.exception;
+                }
+                break;
             default:
-                // an own accessor or data property shadows prototype
-                // accessors: check own data first, then the own accessor,
-                // then the [[Prototype]] chain (accessor or data)
-                if (accessors != null && accessors.containsKey(member)) {
+                break;
+        }
+        {
+            // an own accessor or data property shadows prototype
+            // accessors: check own data first, then the own accessor,
+            // then the [[Prototype]] chain (accessor or data)
+            if (accessors != null && accessors.containsKey(member)) {
                     // own accessor: the getter/setter runs with this object
                     // as its this
                     return accessorRef(member, this, this, vm);
@@ -513,9 +529,18 @@ public class NgsObject implements Scope {
         final Object[] acc = owner.accessors.get(member);
         Object read;
         try {
-            read = acc[0] != null ? org.ngscript.runtime.OpUtils.callValue(
-                    Machine.getCurrent(), acc[0], receiver, new Object[0])
-                    : Undefined.value;
+            if (acc[0] == null) {
+                if (member.startsWith("#")) {
+                    // ES PrivateGet: reading a setter-only private accessor
+                    // is a TypeError regardless of strictness
+                    throw new IllegalArgumentException(
+                            "[[Get]] operation of an accessor without getter");
+                }
+                read = Undefined.value;
+            } else {
+                read = org.ngscript.runtime.OpUtils.callValue(
+                        Machine.getCurrent(), acc[0], receiver, new Object[0]);
+            }
         } catch (Exception e) {
             throw e instanceof RuntimeException
                     ? (RuntimeException) e
@@ -538,7 +563,103 @@ public class NgsObject implements Scope {
                                     : new RuntimeException(e.getMessage() == null
                                             ? e.toString() : e.getMessage());
                         }
+                    } else if (member.startsWith("#")) {
+                        // ES PrivateSet: writing a getter-only private
+                        // accessor is a TypeError regardless of strictness
+                        throw new IllegalArgumentException(
+                                "invalid [[Set]] of an accessor without setter");
                     }
+                } else {
+                    receiver.data.put(member, new MemRef(v));
+                }
+            }
+        };
+    }
+
+    /**
+     * Write-mode member resolution for plain assignment targets
+     * ({@code o.x = v}): ES [[Set]] never invokes the getter — the accessor
+     * is checked for a setter (a getter-only private accessor is a
+     * TypeError, a plain one ignores the write in sloppy mode), and a
+     * missing private member is a TypeError (PrivateSet brand check).
+     */
+    public MemRef lookupForWrite(String member, Machine vm) throws NgScriptRuntimeException {
+        if (accessors != null && accessors.containsKey(member)) {
+            return accessorRefWrite(member, this, this, vm);
+        }
+        MemRef ref = data.get(member);
+        if (ref != null) {
+            if (isWriteThrows(member)) {
+                // ES PrivateSet: writing a private method is a TypeError
+                throw new IllegalArgumentException(
+                        "Cannot write to private method '" + member + "'");
+            }
+            if (isNonWritable(member)) {
+                // non-writable property: writes are silently ignored
+                return new MemRef(ref.read());
+            }
+            return ref;
+        }
+        Object[] chainAccessor = findAccessorOnChain(member);
+        if (chainAccessor != null) {
+            return accessorRefWrite(member, this, (NgsObject) chainAccessor[2], vm);
+        }
+        ref = lookupEnv(member, vm, true);
+        if (ref == null) {
+            if (member.startsWith("#")) {
+                throw new IllegalArgumentException(
+                        "Cannot access private member '" + member + "'");
+            }
+            final String key = member;
+            return new MemRef(Undefined.value) {
+                @Override
+                public void write(Object v) {
+                    data.put(key, new MemRef(v));
+                }
+            };
+        }
+        if (writeThrowsOnChain(member)) {
+            // ES PrivateSet: writing a private method through the
+            // prototype chain is a TypeError
+            throw new IllegalArgumentException(
+                    "Cannot write to private method '" + member + "'");
+        }
+        // an inherited data property: the write creates an own property
+        final MemRef inherited = ref;
+        final String key = member;
+        return new MemRef(inherited.read()) {
+            @Override
+            public void write(Object v) {
+                data.put(key, new MemRef(v));
+            }
+        };
+    }
+
+    /** Write-mode accessor resolution: the setter runs on write (no getter read). */
+    private static MemRef accessorRefWrite(final String member, final NgsObject receiver,
+                                           final NgsObject owner, final Machine vm) {
+        return new MemRef(Undefined.value) {
+            @Override
+            public void write(Object v) {
+                if (owner.accessors != null && owner.accessors.containsKey(member)) {
+                    Object[] cur = owner.accessors.get(member);
+                    if (cur[1] != null) {
+                        try {
+                            org.ngscript.runtime.OpUtils.callValue(vm, cur[1], receiver,
+                                    new Object[]{v});
+                        } catch (Exception e) {
+                            throw e instanceof RuntimeException
+                                    ? (RuntimeException) e
+                                    : new RuntimeException(e.getMessage() == null
+                                            ? e.toString() : e.getMessage());
+                        }
+                    } else if (member.startsWith("#")) {
+                        // ES PrivateSet: writing a getter-only private
+                        // accessor is a TypeError regardless of strictness
+                        throw new IllegalArgumentException(
+                                "invalid [[Set]] of an accessor without setter");
+                    }
+                    // a plain getter-only property ignores writes (sloppy)
                 } else {
                     receiver.data.put(member, new MemRef(v));
                 }
