@@ -190,7 +190,7 @@ public class Test262Runner {
         for (File f : files) {
             if (f.isDirectory()) {
                 scan(f, relPath + "/" + f.getName());
-            } else if (f.getName().endsWith(".js")) {
+            } else if (f.getName().endsWith(".js") && !f.getName().contains("_FIXTURE")) {
                 runCase(f, relPath + "/" + f.getName());
             }
         }
