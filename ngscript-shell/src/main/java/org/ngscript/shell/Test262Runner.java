@@ -63,6 +63,7 @@ public class Test262Runner {
     private static final java.util.Set<String> UNSUPPORTED_FEATURES =
             new java.util.HashSet<>(java.util.Arrays.asList(
                     "import-defer", "import-attributes", "import-source",
+                    "source-phase-imports", "source-phase-imports-module-source",
                     "top-level-await", "atomics", "sharedarraybuffer",
                     "resizable-arraybuffer", "arraybuffer-transfer",
                     "structured-clone", "temporal", "intl-enumeration",

@@ -2213,12 +2213,22 @@ public class NgParser {
             }
         }
         Expr cls;
+        boolean parenthesized = false;
         if (peekIs("lparen")) {
             // new (expr) / new (() => {}): parseParenOrArrow expects the
-            // lparen to still be the current token
+            // lparen to still be the current token; the parentheses make
+            // the operand a plain expression, so new (import('x')) is legal
             cls = parseParenOrArrow(peek());
+            parenthesized = true;
         } else {
             cls = parseExprClass();
+        }
+        if (!parenthesized && containsImportCall(cls)) {
+            // ES early error: the operand of new must not contain an import
+            // call (new import('x') / new import('x').prop are SyntaxErrors;
+            // the parenthesized form is allowed)
+            throw new ParserException("new cannot be applied to import()",
+                    new org.ngscript.api.Source(null, newTok.line));
         }
         List<Expr> args = Collections.emptyList();
         if (peekIs("lparen")) {
@@ -2227,6 +2237,23 @@ public class NgParser {
             expect("rparen");
         }
         return new NewExpr(cls, args, newTok.line);
+    }
+
+    /** Whether the expression contains an import() call (ES early error under new). */
+    private static boolean containsImportCall(Expr e) {
+        if (e instanceof ImportCallExpr) {
+            return true;
+        }
+        if (e instanceof MemberExpr) {
+            return containsImportCall(((MemberExpr) e).object);
+        }
+        if (e instanceof IndexExpr) {
+            return containsImportCall(((IndexExpr) e).object);
+        }
+        if (e instanceof CallExpr) {
+            return containsImportCall(((CallExpr) e).callee);
+        }
+        return false;
     }
 
     private Expr parseExprClass() throws ParserException {
