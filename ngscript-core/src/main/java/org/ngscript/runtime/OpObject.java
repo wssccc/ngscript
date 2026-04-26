@@ -811,6 +811,11 @@ public class OpObject {
             }
             if (cls.isInstance(obj)) {
                 vm.eax.write(Boolean.TRUE);
+            } else if (obj instanceof NgsObject
+                    && ctorChainContains((NgsObject) obj, cls)) {
+                // a class extending the Java error constructor (class
+                // SubError extends Error {})
+                vm.eax.write(Boolean.TRUE);
             } else if (obj instanceof Throwable) {
                 // an exception thrown by engine internals maps to an ES
                 // error constructor by its Java type: ParserException /
@@ -836,44 +841,80 @@ public class OpObject {
             // x instanceof Object: match the shared Object.prototype (and
             // functions, which chain through Function.prototype)
             vm.eax.write((obj instanceof NgsObject
-                    && protoChainContains((NgsObject) obj,
-                            ((org.ngscript.builtins.ObjectCtor) ctor).getPrototype()))
+                    && (protoChainContains((NgsObject) obj,
+                                    ((org.ngscript.builtins.ObjectCtor) ctor).getPrototype())
+                            || ctorChainContains((NgsObject) obj, ctor)))
                     || obj instanceof org.ngscript.value.ScriptFunction
                     || obj instanceof org.ngscript.value.Invokable
                     ? Boolean.TRUE : Boolean.FALSE);
         } else if (ctor instanceof org.ngscript.builtins.FunctionCtor) {
             // x instanceof Function: script functions (and native callables)
+            // and class constructors extending Function
             vm.eax.write(obj instanceof org.ngscript.value.ScriptFunction
                     || obj instanceof org.ngscript.value.Invokable
+                    || (obj instanceof NgsObject
+                            && ctorChainContains((NgsObject) obj, ctor))
                     ? Boolean.TRUE : Boolean.FALSE);
         } else if (ctor instanceof org.ngscript.builtins.ArrayCtor) {
             // x instanceof Array: match the shared Array.prototype
             vm.eax.write(obj instanceof NgsObject
-                    && protoChainContains((NgsObject) obj,
-                            ((org.ngscript.builtins.ArrayCtor) ctor).getPrototype())
+                    && (protoChainContains((NgsObject) obj,
+                                    ((org.ngscript.builtins.ArrayCtor) ctor).getPrototype())
+                            || ctorChainContains((NgsObject) obj, ctor))
                     ? Boolean.TRUE : Boolean.FALSE);
         } else if (ctor instanceof org.ngscript.builtins.NgsMap.Ctor) {
-            vm.eax.write(obj instanceof org.ngscript.builtins.NgsMap);
+            vm.eax.write(obj instanceof org.ngscript.builtins.NgsMap
+                    || (obj instanceof NgsObject
+                            && ctorChainContains((NgsObject) obj, ctor)));
         } else if (ctor instanceof org.ngscript.builtins.NgsSet.Ctor) {
-            vm.eax.write(obj instanceof org.ngscript.builtins.NgsSet);
+            vm.eax.write(obj instanceof org.ngscript.builtins.NgsSet
+                    || (obj instanceof NgsObject
+                            && ctorChainContains((NgsObject) obj, ctor)));
         } else if (ctor instanceof org.ngscript.builtins.NgsWeakMap.Ctor) {
-            vm.eax.write(obj instanceof org.ngscript.builtins.NgsWeakMap);
+            vm.eax.write(obj instanceof org.ngscript.builtins.NgsWeakMap
+                    || (obj instanceof NgsObject
+                            && ctorChainContains((NgsObject) obj, ctor)));
         } else if (ctor instanceof org.ngscript.builtins.NgsWeakSet.Ctor) {
-            vm.eax.write(obj instanceof org.ngscript.builtins.NgsWeakSet);
+            vm.eax.write(obj instanceof org.ngscript.builtins.NgsWeakSet
+                    || (obj instanceof NgsObject
+                            && ctorChainContains((NgsObject) obj, ctor)));
         } else if (ctor instanceof org.ngscript.builtins.PromiseBuiltins.Ctor) {
-            vm.eax.write(obj instanceof org.ngscript.builtins.PromiseBuiltins.PromiseValue);
+            vm.eax.write(obj instanceof org.ngscript.builtins.PromiseBuiltins.PromiseValue
+                    || (obj instanceof NgsObject
+                            && ctorChainContains((NgsObject) obj, ctor)));
         } else if (ctor instanceof org.ngscript.builtins.SymbolCtor) {
             vm.eax.write(obj instanceof org.ngscript.value.SymbolValue);
         } else if (ctor instanceof org.ngscript.builtins.StringCtor) {
             // ES: only objects are instanceof String — string primitives
-            // (including String(x) results) are not
-            vm.eax.write(Boolean.FALSE);
+            // (including String(x) results) are not; a class extending
+            // String still matches through the extends chain
+            vm.eax.write(obj instanceof NgsObject
+                    && ctorChainContains((NgsObject) obj, ctor));
+        } else if (ctor instanceof org.ngscript.value.Invokable) {
+            // other builtin constructors (Number, Boolean, ArrayBuffer,
+            // DataView, TypedArrays): match through the extends chain only
+            // (a plain object is never instanceof Number)
+            vm.eax.write(obj instanceof NgsObject
+                    && ctorChainContains((NgsObject) obj, ctor));
         } else {
             // ES: the right-hand side of instanceof must be callable (have
             // a [[HasInstance]] method); anything else is a TypeError
             throw new IllegalArgumentException(
                     "right-hand side of instanceof is not callable");
         }
+    }
+
+    /** Whether the object's constructor extends {@code target} (class heritage). */
+    private static boolean ctorChainContains(NgsObject obj, Object target) {
+        ScriptFunction c = obj.getConstructor();
+        while (c != null) {
+            if (c.superCtor == target) {
+                return true;
+            }
+            c = c.superCtor instanceof ScriptFunction
+                    ? (ScriptFunction) c.superCtor : null;
+        }
+        return false;
     }
 
     private static boolean protoChainContains(NgsObject obj, NgsObject target) {
@@ -1623,14 +1664,40 @@ public class OpObject {
      * Links the constructor's prototype to the superclass prototype (ES
      * extends); the stack holds the superclass constructor below the derived
      * constructor (both popped), the derived constructor stays in eax.
+     * Builtin (Invokable/Class) superclasses link to their prototype object
+     * when one exists (else Object.prototype) and record the extends chain
+     * on the constructor for instanceof brand checks.
      */
     public static void proto_extend(Machine vm, String param, String param_extend) {
         Object ctor = vm.stack.pop();
         Object sc = vm.stack.pop();
-        if (ctor instanceof ScriptFunction && sc instanceof ScriptFunction) {
-            ((ScriptFunction) ctor).getPrototypeObject()
-                    .setPrototype(((ScriptFunction) sc).getPrototypeObject());
+        if (ctor instanceof ScriptFunction) {
+            ScriptFunction cf = (ScriptFunction) ctor;
+            NgsObject superProto = builtinPrototype(vm, sc);
+            if (superProto != null) {
+                cf.getPrototypeObject().setPrototype(superProto);
+            }
+            if (sc instanceof ScriptFunction || sc instanceof Class
+                    || sc instanceof org.ngscript.value.Invokable) {
+                cf.superCtor = sc;
+            }
         }
+    }
+
+    /** The prototype object of a (possibly builtin) constructor. */
+    private static NgsObject builtinPrototype(Machine vm, Object sc) {
+        if (sc instanceof ScriptFunction) {
+            return ((ScriptFunction) sc).getPrototypeObject();
+        }
+        if (sc instanceof org.ngscript.builtins.ArrayCtor) {
+            return org.ngscript.builtins.Builtins.getArrayPrototype();
+        }
+        if (sc instanceof org.ngscript.builtins.ObjectCtor) {
+            return org.ngscript.builtins.Builtins.getObjectPrototype();
+        }
+        // other builtins have no separate prototype object: Object.prototype
+        // is the best approximation
+        return org.ngscript.builtins.Builtins.getObjectPrototype();
     }
 
     /** Replaces the function in eax with its prototype object. */

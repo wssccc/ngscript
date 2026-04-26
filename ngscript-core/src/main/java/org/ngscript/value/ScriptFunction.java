@@ -103,6 +103,14 @@ public class ScriptFunction {
     public Object[] boundArgs;
 
     /**
+     * The superclass constructor of this class constructor (set by
+     * proto_extend for {@code class extends X}): used by instanceof to
+     * match builtin constructors through the extends chain
+     * (subclass-builtins).
+     */
+    public Object superCtor;
+
+    /**
      * True for the Function.prototype placeholder: it has no body, and its
      * call/apply/bind use the runtime this binding as the target function.
      */
