@@ -64,7 +64,7 @@ public class Test262Runner {
             new java.util.HashSet<>(java.util.Arrays.asList(
                     "import-defer", "import-attributes", "import-source",
                     "source-phase-imports", "source-phase-imports-module-source",
-                    "top-level-await", "atomics", "sharedarraybuffer",
+                    "cross-realm", "top-level-await", "atomics", "sharedarraybuffer",
                     "resizable-arraybuffer", "arraybuffer-transfer",
                     "structured-clone", "temporal", "intl-enumeration",
                     "intl-duration-format", "intl-locale-info",
