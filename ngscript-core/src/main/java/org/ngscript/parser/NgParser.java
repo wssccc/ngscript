@@ -787,6 +787,7 @@ public class NgParser {
         expect("lcurly");
         List<ClassExpr.MethodDef> methods = new ArrayList<>();
         List<ClassExpr.FieldDef> fields = new ArrayList<>();
+        List<Block> staticBlocks = new ArrayList<>();
         while (!peekIs("rcurly")) {
             if (peekIs("semicolon")) {
                 next();
@@ -796,6 +797,13 @@ public class NgParser {
             boolean isStatic = false;
             if (t != null && t.type.equals("ident") && t.value.equals("static")) {
                 Token nx = peekN(2);
+                if (nx != null && nx.type.equals("lcurly")) {
+                    // static initialization block: static { ... }
+                    next();
+                    next();
+                    staticBlocks.add(parseBlockRest());
+                    continue;
+                }
                 // `static` followed by `=`, `;` or `}` is a field named static
                 if (nx != null && !nx.type.equals("lparen")
                         && !nx.type.equals("assign") && !nx.type.equals("semicolon")
@@ -981,7 +989,7 @@ public class NgParser {
             }
         }
         expect("rcurly");
-        return new ClassExpr(name, superClass, methods, fields, kw.line, isDecl);
+        return new ClassExpr(name, superClass, methods, fields, staticBlocks, kw.line, isDecl);
     }
 
     /**

@@ -106,6 +106,13 @@ public class ClassExpr extends Expr {
 
     public final List<FieldDef> fields;
 
+    /**
+     * Static initialization blocks ({@code static { ... }}), in declaration
+     * order; they run after the class methods are defined, like static
+     * field initializers, with the constructor bound as this.
+     */
+    public final List<Block> staticBlocks;
+
     public ClassExpr(String name, Expr superClass, List<MethodDef> methods, int line) {
         this(name, superClass, methods, Collections.<FieldDef>emptyList(), line);
     }
@@ -117,10 +124,17 @@ public class ClassExpr extends Expr {
 
     public ClassExpr(String name, Expr superClass, List<MethodDef> methods,
                      List<FieldDef> fields, int line, boolean isDecl) {
+        this(name, superClass, methods, fields, Collections.<Block>emptyList(), line, isDecl);
+    }
+
+    public ClassExpr(String name, Expr superClass, List<MethodDef> methods,
+                     List<FieldDef> fields, List<Block> staticBlocks,
+                     int line, boolean isDecl) {
         this.name = name;
         this.superClass = superClass;
         this.methods = methods;
         this.fields = fields;
+        this.staticBlocks = staticBlocks;
         this.isDecl = isDecl;
         this.line = line;
     }

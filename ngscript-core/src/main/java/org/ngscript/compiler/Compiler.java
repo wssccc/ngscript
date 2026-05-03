@@ -838,23 +838,32 @@ public class Compiler {
                     // one must see the arguments binding): rewire its entry
                     // to the shared reference (ES mapped arguments)
                     assembler.emit("map_args", i + "");
+                    assembler.emit("set", params.names.get(i), "%eax");
                 } else {
                     assembler.emit("pickarg", i + "");
+                    if (params.defaults != null && params.defaults.get(i) != null) {
+                        // ES default parameter: the binding stays
+                        // uninitialized (TDZ) while the default expression
+                        // evaluates — `f(x = x)` throws a ReferenceError.
+                        // Bind only when the argument is undefined.
+                        String hasArg = assembler.label("param_has_arg", body);
+                        assembler.emit("jnundef", hasArg);
+                        compileExpr(params.defaults.get(i));
+                        emitAssignToName(params.names.get(i));
+                        String done = assembler.label("param_default_done", body);
+                        assembler.emit("jmp", done);
+                        emitLabel(hasArg);
+                        assembler.emit("pickarg", i + "");
+                        assembler.emit("set", params.names.get(i), "%eax");
+                        emitLabel(done);
+                    } else {
+                        assembler.emit("set", params.names.get(i), "%eax");
+                    }
                 }
-                assembler.emit("set", params.names.get(i), "%eax");
                 if (params.rest && i == params.names.size() - 1) {
                     // rest parameter: bind the remaining arguments as an array
                     assembler.emit("rest_args", i + "");
                     assembler.emit("set", params.names.get(i), "%eax");
-                }
-                if (params.defaults != null && params.defaults.get(i) != null) {
-                    // default parameter: apply when the argument is undefined
-                    String skip = assembler.label("param_default", body);
-                    assembler.emit("deref", params.names.get(i));
-                    assembler.emit("jnundef", skip);
-                    compileExpr(params.defaults.get(i));
-                    emitAssignToName(params.names.get(i));
-                    emitLabel(skip);
                 }
             }
             if (generatorBody) {
@@ -2405,17 +2414,20 @@ public class Compiler {
             emitAssignToName(cls.name);
             assembler.emit("push_eax");
         }
-        // static field initializers run after all methods are defined, in
-        // declaration order, with the constructor bound as this; the
-        // surrounding this binding is restored afterwards
-        boolean hasStaticFields = false;
+        // static field initializers and static blocks run after all methods
+        // are defined, with the constructor bound as this; the surrounding
+        // this binding is restored afterwards
+        boolean hasStaticElements = false;
         for (ClassExpr.FieldDef f : cls.fields) {
             if (f.isStatic) {
-                hasStaticFields = true;
+                hasStaticElements = true;
                 break;
             }
         }
-        if (hasStaticFields) {
+        if (!cls.staticBlocks.isEmpty()) {
+            hasStaticElements = true;
+        }
+        if (hasStaticElements) {
             assembler.emit("push_this");
             for (ClassExpr.FieldDef f : cls.fields) {
                 if (!f.isStatic) {
@@ -2444,6 +2456,17 @@ public class Compiler {
                     assembler.emit("undefined");
                 }
                 assembler.emit("assign");
+            }
+            // static initialization blocks, in declaration order (this is
+            // bound to the constructor like static field initializers; the
+            // outer this was saved by the surrounding push_this)
+            for (Block b : cls.staticBlocks) {
+                assembler.emit("peek", "0");
+                assembler.emit("push_eax");
+                assembler.emit("set_this");
+                for (Stmt s : b.statements) {
+                    compileStmt(s);
+                }
             }
             assembler.emit("pop_this");
         }
