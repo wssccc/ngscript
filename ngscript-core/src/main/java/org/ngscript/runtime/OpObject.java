@@ -845,6 +845,28 @@ public class OpObject {
             } else {
                 vm.eax.write(Boolean.FALSE);
             }
+        } else if (ctor instanceof org.ngscript.builtins.NativeCtors.ErrorCtor) {
+            // e instanceof URIError/AggregateError/EvalError: instances of a
+            // class extending the constructor match through the extends
+            // chain; Java exceptions mapping to the constructor also match
+            org.ngscript.builtins.NativeCtors.ErrorCtor ec =
+                    (org.ngscript.builtins.NativeCtors.ErrorCtor) ctor;
+            vm.eax.write((obj instanceof NgsObject
+                    && ctorChainContains((NgsObject) obj, ctor))
+                    || (obj instanceof Throwable
+                            && ec.matches((Throwable) obj)));
+        } else if (ctor instanceof org.ngscript.builtins.NativeCtors.DateCtor) {
+            vm.eax.write(obj instanceof NgsObject
+                    && (((NgsObject) obj).get("_time") != null
+                            || ctorChainContains((NgsObject) obj, ctor)));
+        } else if (ctor instanceof org.ngscript.builtins.NativeCtors.RegExpCtor) {
+            vm.eax.write(obj instanceof org.ngscript.value.RegExpValue
+                    || (obj instanceof NgsObject
+                            && ctorChainContains((NgsObject) obj, ctor)));
+        } else if (ctor instanceof org.ngscript.builtins.NativeCtors.SharedArrayBufferCtor
+                || ctor instanceof org.ngscript.builtins.NativeCtors.WeakRefCtor) {
+            vm.eax.write(obj instanceof NgsObject
+                    && ctorChainContains((NgsObject) obj, ctor));
         } else if (ctor instanceof org.ngscript.builtins.ObjectCtor) {
             // x instanceof Object: match the shared Object.prototype (and
             // functions, which chain through Function.prototype)

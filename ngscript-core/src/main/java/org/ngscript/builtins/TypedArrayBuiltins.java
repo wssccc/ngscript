@@ -91,7 +91,7 @@ public class TypedArrayBuiltins {
     private static final String[] CTOR_NAMES = {
             "Int8Array", "Uint8Array", "Uint8ClampedArray",
             "Int16Array", "Uint16Array", "Int32Array", "Uint32Array",
-            "Float32Array", "Float64Array"
+            "Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array"
     };
 
     /** One typed array constructor, e.g. new Int8Array(len|array|buffer). */
@@ -111,7 +111,7 @@ public class TypedArrayBuiltins {
     }
 
     /** Shared prototype per typed array kind. */
-    private static final NgsObject[] typedProtos = new NgsObject[9];
+    private static final NgsObject[] typedProtos = new NgsObject[11];
 
     public static synchronized NgsObject getTypedArrayPrototype(int kind) {
         if (typedProtos[kind] == null) {

@@ -41,6 +41,7 @@ public class Generator extends NgsObject {
     private int callerStackSize;
     private NgsObject genEnv;
     private NgsObject callerEnv;
+    private NgsObject savedEnv;
     private boolean yielded;
     private boolean closed;
     private boolean delegating;
@@ -290,7 +291,7 @@ public class Generator extends NgsObject {
         vm.thisRef.write(fn.arrow
                 ? (fn.capturedThis != null ? fn.capturedThis : Undefined.value)
                 : (receiver != null ? receiver : Undefined.value));
-        vm.env.write(genEnv);
+        vm.env.write(savedEnv != null ? savedEnv : genEnv);
         for (Object slot : frameSlot) {
             vm.stack.push(slot);
         }
@@ -321,6 +322,10 @@ public class Generator extends NgsObject {
     public void suspend(Object value, boolean delegating) {
         this.delegating = delegating;
         resumeEip = vm.getEip();
+        // the live environment chain at the suspension point (function frame
+        // plus any block scopes entered since) is not on the stack — save it
+        // so resume can restore exactly the bindings visible at the yield
+        savedEnv = (NgsObject) vm.env.read();
         int n = vm.stack.size() - callerStackSize;
         frameSlot = new Object[n];
         for (int i = n - 1; i >= 0; i--) {

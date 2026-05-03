@@ -76,13 +76,22 @@ public class Builtins {
         map.put("Reflect", new MemRef(ProxyBuiltins.createReflect()));
         TypedArrayBuiltins.registerConstructors(map);
         map.put("BigInt", new MemRef(new BigIntBuiltins.Ctor()));
-        // ES error constructors map to their Java counterparts (approximate)
+        // ES error constructors map to their Java counterparts (approximate);
+        // the extra error types are constructible (subclass-builtins) and
+        // still match the Java exceptions that map to them
         map.put("Error", new MemRef(Error.class));
         map.put("TypeError", new MemRef(IllegalArgumentException.class));
         map.put("RangeError", new MemRef(IndexOutOfBoundsException.class));
         map.put("ReferenceError", new MemRef(RuntimeException.class));
         map.put("SyntaxError", new MemRef(IllegalStateException.class));
-        map.put("URIError", new MemRef(java.net.URISyntaxException.class));
+        map.put("URIError", new MemRef(new NativeCtors.ErrorCtor("URIError",
+                java.net.URISyntaxException.class)));
+        map.put("AggregateError", new MemRef(new NativeCtors.ErrorCtor("AggregateError")));
+        map.put("EvalError", new MemRef(new NativeCtors.ErrorCtor("EvalError")));
+        map.put("Date", new MemRef(new NativeCtors.DateCtor()));
+        map.put("RegExp", new MemRef(new NativeCtors.RegExpCtor()));
+        map.put("SharedArrayBuffer", new MemRef(new NativeCtors.SharedArrayBufferCtor()));
+        map.put("WeakRef", new MemRef(new NativeCtors.WeakRefCtor()));
         // ES global value properties
         map.put("NaN", new MemRef(Double.NaN));
         map.put("Infinity", new MemRef(Double.POSITIVE_INFINITY));

@@ -31,14 +31,27 @@ public class AssignExpr extends Expr {
     public final Expr target;
     public final Expr value;
 
+    /**
+     * Whether the left-hand side is a parenthesized expression
+     * ({@code (x) = v}): ES does not infer a name for the anonymous
+     * function/class on the right in that case (SetFunctionName only
+     * applies to non-cover NamedEvaluation targets).
+     */
+    public final boolean lhsCovered;
+
     public AssignExpr(Expr target, Expr value, int line) {
         this(target, value, line, "assign");
     }
 
     public AssignExpr(Expr target, Expr value, int line, String op) {
+        this(target, value, line, op, false);
+    }
+
+    public AssignExpr(Expr target, Expr value, int line, String op, boolean lhsCovered) {
         this.op = op;
         this.target = target;
         this.value = value;
+        this.lhsCovered = lhsCovered;
         this.line = line;
     }
 

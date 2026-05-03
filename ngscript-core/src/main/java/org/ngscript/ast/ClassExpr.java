@@ -77,6 +77,14 @@ public class ClassExpr extends Expr {
     public final List<MethodDef> methods;
 
     /**
+     * Whether this is a class declaration ({@code class C {}}) rather than
+     * an expression: declarations bind the class name in the surrounding
+     * scope (accessible afterwards), expressions bind it in a dedicated
+     * class scope visible only to the class body.
+     */
+    public final boolean isDecl;
+
+    /**
      * A class field declaration: {@code x = init}, {@code static y = init}
      * or a computed key {@code [expr] = init}. {@link #initializer} is null
      * for a field without an initializer (initialized to undefined).
@@ -104,10 +112,16 @@ public class ClassExpr extends Expr {
 
     public ClassExpr(String name, Expr superClass, List<MethodDef> methods,
                      List<FieldDef> fields, int line) {
+        this(name, superClass, methods, fields, line, false);
+    }
+
+    public ClassExpr(String name, Expr superClass, List<MethodDef> methods,
+                     List<FieldDef> fields, int line, boolean isDecl) {
         this.name = name;
         this.superClass = superClass;
         this.methods = methods;
         this.fields = fields;
+        this.isDecl = isDecl;
         this.line = line;
     }
 

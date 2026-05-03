@@ -201,6 +201,14 @@ public class NgParser {
     private int superDepth;
 
     /**
+     * The expression produced by the most recent parenthesized expression
+     * ({@code (x)}), used by parseAssignment to detect a covered left-hand
+     * side: {@code (x) = v} must not infer a name for an anonymous
+     * function/class on the right (ES SetFunctionName cover semantics).
+     */
+    private Expr lastParenExpr;
+
+    /**
      * Strict mode of the current script/function (ES directive prologue:
      * a leading {@code "use strict";} string-literal statement). Strict
      * semantics: no implicit globals, with() is illegal, plain-call this
@@ -637,7 +645,7 @@ public class NgParser {
             case "class": {
                 Token kw = next();
                 Token name = expect("ident");
-                return new ExprStmt(parseClassTail(name.value, kw), kw.line);
+                return new ExprStmt(parseClassTail(name.value, kw, true), kw.line);
             }
             case "lcurly":
                 // a bare block used as a statement
@@ -763,8 +771,14 @@ public class NgParser {
     /**
      * Parses the rest of a class body after the class keyword (and the name
      * when present): an optional extends clause and the method definitions.
+     * {@code isDecl} marks a class declaration (statement position), which
+     * binds its name in the surrounding scope.
      */
     private Expr parseClassTail(String name, Token kw) throws ParserException {
+        return parseClassTail(name, kw, false);
+    }
+
+    private Expr parseClassTail(String name, Token kw, boolean isDecl) throws ParserException {
         Expr superClass = null;
         if (peekIs("extends")) {
             next();
@@ -967,7 +981,7 @@ public class NgParser {
             }
         }
         expect("rcurly");
-        return new ClassExpr(name, superClass, methods, fields, kw.line);
+        return new ClassExpr(name, superClass, methods, fields, kw.line, isDecl);
     }
 
     /**
@@ -1756,10 +1770,12 @@ public class NgParser {
                 throw new ParserException("invalid assignment target " + left,
                         new org.ngscript.api.Source(null, t.line));
             }
+            boolean covered = left == lastParenExpr;
+            lastParenExpr = null;
             next();
             // right associative: a = b = c parses as a = (b = c)
             Expr right = parseAssignment();
-            return new AssignExpr(left, right, t.line, t.type);
+            return new AssignExpr(left, right, t.line, t.type, covered);
         }
         return left;
     }
@@ -2289,6 +2305,7 @@ public class NgParser {
         next();
         Expr expr = parseExpr();
         expect("rparen");
+        lastParenExpr = expr;
         return expr;
     }
 

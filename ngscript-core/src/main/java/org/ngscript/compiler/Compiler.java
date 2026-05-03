@@ -295,7 +295,13 @@ public class Compiler {
             if (decl.inits.get(i) != null) {
                 assembler.emit("mov_eax", decl.names.get(i));
                 assembler.emit("push_eax");
+                if (decl.inits.get(i) instanceof ClassExpr
+                        && ((ClassExpr) decl.inits.get(i)).name == null) {
+                    inferredClassName = decl.names.get(i);
+                }
                 compileExpr(decl.inits.get(i));
+                inferredClassName = null;
+                maybeInferFuncName(decl.inits.get(i), decl.names.get(i));
                 assembler.emit("assign");
             } else {
                 // let x; initializes the binding to undefined
@@ -346,6 +352,37 @@ public class Compiler {
      */
     private void compilePattern(Pattern p) throws CompilerException {
         compilePattern(p, null);
+    }
+
+    /**
+     * The inferred SetFunctionName for the next anonymous class expression
+     * ({@code var C = class { static f = this.name }}) — the class name must
+     * be installed before static field initializers run, so it cannot wait
+     * for the surrounding assignment to complete.
+     */
+    private String inferredClassName;
+
+    /**
+     * ES SetFunctionName: an anonymous function/class expression assigned
+     * to a named target ({@code var C = class {}}, {@code let f = function}
+     * ) takes the target's name as its {@code name} property. Emitted with
+     * the function value in eax, right before the store.
+     */
+    private void maybeInferFuncName(Expr value, String name) {
+        if (name == null || name.isEmpty()) {
+            return;
+        }
+        if (value instanceof LambdaExpr) {
+            LambdaExpr l = (LambdaExpr) value;
+            if (l.name == null) {
+                // named function expressions keep their own name; arrows
+                // are anonymous and take the inferred name (ES
+                // SetFunctionName applies to arrow functions too)
+                assembler.emit("set_func_name", name);
+            }
+        } else if (value instanceof ClassExpr && ((ClassExpr) value).name == null) {
+            assembler.emit("set_func_name", name);
+        }
     }
 
     /**
@@ -478,6 +515,12 @@ public class Compiler {
     private boolean blockHasLexical(Block block) {
         for (Stmt stmt : block.statements) {
             if (stmt instanceof ExprStmt && ((ExprStmt) stmt).expr instanceof LetDeclExpr) {
+                return true;
+            }
+            if (stmt instanceof ExprStmt && ((ExprStmt) stmt).expr instanceof ClassExpr
+                    && ((ClassExpr) ((ExprStmt) stmt).expr).isDecl) {
+                // block-scoped class declarations bind their name in the
+                // block frame ({ class C {} } does not leak C)
                 return true;
             }
             if (stmt instanceof FunctionDecl) {
@@ -909,7 +952,15 @@ public class Compiler {
                 assembler.emit(currentStrict ? "mov_eax" : "resolve_ref",
                         ((IdentExpr) assign.target).name);
                 assembler.emit("push_eax");
+                if (!assign.lhsCovered && assign.value instanceof ClassExpr
+                        && ((ClassExpr) assign.value).name == null) {
+                    inferredClassName = ((IdentExpr) assign.target).name;
+                }
                 compileExpr(assign.value);
+                inferredClassName = null;
+                if (!assign.lhsCovered) {
+                    maybeInferFuncName(assign.value, ((IdentExpr) assign.target).name);
+                }
                 assembler.emit(currentStrict ? "assign" : "assign_ref",
                         ((IdentExpr) assign.target).name);
                 assembler.emit("pop");
@@ -928,7 +979,16 @@ public class Compiler {
             } else {
                 compileExpr(assign.target, true);
                 assembler.emit("push_eax");
+                if (!assign.lhsCovered && assign.value instanceof ClassExpr
+                        && ((ClassExpr) assign.value).name == null
+                        && assign.target instanceof VarDeclExpr) {
+                    inferredClassName = ((VarDeclExpr) assign.target).name;
+                }
                 compileExpr(assign.value);
+                inferredClassName = null;
+                if (!assign.lhsCovered && assign.target instanceof VarDeclExpr) {
+                    maybeInferFuncName(assign.value, ((VarDeclExpr) assign.target).name);
+                }
                 assembler.emit("assign");
             }
         } else if (expr instanceof DefinePropExpr) {
@@ -951,6 +1011,7 @@ public class Compiler {
             ++fieldInitCompileDepth;
             assembler.emit("new_target_enter");
             compileExpr(d.value);
+            maybeInferFuncName(d.value, d.name);
             assembler.emit("new_target_leave");
             --fieldInitCompileDepth;
             assembler.emit("define_prop");
@@ -1087,7 +1148,14 @@ public class Compiler {
                             assembler.emit("string", kvp.name);
                             assembler.emit("push_eax");
                         }
+                        if (kvp.value instanceof ClassExpr
+                                && ((ClassExpr) kvp.value).name == null
+                                && kvp.name != null) {
+                            inferredClassName = kvp.name;
+                        }
                         compileExpr(kvp.value);
+                        inferredClassName = null;
+                        maybeInferFuncName(kvp.value, kvp.name);
                         assembler.emit("push_eax");
                     }
                 } else if (item instanceof SpreadExpr) {
@@ -2207,6 +2275,8 @@ public class Compiler {
      * prototype, static methods on the constructor).
      */
     private void compileClass(ClassExpr cls) throws CompilerException {
+        String inferredName = inferredClassName;
+        inferredClassName = null;
         Map<String, String> privateScope = new HashMap<>();
         privateNameScopes.push(privateScope);
         // pre-register every private name of this class: a nested class
@@ -2224,8 +2294,16 @@ public class Compiler {
             }
         }
         if (cls.name != null) {
-            // TDZ binding so `class C extends C` throws like ES
-            assembler.emit("decl_let", cls.name, "0");
+            // ES: an expression's class name binds to a dedicated class
+            // scope (a fresh lexical environment per evaluation), immutable
+            // and initialized only when the class definition completes —
+            // methods closing over it see the class itself, the outer
+            // scope is untouched. A declaration binds the name in the
+            // surrounding scope instead (visible after the statement).
+            if (!cls.isDecl) {
+                enterBlock();
+            }
+            assembler.emit("decl_let", cls.name, "1");
         }
         if (cls.superClass != null) {
             compileExpr(cls.superClass);
@@ -2290,6 +2368,12 @@ public class Compiler {
         assembler.emit("new_closure", enter, "0");
         assembler.emit("set_func_meta", functionLength(ctorParams) + "",
                 cls.name == null ? "" : cls.name);
+        if (cls.name == null && inferredName != null) {
+            // ES SetFunctionName for an anonymous class expression assigned
+            // to a name: install the inferred name before static field
+            // initializers run (they may read this.name)
+            assembler.emit("set_func_name", inferredName);
+        }
         if (cls.superClass != null) {
             // [super, ctor]; proto_extend pops both and chains the prototypes
             assembler.emit("push_eax");
@@ -2312,6 +2396,14 @@ public class Compiler {
                 continue;
             }
             emitMethodDefine(m);
+        }
+        if (cls.name != null) {
+            // ES: the class-scope name binding is initialized to the
+            // constructor before static field initializers run (they may
+            // reference the class name)
+            assembler.emit("pop_eax");
+            emitAssignToName(cls.name);
+            assembler.emit("push_eax");
         }
         // static field initializers run after all methods are defined, in
         // declaration order, with the constructor bound as this; the
@@ -2347,6 +2439,7 @@ public class Compiler {
                 assembler.emit("push_eax");
                 if (f.initializer != null) {
                     compileExpr(f.initializer);
+                    maybeInferFuncName(f.initializer, f.name);
                 } else {
                     assembler.emit("undefined");
                 }
@@ -2355,8 +2448,10 @@ public class Compiler {
             assembler.emit("pop_this");
         }
         assembler.emit("pop_eax"); // eax = ctor, stack clean
-        if (cls.name != null) {
-            emitAssignToName(cls.name);
+        if (cls.name != null && !cls.isDecl) {
+            // drop the class scope: only the closures captured it (the
+            // class-scope binding was initialized before static fields ran)
+            leaveBlock();
         }
         privateNameScopes.pop();
     }

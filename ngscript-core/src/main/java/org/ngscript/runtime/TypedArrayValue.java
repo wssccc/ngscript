@@ -39,8 +39,10 @@ public class TypedArrayValue extends NgsObject {
     public static final int KIND_UINT32 = 6;
     public static final int KIND_FLOAT32 = 7;
     public static final int KIND_FLOAT64 = 8;
+    public static final int KIND_BIGINT64 = 9;
+    public static final int KIND_BIGUINT64 = 10;
 
-    private static final int[] ELEMENT_SIZES = {1, 1, 1, 2, 2, 4, 4, 4, 8};
+    private static final int[] ELEMENT_SIZES = {1, 1, 1, 2, 2, 4, 4, 4, 8, 8, 8};
 
     /** The kind of elements stored in this view. */
     public final int kind;
@@ -90,6 +92,10 @@ public class TypedArrayValue extends NgsObject {
                 return readInt(off) & 0xFFFFFFFFL;
             case KIND_FLOAT32:
                 return (double) Float.intBitsToFloat(readInt(off));
+            case KIND_BIGINT64:
+                return org.ngscript.value.BigIntValue.of(readLong(off));
+            case KIND_BIGUINT64:
+                return org.ngscript.value.BigIntValue.of(readLong(off));
             default:
                 return Double.longBitsToDouble(readLong(off));
         }
@@ -125,6 +131,16 @@ public class TypedArrayValue extends NgsObject {
                 break;
             case KIND_FLOAT32:
                 writeInt(off, Float.floatToRawIntBits((float) d));
+                break;
+            case KIND_BIGINT64:
+            case KIND_BIGUINT64:
+                // BigInt elements: store the raw 64-bit two's-complement
+                // pattern (ToBigInt64/ToBigUint64 truncate modulo 2^64)
+                if (v instanceof org.ngscript.value.BigIntValue) {
+                    writeLong(off, ((org.ngscript.value.BigIntValue) v).value.longValue());
+                } else {
+                    writeLong(off, (long) d);
+                }
                 break;
             default:
                 writeLong(off, Double.doubleToRawLongBits(d));
