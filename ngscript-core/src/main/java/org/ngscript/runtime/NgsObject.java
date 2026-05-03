@@ -40,7 +40,7 @@ import org.ngscript.value.Undefined;
  */
 public class NgsObject implements Scope {
 
-    private Map<String, MemRef> data = new HashMap<>();
+    private Map<String, MemRef> data = new java.util.LinkedHashMap<>();
     private NgsObject parent;
 
     /**
@@ -153,7 +153,7 @@ public class NgsObject implements Scope {
 
     public void defineAccessor(String name, Object getter, Object setter) {
         if (accessors == null) {
-            accessors = new java.util.HashMap<>();
+            accessors = new java.util.LinkedHashMap<>();
         }
         accessors.put(name, new Object[]{getter, setter});
         // an accessor shadows the plain data slot
@@ -853,13 +853,13 @@ public class NgsObject implements Scope {
     public java.util.Set<String> keys() {
         java.util.Set<String> all = new java.util.LinkedHashSet<>();
         for (String k : data.keySet()) {
-            if (!isPrivateKey(k)) {
+            if (!isPrivateKey(k) && !isSymbolKey(k)) {
                 all.add(k);
             }
         }
         if (accessors != null && !accessors.isEmpty()) {
             for (String k : accessors.keySet()) {
-                if (!isPrivateKey(k)) {
+                if (!isPrivateKey(k) && !isSymbolKey(k)) {
                     all.add(k);
                 }
             }
@@ -878,11 +878,52 @@ public class NgsObject implements Scope {
     }
 
     /**
+     * Symbol keys are stored under their canonical {@code @@...} id and
+     * must not surface in Object.keys / for-in / getOwnPropertyNames
+     * (ES: string-key enumeration only; symbols live in their own list).
+     */
+    private static boolean isSymbolKey(String k) {
+        return k.length() > 1 && k.charAt(0) == '@' && k.charAt(1) == '@';
+    }
+
+    /**
      * The enumerable own property names (ES [[OwnPropertyKeys]] filtered
      * by enumerability): used by Object.keys, for-in and object rest.
      */
     public java.util.Set<String> enumerableKeys() {
         java.util.Set<String> all = keys();
+        if (nonEnumerable == null || nonEnumerable.isEmpty()) {
+            return all;
+        }
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        for (String k : all) {
+            if (!nonEnumerable.contains(k)) {
+                out.add(k);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The enumerable own keys including symbol keys (their canonical
+     * {@code @@...} ids): object rest collects symbols too, even though
+     * Object.keys / for-in / getOwnPropertyNames omit them.
+     */
+    public java.util.Set<String> enumerableAllKeys() {
+        java.util.Set<String> all = new java.util.LinkedHashSet<>();
+        for (String k : data.keySet()) {
+            if (!isPrivateKey(k)) {
+                all.add(k);
+            }
+        }
+        if (accessors != null && !accessors.isEmpty()) {
+            for (String k : accessors.keySet()) {
+                if (!isPrivateKey(k)) {
+                    all.add(k);
+                }
+            }
+        }
+        all = esOrderedKeys(all);
         if (nonEnumerable == null || nonEnumerable.isEmpty()) {
             return all;
         }

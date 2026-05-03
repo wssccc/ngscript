@@ -377,9 +377,19 @@ public class Compiler {
         } else if (p instanceof Pattern.RefP) {
             // a member reference target ([obj.x, arr[0]] = vals): the
             // reference is resolved (not read) and the matched value is
-            // stored through it, ES PutValue semantics
+            // stored through it, ES PutValue semantics — a member target
+            // resolves in write mode so the getter is never invoked
             assembler.emit("push_eax"); // keep the matched value
-            compileExpr(((Pattern.RefP) p).target, true);
+            Expr refTarget = ((Pattern.RefP) p).target;
+            if (refTarget instanceof MemberExpr) {
+                MemberExpr m = (MemberExpr) refTarget;
+                compileExpr(m.object);
+                assembler.emit("push_eax");
+                assembler.emit("string", privateKey(m.name, false));
+                assembler.emit("member_ref_w");
+            } else {
+                compileExpr(refTarget, true);
+            }
             assembler.emit("push_eax"); // [value, ref]
             assembler.emit("peek", "1"); // eax = value
             assembler.emit("assign");

@@ -90,21 +90,17 @@ public class OpObject {
         // duplicate key win (ES semantics)
         java.util.List<Object> keys = new java.util.ArrayList<>();
         java.util.List<Object> vals = new java.util.ArrayList<>();
+        java.util.List<Object> accessorDefs = new java.util.ArrayList<>();
         while (!vm.stack.isEmpty()) {
             Object top = vm.stack.pop();
             if (top == OBJ_START) {
                 break;
             }
             if (top instanceof ObjAccessor) {
-                ObjAccessor acc = (ObjAccessor) top;
-                String k = acc.key instanceof String ? (String) acc.key
-                        : OpUtils.convertKey(vm, acc.key);
-                if ("get".equals(acc.kind)) {
-                    sh.defineAccessor(k, acc.fn,
-                            sh.getAccessor(k, "set"));
-                } else {
-                    sh.defineAccessor(k, sh.getAccessor(k, "get"), acc.fn);
-                }
+                // collected (the stack pops in reverse source order) and
+                // applied back-to-front after the loop, so accessor keys
+                // keep their source order like data keys
+                accessorDefs.add(top);
                 continue;
             }
             if (top instanceof ObjSpread) {
@@ -129,6 +125,18 @@ public class OpObject {
             Object k = keys.get(i);
             sh.set(k instanceof String ? (String) k
                     : OpUtils.convertKey(vm, k), vals.get(i));
+        }
+        // accessor definitions apply back-to-front (source order), after
+        // the data keys so the key order matches the source
+        for (int i = accessorDefs.size() - 1; i >= 0; i--) {
+            ObjAccessor acc = (ObjAccessor) accessorDefs.get(i);
+            String k = acc.key instanceof String ? (String) acc.key
+                    : OpUtils.convertKey(vm, acc.key);
+            if ("get".equals(acc.kind)) {
+                sh.defineAccessor(k, acc.fn, sh.getAccessor(k, "set"));
+            } else {
+                sh.defineAccessor(k, sh.getAccessor(k, "get"), acc.fn);
+            }
         }
         vm.eax.write(sh);
     }
@@ -1182,7 +1190,7 @@ public class OpObject {
         NgsObject rest = new NgsObject((NgsObject) vm.env.read());
         rest.setPrototype(vm.objectPrototype);
         if (obj instanceof NgsObject) {
-            for (String key : ((NgsObject) obj).enumerableKeys()) {
+            for (String key : ((NgsObject) obj).enumerableAllKeys()) {
                 if (!consumed.contains(key)) {
                     rest.set(key, ((NgsObject) obj).get(key));
                 }
@@ -1193,6 +1201,16 @@ public class OpObject {
                 String key = "" + i;
                 if (!consumed.contains(key)) {
                     rest.set(key, arr.get(key));
+                }
+            }
+        } else if (obj instanceof String) {
+            // ES: object rest against a string primitive collects its
+            // index keys ({...rest} = "foo" -> rest["0"] === "f")
+            String s = (String) obj;
+            for (int i = 0; i < s.length(); i++) {
+                String key = "" + i;
+                if (!consumed.contains(key)) {
+                    rest.set(key, s.substring(i, i + 1));
                 }
             }
         }
