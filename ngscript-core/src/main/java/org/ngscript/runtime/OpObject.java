@@ -163,6 +163,77 @@ public class OpObject {
     }
 
     /**
+     * Installs the instance brand (constructor top for base classes, right
+     * after the leading super() for derived classes): copies this class's
+     * private keys (from the class's own private-name scope, values read
+     * off the prototype chain) onto the instance. Before the brand is
+     * installed, private access is a TypeError (missing-key path). Only
+     * this class's keys are copied — a base constructor running during
+     * super() must not install the derived class's private members.
+     */
+    public static void install_brand(Machine vm, String param, String param_extend) {
+        Object t = vm.thisRef.read();
+        if (!(t instanceof NgsObject)) {
+            return;
+        }
+        NgsObject inst = (NgsObject) t;
+        // this class's private names (the innermost %privkeys on the chain)
+        NgsObject env = (NgsObject) vm.env.read();
+        NgsObject map = null;
+        while (env != null) {
+            MemRef pk = env.dataGet("%privkeys");
+            if (pk != null) {
+                map = (NgsObject) pk.read();
+                break;
+            }
+            env = env.envParent();
+        }
+        if (map == null) {
+            return;
+        }
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (String n : map.dataMap().keySet()) {
+            if (n.startsWith("#")) {
+                MemRef k = map.dataGet(n);
+                if (k != null) {
+                    // the runtime key (#m@N), which is what the prototype
+                    // slots and the access paths use
+                    names.add((String) k.read());
+                }
+            }
+        }
+        if (names.isEmpty()) {
+            return;
+        }
+        NgsObject proto = inst.getPrototype();
+        while (proto != null && !names.isEmpty()) {
+            java.util.Iterator<String> it = names.iterator();
+            while (it.hasNext()) {
+                String n = it.next();
+                MemRef v = proto.dataGet(n);
+                if (v != null && !inst.hasDataKey(n)) {
+                    inst.dataMap().put(n, new MemRef(v.read()));
+                    if (proto.isWriteThrowsLocal(n)) {
+                        inst.markWriteThrows(n);
+                    }
+                    it.remove();
+                } else if (v != null && inst.hasDataKey(n)) {
+                    it.remove();
+                } else {
+                    Object[] acc = proto.accessorsGet(n);
+                    if (acc != null && !inst.hasAccessor(n)) {
+                        inst.accessorsPut(n, acc);
+                        it.remove();
+                    } else if (acc != null && inst.hasAccessor(n)) {
+                        it.remove();
+                    }
+                }
+            }
+            proto = proto.getPrototype();
+        }
+    }
+
+    /**
      * Write-mode member resolution for plain assignment targets
      * ({@code o.x = v}): the getter is never invoked (ES [[Set]]), the
      * accessor is checked for a setter, and a missing private member is a

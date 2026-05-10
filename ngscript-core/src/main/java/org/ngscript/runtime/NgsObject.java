@@ -445,14 +445,23 @@ public class NgsObject implements Scope {
                     return ref;
                 }
                 Object[] chainAccessor = findAccessorOnChain(member);
-                if (chainAccessor != null) {
+                if (chainAccessor != null && !member.startsWith("#")) {
                     // ES: a prototype getter/setter runs with the *accessing
                     // object* as this (obj.v reads through a prototype
                     // accessor with this=obj), not with the prototype that
-                    // owns it
+                    // owns it. Private names never resolve through the
+                    // prototype chain (brand semantics): the key must be an
+                    // own slot, installed by the constructor.
                     return accessorRef(member, this, (NgsObject) chainAccessor[2], vm);
                 }
-                ref = lookupEnv(member, vm, isMember);
+                if (member.startsWith("#")) {
+                    // private member: own slots only — the prototype chain
+                    // is never consulted (a missing key is a TypeError
+                    // below, which is also the pre-super() brand error)
+                    ref = null;
+                } else {
+                    ref = lookupEnv(member, vm, isMember);
+                }
                 if (ref == null) {
                     // ES [[Get]]: reading a missing member yields undefined
                     // without creating the property — creating it polluted
@@ -601,10 +610,16 @@ public class NgsObject implements Scope {
             return ref;
         }
         Object[] chainAccessor = findAccessorOnChain(member);
-        if (chainAccessor != null) {
+        if (chainAccessor != null && !member.startsWith("#")) {
             return accessorRefWrite(member, this, (NgsObject) chainAccessor[2], vm);
         }
-        ref = lookupEnv(member, vm, true);
+        if (member.startsWith("#")) {
+            // private member: own slots only (brand semantics); the missing
+            // key is the TypeError below
+            ref = null;
+        } else {
+            ref = lookupEnv(member, vm, true);
+        }
         if (ref == null) {
             if (member.startsWith("#")) {
                 throw new IllegalArgumentException(
@@ -737,6 +752,34 @@ public class NgsObject implements Scope {
     /** Package-private access to the own data map (private-name scopes). */
     java.util.Map<String, MemRef> dataMap() {
         return data;
+    }
+
+    /** Package-private accessor-slot read (private-name brand install). */
+    Object[] accessorsGet(String name) {
+        return accessors == null ? null : accessors.get(name);
+    }
+
+    /** Package-private accessor-slot write (private-name brand install). */
+    void accessorsPut(String name, Object[] pair) {
+        if (accessors == null) {
+            accessors = new java.util.LinkedHashMap<>();
+        }
+        accessors.put(name, pair);
+    }
+
+    /** Package-private own-key check (private-name brand install). */
+    boolean hasDataKey(String name) {
+        return data.containsKey(name);
+    }
+
+    /** Package-private write-throws check (private-name brand install). */
+    boolean isWriteThrowsLocal(String name) {
+        return isWriteThrows(name);
+    }
+
+    /** Package-private own-accessor check (private-name brand install). */
+    boolean hasAccessor(String name) {
+        return accessors != null && accessors.containsKey(name);
     }
 
     private MemRef lookupEnv(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {

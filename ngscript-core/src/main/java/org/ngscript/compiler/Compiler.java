@@ -29,6 +29,7 @@ import org.ngscript.api.Configuration;
 import org.ngscript.ast.ArrayLiteral;
 import org.ngscript.ast.AssignExpr;
 import org.ngscript.ast.AstNode;
+import org.ngscript.ast.BrandInstallStmt;
 import org.ngscript.ast.AwaitExpr;
 import org.ngscript.ast.BinaryExpr;
 import org.ngscript.ast.Block;
@@ -159,12 +160,8 @@ public class Compiler {
      * a C instance where C has its own #m is still a TypeError).
      */
     private final Deque<Map<String, String>> privateNameScopes = new ArrayDeque<>();
-    private int privateNameSeq;
 
     /** The unique runtime key for a private name inside the current class. */
-    private String privateKey(String name) {
-        return privateKey(name, true);
-    }
 
     /**
      * Resolves a private name to its runtime key. The compile-time
@@ -610,7 +607,9 @@ public class Compiler {
             return;
         }
         generateDebugInfo(stmt);
-        if (stmt instanceof ExprStmt) {
+        if (stmt instanceof BrandInstallStmt) {
+            assembler.emit("install_brand");
+        } else if (stmt instanceof ExprStmt) {
             compileExpr(((ExprStmt) stmt).expr);
         } else if (stmt instanceof FunctionDecl) {
             compileFunctionDecl((FunctionDecl) stmt);
@@ -2371,6 +2370,7 @@ public class Compiler {
         }
         Params ctorParams;
         Block ctorBody;
+        BrandInstallStmt brand = new BrandInstallStmt(cls.line);
         if (ctor != null) {
             ctorParams = ctor.params;
             List<Stmt> stmts = new ArrayList<>(ctor.body.statements);
@@ -2381,17 +2381,25 @@ public class Compiler {
                 insertAt = 1;
             }
             stmts.addAll(insertAt, fieldStmts);
+            // the brand is installed right after the leading super() call
+            // (derived) or at the constructor top (base): private members
+            // are not accessible before super returns
+            stmts.add(insertAt, brand);
             ctorBody = new Block(stmts, cls.line);
         } else if (cls.superClass != null) {
             ctorParams = new Params(Collections.singletonList("args"), null, true);
             List<Stmt> stmts = new ArrayList<>();
             stmts.add(new ExprStmt(new SuperCallExpr(Collections.singletonList(new SpreadExpr(
                     new IdentExpr("args", cls.line), cls.line)), cls.line), cls.line));
+            stmts.add(brand);
             stmts.addAll(fieldStmts);
             ctorBody = new Block(stmts, cls.line);
         } else {
             ctorParams = new Params(Collections.emptyList());
-            ctorBody = new Block(fieldStmts, cls.line);
+            List<Stmt> stmts = new ArrayList<>();
+            stmts.add(brand);
+            stmts.addAll(fieldStmts);
+            ctorBody = new Block(stmts, cls.line);
         }
         String enter = _compile_function_body(ctorParams, ctorBody);
         assembler.emit("new_closure", enter, "0");
