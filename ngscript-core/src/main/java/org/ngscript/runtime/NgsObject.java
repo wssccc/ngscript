@@ -724,6 +724,21 @@ public class NgsObject implements Scope {
         data.put(name, ref);
     }
 
+    /** Package-private access to an own data slot (private-name scopes). */
+    MemRef dataGet(String name) {
+        return data.get(name);
+    }
+
+    /** Package-private access to the environment parent chain. */
+    NgsObject envParent() {
+        return parent;
+    }
+
+    /** Package-private access to the own data map (private-name scopes). */
+    java.util.Map<String, MemRef> dataMap() {
+        return data;
+    }
+
     private MemRef lookupEnv(String member, Machine vm, boolean isMember) throws NgScriptRuntimeException {
         if (isMember) {
             // property access: own data, then the [[Prototype]] chain

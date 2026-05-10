@@ -1658,6 +1658,86 @@ public class OpObject {
     }
 
     /**
+     * Creates a fresh private-name scope for the current class definition:
+     * a new key map installed on the active environment frame. Every class
+     * evaluation gets its own map, so private names (and therefore brand
+     * checks) differ across evaluations of the same class expression — ES
+     * private-name semantics. Method closures capture the frame, so the
+     * map stays reachable after the class definition completes.
+     */
+    public static void private_scope_new(Machine vm, String param, String param_extend) {
+        NgsObject keys = new NgsObject(null);
+        ((NgsObject) vm.env.read()).putRef("%privkeys", new MemRef(keys));
+    }
+
+    /**
+     * Resolves a private name to its runtime key: walks the environment
+     * chain for the innermost {@code %privkeys} map holding the name (a
+     * nested class resolves an enclosing class's private name lexically);
+     * a name not yet seen is created in the nearest private scope. The key
+     * is written to eax.
+     */
+    public static void private_key(Machine vm, String param, String param_extend) {
+        NgsObject env = (NgsObject) vm.env.read();
+        while (env != null) {
+            MemRef pk = env.dataGet("%privkeys");
+            if (pk != null) {
+                NgsObject map = (NgsObject) pk.read();
+                MemRef k = map.dataGet(param);
+                if (k != null) {
+                    vm.eax.write(k.read());
+                    return;
+                }
+            }
+            env = env.envParent();
+        }
+        // not bound yet: create the key in the nearest private scope
+        env = (NgsObject) vm.env.read();
+        while (env != null) {
+            MemRef pk = env.dataGet("%privkeys");
+            if (pk != null) {
+                NgsObject map = (NgsObject) pk.read();
+                String key = param + "@" + (++org.ngscript.runtime.Machine.privateKeySeq);
+                map.dataMap().put(param, new MemRef(key));
+                vm.eax.write(key);
+                return;
+            }
+            env = env.envParent();
+        }
+        throw new NgScriptRuntimeException(vm,
+                "private name " + param + " is not declared");
+    }
+
+    /**
+     * Binds a private name in the innermost private scope ({@code define}
+     * path): a member declaration of the current class always creates the
+     * class's own private name, shadowing any same-named name of an
+     * enclosing class. References use {@link #private_key} instead, which
+     * resolves the lexically nearest binding.
+     */
+    public static void private_key_d(Machine vm, String param, String param_extend) {
+        NgsObject env = (NgsObject) vm.env.read();
+        while (env != null) {
+            MemRef pk = env.dataGet("%privkeys");
+            if (pk != null) {
+                NgsObject map = (NgsObject) pk.read();
+                MemRef k = map.dataGet(param);
+                if (k == null) {
+                    String key = param + "@" + (++org.ngscript.runtime.Machine.privateKeySeq);
+                    map.dataMap().put(param, new MemRef(key));
+                    vm.eax.write(key);
+                } else {
+                    vm.eax.write(k.read());
+                }
+                return;
+            }
+            env = env.envParent();
+        }
+        throw new NgScriptRuntimeException(vm,
+                "private name " + param + " is not declared");
+    }
+
+    /**
      * Enters a class field initializer context: new.target is undefined
      * there (the initializer runs as a fresh execution context, not part
      * of the constructor invocation); the surrounding value is saved on a

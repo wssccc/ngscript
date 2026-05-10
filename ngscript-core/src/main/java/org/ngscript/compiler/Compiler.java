@@ -167,12 +167,10 @@ public class Compiler {
     }
 
     /**
-     * Resolves a private name to its unique runtime key. {@code define}
-     * binds the name in the innermost class scope (a field/method
-     * declaration always creates the current class's own private name);
-     * a reference walks the class-scope stack outward, so a nested class
-     * reads an enclosing class's same-named private member (ES lexical
-     * private-name scoping).
+     * Resolves a private name to its runtime key. The compile-time
+     * resolution only checks lexical binding (the name must belong to an
+     * enclosing class scope); the actual key is allocated at runtime
+     * (private_key opcode) so every class evaluation gets fresh brands.
      */
     private String privateKey(String name, boolean define) {
         if (name == null || !name.startsWith("#")) {
@@ -182,24 +180,37 @@ public class Compiler {
             for (java.util.Iterator<Map<String, String>> it = privateNameScopes.iterator();
                     it.hasNext(); ) {
                 Map<String, String> scope = it.next();
-                String key = scope.get(name);
-                if (key != null) {
-                    return key;
+                if (scope.containsKey(name)) {
+                    return name;
                 }
             }
         }
-        Map<String, String> scope = privateNameScopes.peek();
-        if (scope == null) {
-            // outside a class body the literal name stays (reading it on
-            // an object without the key throws the runtime TypeError)
+        if (privateNameScopes.peek() != null) {
             return name;
         }
-        String key = scope.get(name);
-        if (key == null) {
-            key = name + "@" + (++privateNameSeq);
-            scope.put(name, key);
+        // outside a class body the literal name stays (reading it on an
+        // object without the key throws the runtime TypeError)
+        return name;
+    }
+
+    /**
+     * Emits the key for a member name: plain names become string literals,
+     * private names become a runtime private_key lookup (the actual key is
+     * allocated per class evaluation). {@code define} marks a member
+     * declaration: the name binds to the innermost class's own private
+     * scope (shadowing an enclosing class's same-named member); references
+     * resolve the lexically nearest binding instead.
+     */
+    private void emitKey(String name, boolean define) {
+        if (name != null && name.startsWith("#")) {
+            assembler.emit(define ? "private_key_d" : "private_key", name);
+        } else {
+            assembler.emit("string", name);
         }
-        return key;
+    }
+
+    private void emitKey(String name) {
+        emitKey(name, false);
     }
 
     /**
@@ -422,7 +433,7 @@ public class Compiler {
                 MemberExpr m = (MemberExpr) refTarget;
                 compileExpr(m.object);
                 assembler.emit("push_eax");
-                assembler.emit("string", privateKey(m.name, false));
+                emitKey(m.name);
                 assembler.emit("member_ref_w");
             } else {
                 compileExpr(refTarget, true);
@@ -980,7 +991,7 @@ public class Compiler {
                 MemberExpr member = (MemberExpr) assign.target;
                 compileExpr(member.object);
                 assembler.emit("push_eax");
-                assembler.emit("string", privateKey(member.name, false));
+                emitKey(member.name);
                 assembler.emit("member_ref_w");
                 assembler.emit("push_eax");
                 compileExpr(assign.value);
@@ -1010,7 +1021,7 @@ public class Compiler {
                 compileExpr(d.key);
                 assembler.emit("to_string");
             } else {
-                assembler.emit("string", privateKey(d.name));
+                emitKey(d.name, true);
             }
             assembler.emit("push_eax");
             // ES: a field initializer runs as a fresh execution context in
@@ -1055,7 +1066,7 @@ public class Compiler {
             } else {
                 compileExpr(member.object);
                 assembler.emit("push_eax");
-                assembler.emit("string", privateKey(member.name, false));
+                emitKey(member.name);
                 assembler.emit("member_ref");
                 if (!byref) {
                     assembler.emit("deref", "%eax");
@@ -1307,7 +1318,7 @@ public class Compiler {
             // the other feeds member_ref
             assembler.emit("peek", "0");
             assembler.emit("push_eax");
-            assembler.emit("string", privateKey(member.name, false));
+            emitKey(member.name);
             assembler.emit("member_ref");
             assembler.emit("deref", "%eax");
             assembler.emit("push_eax");
@@ -1670,7 +1681,7 @@ public class Compiler {
                     MemberExpr member = (MemberExpr) unary.operand;
                     compileExpr(member.object);
                     assembler.emit("push_eax");
-                    assembler.emit("string", privateKey(member.name, false));
+                    emitKey(member.name);
                     assembler.emit(currentStrict ? "delete_op_strict" : "delete_op");
                 } else if (unary.operand instanceof IndexExpr) {
                     // delete obj[key]: compile the key expression too
@@ -2193,7 +2204,7 @@ public class Compiler {
             // the other feeds member_ref
             assembler.emit("peek", "0");
             assembler.emit("push_eax");
-            assembler.emit("string", privateKey(member.name, false));
+            emitKey(member.name);
             assembler.emit("member_ref");
             assembler.emit("deref", "%eax");
             assembler.emit("push_eax");
@@ -2291,29 +2302,38 @@ public class Compiler {
         // pre-register every private name of this class: a nested class
         // compiled later (inside a field initializer) resolves a private
         // reference lexically to this class's key even before the member
-        // itself is compiled (ES private-name scoping is static)
+        // itself is compiled (ES private-name scoping is static). The
+        // actual keys are allocated at runtime (private_scope_new) so each
+        // class evaluation gets fresh brands.
         for (ClassExpr.MethodDef m : cls.methods) {
-            if (m.name != null && m.name.startsWith("#") && !privateScope.containsKey(m.name)) {
-                privateScope.put(m.name, m.name + "@" + (++privateNameSeq));
+            if (m.name != null && m.name.startsWith("#")) {
+                privateScope.put(m.name, m.name);
             }
         }
         for (ClassExpr.FieldDef f : cls.fields) {
-            if (f.name != null && f.name.startsWith("#") && !privateScope.containsKey(f.name)) {
-                privateScope.put(f.name, f.name + "@" + (++privateNameSeq));
+            if (f.name != null && f.name.startsWith("#")) {
+                privateScope.put(f.name, f.name);
             }
         }
         if (cls.name != null) {
-            // ES: an expression's class name binds to a dedicated class
-            // scope (a fresh lexical environment per evaluation), immutable
-            // and initialized only when the class definition completes —
+            // ES: the class name binds to a dedicated class scope (a fresh
+            // lexical environment per evaluation), immutable and
+            // initialized only when the class definition completes —
             // methods closing over it see the class itself, the outer
-            // scope is untouched. A declaration binds the name in the
-            // surrounding scope instead (visible after the statement).
-            if (!cls.isDecl) {
-                enterBlock();
+            // scope is untouched. A declaration additionally binds the
+            // name in the surrounding scope (visible after the statement),
+            // initialized when the definition completes.
+            if (cls.isDecl) {
+                assembler.emit("decl_let", cls.name, "1");
             }
+            enterBlock();
             assembler.emit("decl_let", cls.name, "1");
+        } else {
+            // an anonymous class expression still gets a class scope: it
+            // carries the private-name map captured by method closures
+            enterBlock();
         }
+        assembler.emit("private_scope_new");
         if (cls.superClass != null) {
             compileExpr(cls.superClass);
             assembler.emit("push_eax");
@@ -2445,7 +2465,7 @@ public class Compiler {
                     compileExpr(f.computedKey);
                     assembler.emit("to_string");
                 } else {
-                    assembler.emit("string", privateKey(f.name));
+                    emitKey(f.name, true);
                 }
                 assembler.emit("own_member_ref");
                 assembler.emit("push_eax");
@@ -2471,10 +2491,11 @@ public class Compiler {
             assembler.emit("pop_this");
         }
         assembler.emit("pop_eax"); // eax = ctor, stack clean
-        if (cls.name != null && !cls.isDecl) {
-            // drop the class scope: only the closures captured it (the
+        leaveBlock();
+        if (cls.name != null && cls.isDecl) {
+            // a declaration: initialize the surrounding-scope binding (the
             // class-scope binding was initialized before static fields ran)
-            leaveBlock();
+            emitAssignToName(cls.name);
         }
         privateNameScopes.pop();
     }
@@ -2497,7 +2518,7 @@ public class Compiler {
             compileExpr(m.computedKey);
             assembler.emit("to_string");
         } else {
-            assembler.emit("string", privateKey(m.name));
+            emitKey(m.name, true);
         }
         String marker = m.async ? (m.generator ? "5" : "3")
                 : (m.generator ? "2" : "0");

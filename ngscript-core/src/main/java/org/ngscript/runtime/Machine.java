@@ -190,6 +190,12 @@ public class Machine {
     public boolean evalInInitializer;
 
     /**
+     * Unique-key sequence for runtime-allocated private names (each class
+     * evaluation gets fresh keys, so brands differ across evaluations).
+     */
+    public static int privateKeySeq;
+
+    /**
      * The value of {@code new.target} in the current execution context:
      * set to the constructor by new-calls, cleared to undefined by plain
      * calls and field initializers (new_target_enter/leave save/restore
