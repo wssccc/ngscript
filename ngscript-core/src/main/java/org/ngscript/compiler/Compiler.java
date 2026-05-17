@@ -908,7 +908,20 @@ public class Compiler {
                 // parameters without running the body.
                 assembler.emit("gen_body_enter");
             }
+            if (!simpleParams) {
+                // ES: with parameter expressions (defaults/rest/destructuring),
+                // the function body variables live in a separate environment
+                // — closures created by the parameter list must not see body
+                // var declarations (scope-*-paramsbody-var-open). The frame
+                // is marked as a function scope so var declarations (setVar)
+                // land on it rather than on the parameter frame.
+                assembler.emit("enter_block", "fs");
+                ++blockDepth;
+            }
             compileBlock(body);
+            if (!simpleParams) {
+                leaveBlock();
+            }
             //default return void (pop any open block frames first)
             while (blockDepth > 0) {
                 leaveBlock();

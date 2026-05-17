@@ -45,10 +45,20 @@ public class OpScope {
         ((NgsObject) vm.env.read()).putRef(param, new LetBinding(param, isConst));
     }
 
-    /** Pushes a fresh block scope onto the environment chain. */
+    /**
+     * Pushes a fresh block scope onto the environment chain. With the
+     * {@code fs} parameter the frame is marked as a function scope
+     * (VariableEnvironment): var declarations (setVar) land on it, so the
+     * function body's vars are separated from the parameter environment
+     * when the parameter list has expressions (defaults/rest/patterns).
+     */
     public static void enter_block(Machine vm, String param, String param_extend) {
         NgsObject current = (NgsObject) vm.env.read();
-        vm.env.write(new NgsObject(current));
+        NgsObject frame = new NgsObject(current);
+        if ("fs".equals(param)) {
+            frame.functionScope = true;
+        }
+        vm.env.write(frame);
     }
 
     /**
