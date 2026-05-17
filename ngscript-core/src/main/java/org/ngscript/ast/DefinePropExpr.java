@@ -32,15 +32,29 @@ public class DefinePropExpr extends Expr {
     public final String name;
     public final Expr value;
 
+    /**
+     * When >= 0, the computed key is not re-evaluated here: it was computed
+     * at class definition time (ES evaluates field names then, only the
+     * initializer runs in the constructor) and is read from the class's
+     * {@code %fieldKeys} array by this index.
+     */
+    public final int keyIndex;
+
     public DefinePropExpr(Expr object, String name, Expr value, int line) {
-        this(object, null, name, value, line);
+        this(object, null, name, value, line, -1);
     }
 
     public DefinePropExpr(Expr object, Expr key, String name, Expr value, int line) {
+        this(object, key, name, value, line, -1);
+    }
+
+    public DefinePropExpr(Expr object, Expr key, String name, Expr value,
+                          int line, int keyIndex) {
         this.object = object;
         this.key = key;
         this.name = name;
         this.value = value;
+        this.keyIndex = keyIndex;
         this.line = line;
     }
 

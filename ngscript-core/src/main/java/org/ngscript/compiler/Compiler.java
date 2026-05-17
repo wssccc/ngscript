@@ -159,7 +159,16 @@ public class Compiler {
      * private names are unique per class definition: accessing B's #m on
      * a C instance where C has its own #m is still a TypeError).
      */
+    /** The unique-key sequence for runtime-allocated private names. */
     private final Deque<Map<String, String>> privateNameScopes = new ArrayDeque<>();
+
+    /**
+     * Set while compiling a direct eval source: private names may reach an
+     * enclosing class through the environment chain at runtime (ES eval
+     * code is exempt from AllPrivateIdentifiersValid), so the compile-time
+     * undeclared-private-name check is skipped.
+     */
+    public boolean evalCode;
 
     /** The unique runtime key for a private name inside the current class. */
 
@@ -181,13 +190,25 @@ public class Compiler {
                     return name;
                 }
             }
+            if (privateNameScopes.isEmpty()) {
+                if (evalCode) {
+                    // direct eval code: no compile-time check (the runtime
+                    // environment chain may reach an enclosing class)
+                    return name;
+                }
+                throw compileError("Private field '" + name
+                        + "' must be declared in an enclosing class");
+            }
+            // ES early error: a private name must be declared in an
+            // enclosing class (AllPrivateIdentifiersValid)
+            throw compileError("Private field '" + name
+                    + "' must be declared in an enclosing class");
         }
         if (privateNameScopes.peek() != null) {
             return name;
         }
-        // outside a class body the literal name stays (reading it on an
-        // object without the key throws the runtime TypeError)
-        return name;
+        throw compileError("Private field '" + name
+                + "' must be declared in an enclosing class");
     }
 
     /**
@@ -200,6 +221,10 @@ public class Compiler {
      */
     private void emitKey(String name, boolean define) {
         if (name != null && name.startsWith("#")) {
+            // compile-time check: the private name must be declared in an
+            // enclosing class (ES AllPrivateIdentifiersValid early error);
+            // direct eval code is exempt (runtime env-chain lookup)
+            privateKey(name, define);
             assembler.emit(define ? "private_key_d" : "private_key", name);
         } else {
             assembler.emit("string", name);
@@ -1016,7 +1041,10 @@ public class Compiler {
             DefinePropExpr d = (DefinePropExpr) expr;
             compileExpr(d.object);
             assembler.emit("push_eax");
-            if (d.key != null) {
+            if (d.keyIndex >= 0) {
+                // the computed key was evaluated at class definition time
+                assembler.emit("field_key", d.keyIndex + "");
+            } else if (d.key != null) {
                 compileExpr(d.key);
                 assembler.emit("to_string");
             } else {
@@ -2349,7 +2377,11 @@ public class Compiler {
         }
         // instance field initializers run inside the constructor, after the
         // leading super() call for derived classes (at the top for base
-        // classes), in declaration order, with this bound to the instance
+        // classes), in declaration order, with this bound to the instance.
+        // ES computes the field *names* at class definition time (an error
+        // in a computed key aborts the class definition) and defers only
+        // the initializers to the constructor: computed keys are evaluated
+        // below and stored in the class's %fieldKeys array.
         List<ClassExpr.FieldDef> instFields = new ArrayList<>();
         for (ClassExpr.FieldDef f : cls.fields) {
             if (!f.isStatic) {
@@ -2357,6 +2389,7 @@ public class Compiler {
             }
         }
         List<Stmt> fieldStmts = new ArrayList<>();
+        int keyIndex = 0;
         for (ClassExpr.FieldDef f : instFields) {
             // ES: a field initializer defines the field on the instance
             // (CreateDataProperty) — the prototype chain is not consulted,
@@ -2364,9 +2397,14 @@ public class Compiler {
             Expr target = new IdentExpr("this", cls.line);
             Expr value = f.initializer != null ? f.initializer
                     : new LiteralExpr(LiteralExpr.Kind.UNDEFINED, "undefined", cls.line);
-            fieldStmts.add(new ExprStmt(f.computedKey != null
-                    ? new DefinePropExpr(target, f.computedKey, null, value, cls.line)
-                    : new DefinePropExpr(target, null, f.name, value, cls.line), cls.line));
+            if (f.computedKey != null) {
+                fieldStmts.add(new ExprStmt(new DefinePropExpr(
+                        target, f.computedKey, null, value, cls.line, keyIndex), cls.line));
+                ++keyIndex;
+            } else {
+                fieldStmts.add(new ExprStmt(new DefinePropExpr(
+                        target, null, f.name, value, cls.line), cls.line));
+            }
         }
         Params ctorParams;
         Block ctorBody;
@@ -2441,6 +2479,28 @@ public class Compiler {
             assembler.emit("pop_eax");
             emitAssignToName(cls.name);
             assembler.emit("push_eax");
+        }
+        // instance field *names* are computed at class definition time
+        // (ES ClassFieldDefinitionEvaluation): evaluate the computed keys
+        // now — an error here aborts the class definition — and store them
+        // in the class's %fieldKeys array for the constructor
+        int computedKeys = 0;
+        for (ClassExpr.FieldDef f : instFields) {
+            if (f.computedKey != null) {
+                ++computedKeys;
+            }
+        }
+        if (computedKeys > 0) {
+            assembler.emit("field_keys_init", computedKeys + "");
+            int ki = 0;
+            for (ClassExpr.FieldDef f : instFields) {
+                if (f.computedKey != null) {
+                    compileExpr(f.computedKey);
+                    assembler.emit("to_string");
+                    assembler.emit("store_field_key", ki + "");
+                    ++ki;
+                }
+            }
         }
         // static field initializers and static blocks run after all methods
         // are defined, with the constructor bound as this; the surrounding

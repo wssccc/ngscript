@@ -371,7 +371,13 @@ public class NgScriptEngine {
         if (!callerChainHasFunctionScope(callerEnv)) {
             checkGlobalFunctionDeclarations(program);
         }
-        List<Instruction> ins = compiler.compileCode(program, code);
+        compiler.evalCode = true;
+        List<Instruction> ins;
+        try {
+            ins = compiler.compileCode(program, code);
+        } finally {
+            compiler.evalCode = false;
+        }
         // sloppy direct eval vars hoist into the caller's scope
         return runProgram(program, code, ins, callerEnv, false);
     }

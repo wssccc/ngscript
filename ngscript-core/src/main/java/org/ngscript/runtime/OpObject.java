@@ -124,14 +124,18 @@ public class OpObject {
         for (int i = keys.size() - 1; i >= 0; i--) {
             Object k = keys.get(i);
             sh.set(k instanceof String ? (String) k
-                    : OpUtils.convertKey(vm, k), vals.get(i));
+                    : (k instanceof org.ngscript.value.SymbolValue
+                            ? org.ngscript.runtime.OpArray.keyString(k)
+                            : OpUtils.convertKey(vm, k)), vals.get(i));
         }
         // accessor definitions apply back-to-front (source order), after
         // the data keys so the key order matches the source
         for (int i = accessorDefs.size() - 1; i >= 0; i--) {
             ObjAccessor acc = (ObjAccessor) accessorDefs.get(i);
             String k = acc.key instanceof String ? (String) acc.key
-                    : OpUtils.convertKey(vm, acc.key);
+                    : (acc.key instanceof org.ngscript.value.SymbolValue
+                            ? org.ngscript.runtime.OpArray.keyString(acc.key)
+                            : OpUtils.convertKey(vm, acc.key));
             if ("get".equals(acc.kind)) {
                 sh.defineAccessor(k, acc.fn, sh.getAccessor(k, "set"));
             } else {
@@ -843,7 +847,8 @@ public class OpObject {
     public static void in(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
         Object obj = objs[1];
-        String key = objs[0].toString();
+        // symbol keys canonicalize to their internal form (@@toPrimitive)
+        String key = OpArray.keyString(objs[0]);
         if (obj instanceof ProxyValue) {
             try {
                 vm.eax.write(((ProxyValue) obj).proxyHas(vm, key) ? Boolean.TRUE : Boolean.FALSE);
@@ -1739,6 +1744,40 @@ public class OpObject {
     public static void private_scope_new(Machine vm, String param, String param_extend) {
         NgsObject keys = new NgsObject(null);
         ((NgsObject) vm.env.read()).putRef("%privkeys", new MemRef(keys));
+    }
+
+    /**
+     * Allocates the class's field-key array (ES computes instance field
+     * names at class definition time; only the initializers run in the
+     * constructor). The array lives on the class scope frame, captured by
+     * the constructor closure.
+     */
+    public static void field_keys_init(Machine vm, String param, String param_extend) {
+        int n = param == null ? 0 : Integer.parseInt(param);
+        ((NgsObject) vm.env.read()).putRef("%fieldKeys",
+                new MemRef(new Object[n]));
+    }
+
+    /** Stores the key string in eax into the class's field-key array. */
+    public static void store_field_key(Machine vm, String param, String param_extend) {
+        Object[] keys = (Object[]) ((NgsObject) vm.env.read())
+                .dataGet("%fieldKeys").read();
+        keys[Integer.parseInt(param)] = vm.eax.read();
+    }
+
+    /** Reads a class-computed field key into eax. */
+    public static void field_key(Machine vm, String param, String param_extend) {
+        NgsObject env = (NgsObject) vm.env.read();
+        while (env != null) {
+            MemRef fk = env.dataGet("%fieldKeys");
+            if (fk != null) {
+                Object[] keys = (Object[]) fk.read();
+                vm.eax.write(keys[Integer.parseInt(param)]);
+                return;
+            }
+            env = env.envParent();
+        }
+        throw new NgScriptRuntimeException(vm, "%fieldKeys is not declared");
     }
 
     /**
