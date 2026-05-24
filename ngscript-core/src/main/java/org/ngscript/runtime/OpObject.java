@@ -1877,6 +1877,12 @@ public class OpObject {
      */
     public static void class_bind_super(Machine vm, String param, String param_extend) {
         Object sc = vm.eax.read();
+        if (sc instanceof ScriptFunction && ((ScriptFunction) sc).arrow) {
+            // ES: the heritage must be a constructor — arrow functions are
+            // not constructible (class extends (() => {}) is a TypeError)
+            throw new IllegalArgumentException(
+                    "class heritage is not a constructor");
+        }
         NgsObject frame = (NgsObject) vm.env.read();
         frame.putRef("%superclass", new MemRef(sc));
         if (sc instanceof ScriptFunction) {

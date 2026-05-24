@@ -64,6 +64,26 @@ public class ObjectCtor implements Invokable {
                 });
             case "keys":
                 return new MemRef((Invokable) (vm2, args) -> {
+                    if (args.length > 0 && args[0] instanceof org.ngscript.value.ScriptFunction) {
+                        // class constructors hold static members in hostProps
+                        NgsArray out = new NgsArray(null);
+                        int i = 0;
+                        java.util.Map<String, MemRef> own = vm2.hostProps.get(args[0]);
+                        if (own != null) {
+                            for (String k : own.keySet()) {
+                                if (k.startsWith("@@")) {
+                                    continue; // symbol keys are not string keys
+                                }
+                                java.util.Set<String> nonEnum = vm2.hostNonEnumerable.get(args[0]);
+                                if (nonEnum == null || !nonEnum.contains(k)) {
+                                    out.set("" + i++, k);
+                                }
+                            }
+                        }
+                        out.setPrototype(vm2.arrayPrototype);
+                        vm2.eax.write(out);
+                        return;
+                    }
                     NgsObject o = objectArg(vm2, args, 0);
                     NgsArray out = new NgsArray(null);
                     int i = 0;
@@ -120,8 +140,10 @@ public class ObjectCtor implements Invokable {
                             // class-defined static members live in hostProps
                             java.util.Map<String, MemRef> own = vm2.hostProps.get(f);
                             if (own == null || !own.containsKey(name)
-                                    || (name.length() > 0 && name.charAt(0) == '#')) {
-                                // private names are not ordinary properties
+                                    || (name.length() > 0 && name.charAt(0) == '#')
+                                    || name.startsWith("@@")) {
+                                // private names and symbol keys are not
+                                // ordinary string-keyed properties
                                 vm2.eax.write(Undefined.value);
                                 return;
                             }
@@ -160,6 +182,21 @@ public class ObjectCtor implements Invokable {
                         return;
                     }
                     NgsObject o = objectArg(vm2, args, 0);
+                    Object g = o.getAccessor(name, "get");
+                    Object s = o.getAccessor(name, "set");
+                    if (g != null || s != null) {
+                        // an accessor property: {get, set, enumerable,
+                        // configurable} (no value/writable)
+                        NgsObject desc = new NgsObject((NgsObject) vm2.env.read());
+                        desc.setPrototype(vm2.objectPrototype);
+                        desc.set("get", g == null ? Undefined.value : g);
+                        desc.set("set", s == null ? Undefined.value : s);
+                        desc.set("enumerable", o.isEnumerable(name));
+                        desc.set("configurable", o.isNonConfigurable(name)
+                                ? Boolean.FALSE : Boolean.TRUE);
+                        vm2.eax.write(desc);
+                        return;
+                    }
                     Object v = o.get(name);
                     if (o instanceof NgsArray && "length".equals(name) && v == null) {
                         // the virtual length of an array-like (arguments):
@@ -194,6 +231,9 @@ public class ObjectCtor implements Invokable {
                         java.util.Map<String, MemRef> own = vm2.hostProps.get(f);
                         if (own != null) {
                             for (String k : own.keySet()) {
+                                if (k.startsWith("@@")) {
+                                    continue; // symbol keys are not string keys
+                                }
                                 out.set("" + i++, k);
                             }
                         }

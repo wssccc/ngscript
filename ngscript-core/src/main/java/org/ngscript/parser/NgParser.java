@@ -2281,7 +2281,21 @@ public class NgParser {
     }
 
     private Expr parseExprClass() throws ParserException {
-        Expr expr = parseExpr9();
+        Token t = peek();
+        Expr expr;
+        if (t != null && t.type.equals("lparen")) {
+            // class C extends (expr): a parenthesized heritage expression.
+            // `extends () => {}` (an arrow directly, without parens) is a
+            // SyntaxError — the heritage must be a LeftHandSideExpression.
+            if (probeArrow(2)) {
+                throw new ParserException(
+                        "class heritage must not be an arrow function",
+                        new org.ngscript.api.Source(null, t.line));
+            }
+            expr = parseParenOrArrow(t);
+        } else {
+            expr = parseExpr9();
+        }
         while (peekIs("dot")) {
             Token dot = next();
             Token name = expect("ident");
@@ -2892,7 +2906,7 @@ public class NgParser {
             case "go": case "throw": case "for": case "else": case "do":
             case "in": case "instanceof": case "delete": case "void": case "with":
             case "class": case "const": case "enum": case "export": case "extends":
-            case "super": case "import":
+            case "super": case "import": case "debugger":
                 return true;
             default:
                 return false;
