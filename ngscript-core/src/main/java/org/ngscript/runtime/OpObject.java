@@ -603,6 +603,18 @@ public class OpObject {
      */
     public static MemRef functionMember(ScriptFunction fn, String member, Machine vm) {
         switch (member) {
+            case "caller":
+            case "arguments":
+                // strict functions (all class constructors/methods, and
+                // any "use strict" function) throw on these: ES forbids
+                // accessing the poisoned caller/arguments properties
+                if (fn.strict) {
+                    throw new IllegalArgumentException(
+                            "'caller', 'callee', and 'arguments' properties may "
+                                    + "not be accessed on strict mode functions "
+                                    + "or the arguments objects for calls to them");
+                }
+                return null; // sloppy functions fall through to Function.prototype
             case "prototype":
                 if (fn.deletedProps != null && fn.deletedProps.contains("prototype")) {
                     return new MemRef(Undefined.value);
@@ -617,6 +629,9 @@ public class OpObject {
                 }
                 return new MemRef(fn.name == null ? "" : fn.name);
             case "length":
+                if (fn.deletedProps != null && fn.deletedProps.contains("length")) {
+                    return new MemRef(Undefined.value);
+                }
                 return new MemRef(fn.params);
             case "call":
             case "apply":
@@ -742,8 +757,13 @@ public class OpObject {
                 f.deletedProps.add("prototype");
                 ok = true;
             } else if ("length".equals(key)) {
-                ok = false; // ES: length is configurable, but the backing
-                            // slot is intrinsic; treat as non-configurable
+                // ES: length is configurable: true; delete removes it as
+                // an own property (reads then yield undefined)
+                if (f.deletedProps == null) {
+                    f.deletedProps = new java.util.HashSet<>();
+                }
+                f.deletedProps.add("length");
+                ok = true;
             } else {
                 java.util.Map<String, MemRef> own = vm.hostProps.get(obj);
                 ok = own != null && own.remove(key) != null;
@@ -1044,6 +1064,25 @@ public class OpObject {
         if (obj instanceof NgsObject) {
             java.util.Set<String> set = ((NgsObject) obj).enumerableKeys();
             keys = set.toArray(new String[0]);
+        } else if (obj instanceof org.ngscript.value.ScriptFunction) {
+            // class constructors hold static members in hostProps; for-in
+            // sees the enumerable string-keyed ones (like Object.keys)
+            java.util.Map<String, MemRef> own = vm.hostProps.get(obj);
+            if (own == null) {
+                keys = new String[0];
+            } else {
+                java.util.Set<String> nonEnum = vm.hostNonEnumerable.get(obj);
+                java.util.List<String> list = new java.util.ArrayList<>();
+                for (String k : own.keySet()) {
+                    if (k.startsWith("@@")) {
+                        continue; // symbol keys are not string keys
+                    }
+                    if (nonEnum == null || !nonEnum.contains(k)) {
+                        list.add(k);
+                    }
+                }
+                keys = list.toArray(new String[0]);
+            }
         } else if (obj instanceof String) {
             String s = (String) obj;
             keys = new String[s.length()];
@@ -1346,7 +1385,7 @@ public class OpObject {
             // hostProps as an accessor-backed reference so member reads and
             // writes go through the getter/setter
             java.util.Map<String, MemRef> props = vm.hostProps.computeIfAbsent(proto,
-                    k -> new java.util.HashMap<>());
+                    k -> new java.util.LinkedHashMap<>());
             MemRef slot = props.get(key);
             Object getter = slot instanceof HostAccessorRef
                     ? ((HostAccessorRef) slot).getter : null;
@@ -1525,6 +1564,128 @@ public class OpObject {
     }
 
     /**
+     * A super-member reference used as an assignment target: reads resolve
+     * on the superclass prototype chain (like super_ref), writes land on
+     * `this` — ES super.x = v defines/updates an own property on the
+     * receiver (or invokes the inherited setter; the simple model writes
+     * the own property).
+     */
+    static class SuperSetRef extends MemRef {
+        final Machine vm;
+        final String key;
+        final Object superProto;
+
+        SuperSetRef(Machine vm, String key, Object superProto) {
+            super(null, false);
+            this.vm = vm;
+            this.key = key;
+            this.superProto = superProto;
+        }
+
+        @Override
+        public Object read() {
+            if (superProto instanceof NgsObject) {
+                MemRef r = findInProtoChain((NgsObject) superProto, key);
+                if (r != null) {
+                    return r.read();
+                }
+            }
+            return Undefined.value;
+        }
+
+        @Override
+        public void write(Object v) {
+            Object t = vm.thisRef.read();
+            if (t == Machine.THIS_TDZ) {
+                throw new RuntimeException(
+                        "Cannot access 'this' before initialization");
+            }
+            if (t instanceof NgsObject) {
+                ((NgsObject) t).set(key, v);
+                return;
+            }
+            throw new NgScriptRuntimeException(vm,
+                    "Cannot set property '" + key + "' of "
+                            + (t == null ? "null"
+                                    : (t == Undefined.value ? "undefined"
+                                            : t.getClass().getSimpleName())));
+        }
+    }
+
+    /**
+     * super.x = v (string key): eax holds %superproto (or undefined); the
+     * result is a reference that writes the instance.
+     */
+    public static void super_set(Machine vm, String param, String param_extend) {
+        vm.eax.write(new SuperSetRef(vm, param, vm.eax.read()));
+    }
+
+    /**
+     * super[expr] = v: the key sits on the stack (evaluated first, like
+     * super_ref_k); eax holds %superproto or undefined.
+     */
+    public static void super_set_k(Machine vm, String param, String param_extend) {
+        Object key = vm.stack.pop();
+        vm.eax.write(new SuperSetRef(vm, OpArray.keyString(key), vm.eax.read()));
+    }
+
+    /**
+     * super.x inside a static field initializer or static block: the
+     * member is resolved on the superclass *constructor* (the static
+     * HomeObject), not its prototype. Reads static members (hostProps)
+     * and inherited ones (Function.prototype chain).
+     */
+    public static void super_static_ref(Machine vm, String param, String param_extend) {
+        Object sc = lookupSuperclass(vm);
+        vm.eax.write(findOnSuper(sc, param, vm));
+    }
+
+    /** Computed-key variant: the key sits on the stack. */
+    public static void super_static_ref_k(Machine vm, String param, String param_extend) {
+        Object key = vm.stack.pop();
+        Object sc = lookupSuperclass(vm);
+        vm.eax.write(findOnSuper(sc, OpArray.keyString(key), vm));
+    }
+
+    private static Object lookupSuperclass(Machine vm) {
+        NgsObject env = (NgsObject) vm.env.read();
+        while (env != null) {
+            MemRef m = env.dataGet("%superclass");
+            if (m != null) {
+                return m.read();
+            }
+            env = env.envParent();
+        }
+        return Undefined.value;
+    }
+
+    private static Object findOnSuper(Object sc, String member, Machine vm) {
+        if (sc instanceof ScriptFunction) {
+            java.util.Map<String, MemRef> own = vm.hostProps.get(sc);
+            if (own != null) {
+                MemRef dyn = own.get(member);
+                if (dyn != null) {
+                    return dyn;
+                }
+            }
+            MemRef ref = functionMember((ScriptFunction) sc, member, vm);
+            if (ref != null) {
+                return ref;
+            }
+            ref = objectProtoMember(member);
+            if (ref != null) {
+                return ref;
+            }
+            return new MemRef(Undefined.value);
+        }
+        if (sc instanceof NgsObject) {
+            MemRef ref = findInProtoChain((NgsObject) sc, member);
+            return ref != null ? ref : new MemRef(Undefined.value);
+        }
+        return new MemRef(Undefined.value);
+    }
+
+    /**
      * Computed-key {@code super[expr]}: the key sits on the stack (evaluated
      * before super_proto), eax holds %superproto or undefined; the member is
      * resolved like {@link #super_ref}.
@@ -1663,7 +1824,7 @@ public class OpObject {
         }
         // host objects fall back to the shared hostProps map
         java.util.Map<String, MemRef> created = vm.hostProps.computeIfAbsent(objs[0],
-                k -> new java.util.HashMap<>());
+                k -> new java.util.LinkedHashMap<>());
         MemRef slot = created.get(member);
         if (slot == null) {
             slot = new MemRef(Undefined.value);
@@ -1714,7 +1875,7 @@ public class OpObject {
         }
         // host objects fall back to the shared hostProps map
         java.util.Map<String, MemRef> created = vm.hostProps.computeIfAbsent(objs[0],
-                k -> new java.util.HashMap<>());
+                k -> new java.util.LinkedHashMap<>());
         MemRef slot = created.get(member);
         if (slot == null) {
             slot = new MemRef(Undefined.value);
@@ -1731,6 +1892,65 @@ public class OpObject {
     public static void new_target(Machine vm, String param, String param_extend) {
         Object t = vm.newTarget;
         vm.eax.write(t == null ? Undefined.value : t);
+    }
+
+    /**
+     * Marks the current `this` binding as uninitialized: the first thing a
+     * derived constructor does before its super() call. Reading `this`
+     * (deref_this) then throws a ReferenceError until init_this.
+     */
+    public static void set_this_tdz(Machine vm, String param, String param_extend) {
+        vm.thisRef.write(Machine.THIS_TDZ);
+    }
+
+    /**
+     * Pushes the instance of the current constructor call as the receiver
+     * of super(): the `this` binding is still uninitialized, but the
+     * superclass constructor receives the new object itself.
+     */
+    public static void push_super_this(Machine vm, String param, String param_extend) {
+        // ES: super() may only be called while the this binding is still
+        // uninitialized; a second call throws a ReferenceError
+        if (vm.thisRef.read() != Machine.THIS_TDZ) {
+            throw new RuntimeException("Super constructor may only be called once");
+        }
+        vm.superInProgress = true;
+        vm.stack.push(vm.superReceiver);
+    }
+
+    /** Initializes the `this` binding after super() returns. */
+    public static void init_this(Machine vm, String param, String param_extend) {
+        vm.superInProgress = false;
+        Object result = vm.eax.read();
+        if (result instanceof NgsArray && vm.superReceiver instanceof NgsObject) {
+            // super() invoked a built-in array constructor (class A extends
+            // Array {}): ES [[Construct]] makes the new instance an array.
+            // Transplant the array contents into the instance frame so the
+            // receiver behaves like the array (length, indices).
+            NgsArray arr = (NgsArray) result;
+            NgsObject inst = (NgsObject) vm.superReceiver;
+            for (String k : arr.keys()) {
+                MemRef r = arr.dataGet(k);
+                if (r != null) {
+                    inst.putRef(k, new MemRef(r.read()));
+                }
+            }
+            inst.putRef("length", new MemRef(arr.length()));
+        }
+        vm.thisRef.write(vm.superReceiver);
+    }
+
+    /**
+     * Reads `this`: the TDZ sentinel of a derived constructor before
+     * super() returns throws a ReferenceError (ES: the this binding is
+     * uninitialized until super() completes).
+     */
+    public static void deref_this(Machine vm, String param, String param_extend) {
+        Object t = vm.thisRef.read();
+        if (t == Machine.THIS_TDZ) {
+            throw new RuntimeException("Cannot access 'this' before initialization");
+        }
+        vm.eax.write(t);
     }
 
     /**

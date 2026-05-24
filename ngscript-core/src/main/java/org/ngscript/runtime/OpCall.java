@@ -275,6 +275,7 @@ public class OpCall {
                             (c.name == null ? "" : c.name + " ") + "is not a constructor");
                 }
                 vm.thisRef.write(env);
+                vm.superReceiver = env;
                 // link the prototype now so the constructor body itself can
                 // check `this instanceof Ctor` (new_op re-links idempotently)
                 env.setConstructor(c);
@@ -284,8 +285,10 @@ public class OpCall {
             } else if (c.arrow) {
                 // arrows keep the this binding captured at creation time
                 // (and inherit new.target lexically: the register is
-                // untouched, so the value of the surrounding context stays)
-                vm.thisRef.write(c.capturedThis != null ? c.capturedThis : Undefined.value);
+                // untouched, so the value of the surrounding context stays).
+                // A captured TDZ sentinel is resolved lazily: the binding
+                // may have been initialized by an intervening super().
+                vm.thisRef.write(org.ngscript.runtime.Machine.resolveArrowThis(c, vm));
             } else if (receiver != null) {
                 vm.thisRef.write(receiver);
                 // a plain call has no new.target

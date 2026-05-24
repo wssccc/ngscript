@@ -201,6 +201,13 @@ public class NgParser {
     private int superDepth;
 
     /**
+     * Depth of derived-constructor bodies being parsed: super() is only
+     * legal directly inside a derived constructor (class field initializers
+     * and ordinary methods may use super.x but not super()).
+     */
+    private int superCallDepth;
+
+    /**
      * The expression produced by the most recent parenthesized expression
      * ({@code (x)}), used by parseAssignment to detect a covered left-hand
      * side: {@code (x) = v} must not infer a name for an anonymous
@@ -852,7 +859,8 @@ public class NgParser {
                                 mname, accParams, body,
                                 isStatic, isGetter, isSetter, false,
                                 false, computedKey);
-                        md.strict = pendingFunctionStrict;
+                        // class code is always strict mode (ES)
+                        md.strict = true;
                         methods.add(md);
                     } finally {
                         --functionDepth;
@@ -958,6 +966,7 @@ public class NgParser {
             int savedGen = generatorDepth;
             int savedAsync = asyncDepth;
             int savedSuper = superDepth;
+            int savedSuperCall = superCallDepth;
             if (isGenerator) {
                 ++generatorDepth;
             } else {
@@ -966,23 +975,29 @@ public class NgParser {
             asyncDepth = isAsync ? 1 : 0;
             // class methods allow super
             ++superDepth;
+            // super() is only legal in a derived constructor's body
+            boolean isCtor = mname != null && mname.value != null
+                    && mname.value.equals("constructor")
+                    && !isStatic && !isGenerator && !isAsync;
+            if (isCtor && superClass != null) {
+                ++superCallDepth;
+            }
             try {
                 Block body = parseFunctionBody();
                 // keyword tokens (break/if/...) have a null value: only a
                 // real ident token can be `constructor`
-                boolean isCtor = mname != null && mname.value != null
-                        && mname.value.equals("constructor")
-                        && !isStatic && !isGenerator && !isAsync;
                 ClassExpr.MethodDef md2 = new ClassExpr.MethodDef(
                         mname == null ? null : tokenName(mname), params, body,
                         isStatic, false, false, isCtor, isGenerator, isAsync, computedKey);
-                md2.strict = pendingFunctionStrict;
+                // class code is always strict mode (ES)
+                md2.strict = true;
                 methods.add(md2);
             } finally {
                 --functionDepth;
                 generatorDepth = savedGen;
                 asyncDepth = savedAsync;
                 superDepth = savedSuper;
+                superCallDepth = savedSuperCall;
             }
             if (peekIs("semicolon")) {
                 next();
@@ -2595,6 +2610,14 @@ public class NgParser {
                             new org.ngscript.api.Source(null, t.line));
                 }
                 if (peekIs("lparen")) {
+                    if (superCallDepth == 0) {
+                        // super() is only legal directly in a derived
+                        // constructor body (field initializers and other
+                        // methods may use super.x but not super())
+                        throw new ParserException(
+                                "super() is only allowed in a derived constructor",
+                                new org.ngscript.api.Source(null, t.line));
+                    }
                     next();
                     List<Expr> args = parseParams();
                     expect("rparen");

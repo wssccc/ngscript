@@ -80,7 +80,30 @@ public class NgsArray extends NgsObject implements java.util.Iterator<Object>, j
     @Override
     public void set(String member, Object value) {
         super.set(member, value);
-        if ("length".equals(member) || isNumericKey(member)) {
+        if ("length".equals(member)) {
+            // an explicit length (new Array(n), Array.prototype.length =
+            // v): keep it when it covers the highest numeric index (ES
+            // length is always one past the highest index); a write that
+            // would leave holes below the max invalidates the cache so
+            // the virtual length recomputes
+            Object cached = get("length");
+            if (cached instanceof Integer) {
+                int len = (Integer) cached;
+                int max = 0;
+                for (String key : keys()) {
+                    try {
+                        max = Math.max(max, Integer.parseInt(key) + 1);
+                    } catch (NumberFormatException ignored) {
+                        // non-numeric keys do not affect length
+                    }
+                }
+                if (len < max) {
+                    remove("length");
+                }
+            }
+            return;
+        }
+        if (isNumericKey(member)) {
             // invalidate the cached virtual length
             remove("length");
         }
@@ -94,7 +117,8 @@ public class NgsArray extends NgsObject implements java.util.Iterator<Object>, j
         return super.remove(key);
     }
 
-    private static boolean isNumericKey(String key) {
+    /** True for all-digit keys (array indices), used by length tracking. */
+    static boolean isNumericKey(String key) {
         if (key.isEmpty()) {
             return false;
         }
@@ -128,5 +152,34 @@ public class NgsArray extends NgsObject implements java.util.Iterator<Object>, j
             return ref;
         }
         return super.lookup(member, vm, isMember);
+    }
+
+    @Override
+    public MemRef lookupForWrite(String member, Machine vm) throws NgScriptRuntimeException {
+        if (!"length".equals(member) && isNumericKey(member)) {
+            // a numeric index write must go through set() so the virtual
+            // length cache invalidates (a[3] = v grows a.length); the
+            // writability/private-write checks apply as for any data key
+            MemRef ref = dataGet(member);
+            if (ref != null) {
+                if (isWriteThrows(member)) {
+                    throw new IllegalArgumentException(
+                            "Cannot write to private method '" + member + "'");
+                }
+                if (isNonWritable(member)) {
+                    // non-writable property: writes are silently ignored
+                    return new MemRef(ref.read());
+                }
+                return ref;
+            }
+            final String key = member;
+            return new MemRef(org.ngscript.value.Undefined.value) {
+                @Override
+                public void write(Object v) {
+                    set(key, v);
+                }
+            };
+        }
+        return super.lookupForWrite(member, vm);
     }
 }

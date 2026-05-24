@@ -29,11 +29,11 @@ import org.ngscript.api.Configuration;
 import org.ngscript.ast.ArrayLiteral;
 import org.ngscript.ast.AssignExpr;
 import org.ngscript.ast.AstNode;
-import org.ngscript.ast.BrandInstallStmt;
 import org.ngscript.ast.AwaitExpr;
 import org.ngscript.ast.BinaryExpr;
 import org.ngscript.ast.Block;
 import org.ngscript.ast.BlockStmt;
+import org.ngscript.ast.BrandInstallStmt;
 import org.ngscript.ast.BreakStmt;
 import org.ngscript.ast.CallExpr;
 import org.ngscript.ast.ClassExpr;
@@ -248,6 +248,21 @@ public class Compiler {
      * to sloppy.
      */
     private boolean currentStrict;
+
+    /**
+     * True while compiling a derived constructor's body: its first
+     * emitted instruction marks the this binding as uninitialized (TDZ),
+     * and this reads (deref_this) throw until super() returns. Nested
+     * function bodies reset it (arrows capture the sentinel by value).
+     */
+    private boolean derivedCtorCompiling;
+
+    /**
+     * True while compiling a static field initializer or static block:
+     * super.x resolves on the superclass constructor (static HomeObject)
+     * instead of its prototype.
+     */
+    private boolean staticSuperContext;
 
     /** Emits a label op, recording the current block depth for jump fixups. */
     private void emitLabel(String name) {
@@ -797,6 +812,16 @@ public class Compiler {
         emitJump(exit);
         emitLabel(enter);
 
+        // a derived constructor starts with an uninitialized this binding:
+        // reading this before super() returns is a ReferenceError. Only the
+        // top-level constructor body emits the marker (nested functions and
+        // arrows reset the flag; arrows capture the sentinel by value).
+        boolean savedCtorTdz = derivedCtorCompiling;
+        if (derivedCtorCompiling) {
+            assembler.emit("set_this_tdz");
+            derivedCtorCompiling = false;
+        }
+
         // nested functions/arrows have their own block-depth bookkeeping
         int savedBlockDepth = blockDepth;
         blockDepth = 0;
@@ -932,6 +957,7 @@ public class Compiler {
             blockDepth = savedBlockDepth;
             tryDepth = savedTryDepth;
             fieldInitCompileDepth = savedFieldInitDepth;
+            derivedCtorCompiling = savedCtorTdz;
         }
         emitLabel(exit);
         return enter;
@@ -951,7 +977,13 @@ public class Compiler {
         } else if (expr instanceof IdentExpr) {
             IdentExpr ident = (IdentExpr) expr;
             if (!byref) {
-                assembler.emit("deref", ident.name);
+                if ("this".equals(ident.name)) {
+                    // this may be uninitialized (TDZ) inside a derived
+                    // constructor before its super() call returns
+                    assembler.emit("deref_this");
+                } else {
+                    assembler.emit("deref", ident.name);
+                }
             } else {
                 assembler.emit("mov_eax", ident.name);
             }
@@ -1030,6 +1062,23 @@ public class Compiler {
                 assembler.emit("push_eax");
                 emitKey(member.name);
                 assembler.emit("member_ref_w");
+                assembler.emit("push_eax");
+                compileExpr(assign.value);
+                assembler.emit("assign");
+            } else if (assign.target instanceof SuperMemberExpr) {
+                // super.x = v: writes land on the instance (this), with the
+                // key resolved on the superclass prototype for reads
+                SuperMemberExpr sm = (SuperMemberExpr) assign.target;
+                if (sm.key != null) {
+                    compileExpr(sm.key);
+                    assembler.emit("push_eax");
+                }
+                assembler.emit("super_proto");
+                if (sm.key != null) {
+                    assembler.emit("super_set_k");
+                } else {
+                    assembler.emit("super_set", sm.name);
+                }
                 assembler.emit("push_eax");
                 compileExpr(assign.value);
                 assembler.emit("assign");
@@ -1238,21 +1287,40 @@ public class Compiler {
             compileClass((ClassExpr) expr);
         } else if (expr instanceof SuperCallExpr) {
             SuperCallExpr sc = (SuperCallExpr) expr;
-            // receiver = the current instance, callee = the superclass
-            // constructor (bound as %superclass by the class definition)
-            assembler.emit("deref", "this");
-            assembler.emit("push_eax");
+            // receiver = the new instance (the this binding is still
+            // uninitialized — the TDZ sentinel), callee = the superclass
+            // constructor (bound as %superclass by the class definition);
+            // the this binding is initialized right after super returns
+            assembler.emit("push_super_this");
             assembler.emit("deref", "%superclass");
             assembler.emit("push_eax");
             emitArgs(sc.args);
             assembler.emit("push_env");
             assembler.emit("call");
+            assembler.emit("init_this");
             assembler.emit("pop_env");
             assembler.emit("pop");//pop params
             assembler.emit("pop");//pop function body
             assembler.emit("pop");//pop receiver
         } else if (expr instanceof SuperMemberExpr) {
             SuperMemberExpr sm = (SuperMemberExpr) expr;
+            if (staticSuperContext) {
+                // static field initializer / static block: super resolves
+                // on the superclass constructor (static HomeObject)
+                if (sm.key != null) {
+                    compileExpr(sm.key);
+                    assembler.emit("push_eax");
+                }
+                if (sm.key != null) {
+                    assembler.emit("super_static_ref_k");
+                } else {
+                    assembler.emit("super_static_ref", sm.name);
+                }
+                if (!byref) {
+                    assembler.emit("deref", "%eax");
+                }
+                return;
+            }
             // member resolved on the superclass prototype (bound as
             // %superproto by class definitions); object literal methods
             // have no such binding, so super_ref falls back to the dynamic
@@ -2426,10 +2494,19 @@ public class Compiler {
             ctorParams = ctor.params;
             List<Stmt> stmts = new ArrayList<>(ctor.body.statements);
             int insertAt = 0;
-            if (cls.superClass != null && !stmts.isEmpty()
-                    && stmts.get(0) instanceof ExprStmt
-                    && ((ExprStmt) stmts.get(0)).expr instanceof SuperCallExpr) {
-                insertAt = 1;
+            if (cls.superClass != null) {
+                // ES: field initializers run right after the first super()
+                // call returns — wherever it appears in the constructor
+                // body — and the brand is installed at the same point
+                // (private members are not accessible before super returns)
+                for (int i = 0; i < stmts.size(); i++) {
+                    Stmt s = stmts.get(i);
+                    if (s instanceof ExprStmt
+                            && ((ExprStmt) s).expr instanceof SuperCallExpr) {
+                        insertAt = i + 1;
+                        break;
+                    }
+                }
             }
             stmts.addAll(insertAt, fieldStmts);
             // the brand is installed right after the leading super() call
@@ -2452,10 +2529,21 @@ public class Compiler {
             stmts.addAll(fieldStmts);
             ctorBody = new Block(stmts, cls.line);
         }
-        String enter = _compile_function_body(ctorParams, ctorBody);
+        boolean savedCtorTdz = derivedCtorCompiling;
+        derivedCtorCompiling = cls.superClass != null;
+        String enter;
+        try {
+            enter = _compile_function_body(ctorParams, ctorBody);
+        } finally {
+            derivedCtorCompiling = savedCtorTdz;
+        }
         assembler.emit("new_closure", enter, "0");
         assembler.emit("set_func_meta", functionLength(ctorParams) + "",
                 cls.name == null ? "" : cls.name);
+        // class constructors are strict-mode functions (ES class code)
+        if (ctor == null || ctor.strict) {
+            assembler.emit("set_func_strict");
+        }
         if (cls.name == null && inferredName != null) {
             // ES SetFunctionName for an anonymous class expression assigned
             // to a name: install the inferred name before static field
@@ -2530,44 +2618,50 @@ public class Compiler {
         }
         if (hasStaticElements) {
             assembler.emit("push_this");
-            for (ClassExpr.FieldDef f : cls.fields) {
-                if (!f.isStatic) {
-                    continue;
+            boolean savedStaticSuper = staticSuperContext;
+            staticSuperContext = true;
+            try {
+                for (ClassExpr.FieldDef f : cls.fields) {
+                    if (!f.isStatic) {
+                        continue;
+                    }
+                    if (f.name != null && "constructor".equals(f.name) && f.computedKey == null) {
+                        // ES early error: a static field may not be named
+                        // constructor (the computed-key form is allowed)
+                        throw compileError("Class static fields may not be named 'constructor'");
+                    }
+                    assembler.emit("peek", "0");
+                    assembler.emit("push_eax");
+                    assembler.emit("set_this");
+                    if (f.computedKey != null) {
+                        compileExpr(f.computedKey);
+                        assembler.emit("to_string");
+                    } else {
+                        emitKey(f.name, true);
+                    }
+                    assembler.emit("own_member_ref");
+                    assembler.emit("push_eax");
+                    if (f.initializer != null) {
+                        compileExpr(f.initializer);
+                        maybeInferFuncName(f.initializer, f.name);
+                    } else {
+                        assembler.emit("undefined");
+                    }
+                    assembler.emit("assign");
                 }
-                if (f.name != null && "constructor".equals(f.name) && f.computedKey == null) {
-                    // ES early error: a static field may not be named
-                    // constructor (the computed-key form is allowed)
-                    throw compileError("Class static fields may not be named 'constructor'");
+                // static initialization blocks, in declaration order (this is
+                // bound to the constructor like static field initializers; the
+                // outer this was saved by the surrounding push_this)
+                for (Block b : cls.staticBlocks) {
+                    assembler.emit("peek", "0");
+                    assembler.emit("push_eax");
+                    assembler.emit("set_this");
+                    for (Stmt s : b.statements) {
+                        compileStmt(s);
+                    }
                 }
-                assembler.emit("peek", "0");
-                assembler.emit("push_eax");
-                assembler.emit("set_this");
-                if (f.computedKey != null) {
-                    compileExpr(f.computedKey);
-                    assembler.emit("to_string");
-                } else {
-                    emitKey(f.name, true);
-                }
-                assembler.emit("own_member_ref");
-                assembler.emit("push_eax");
-                if (f.initializer != null) {
-                    compileExpr(f.initializer);
-                    maybeInferFuncName(f.initializer, f.name);
-                } else {
-                    assembler.emit("undefined");
-                }
-                assembler.emit("assign");
-            }
-            // static initialization blocks, in declaration order (this is
-            // bound to the constructor like static field initializers; the
-            // outer this was saved by the surrounding push_this)
-            for (Block b : cls.staticBlocks) {
-                assembler.emit("peek", "0");
-                assembler.emit("push_eax");
-                assembler.emit("set_this");
-                for (Stmt s : b.statements) {
-                    compileStmt(s);
-                }
+            } finally {
+                staticSuperContext = savedStaticSuper;
             }
             assembler.emit("pop_this");
         }

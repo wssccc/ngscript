@@ -67,7 +67,7 @@ public class Machine {
         java.util.Map<Object, java.util.Map<String, MemRef>> snap =
                 new java.util.IdentityHashMap<>();
         for (java.util.Map.Entry<Object, java.util.Map<String, MemRef>> e : hostProps.entrySet()) {
-            snap.put(e.getKey(), new java.util.HashMap<>(e.getValue()));
+            snap.put(e.getKey(), new java.util.LinkedHashMap<>(e.getValue()));
         }
         return snap;
     }
@@ -76,7 +76,7 @@ public class Machine {
     public void restoreHostProps(java.util.Map<Object, java.util.Map<String, MemRef>> snapshot) {
         hostProps.clear();
         for (java.util.Map.Entry<Object, java.util.Map<String, MemRef>> e : snapshot.entrySet()) {
-            java.util.Map<String, MemRef> fresh = new java.util.HashMap<>();
+            java.util.Map<String, MemRef> fresh = new java.util.LinkedHashMap<>();
             for (java.util.Map.Entry<String, MemRef> m : e.getValue().entrySet()) {
                 MemRef ref = m.getValue();
                 fresh.put(m.getKey(), new MemRef(ref.read(), ref.isImmutable()));
@@ -134,6 +134,41 @@ public class Machine {
      * bound by the call opcode (method receivers) and new_op (instances).
      */
     public final MemRef thisRef = new MemRef();
+
+    /**
+     * The instance of the innermost constructor call (set by the new path;
+     * derived constructors use it as the receiver of super() — the `this`
+     * binding is uninitialized until super returns).
+     */
+    public Object superReceiver;
+
+    /** Sentinel marking the uninitialized `this` binding of a derived
+     * constructor before super() returns (reading it throws). */
+    public static final Object THIS_TDZ = new Object();
+
+    /**
+     * The this binding for an arrow invocation. Arrows capture the value
+     * at creation time; a captured TDZ sentinel is resolved lazily: after
+     * the enclosing super() returns, the binding holds the instance, and
+     * the arrow must see it (the sentinel would otherwise be stuck).
+     * While the binding is still uninitialized (thisRef is the sentinel,
+     * or a super() call is in progress), the sentinel is kept so that
+     * deref_this throws a ReferenceError.
+     */
+    public static Object resolveArrowThis(org.ngscript.value.ScriptFunction c, Machine vm) {
+        Object captured = c.capturedThis;
+        if (captured != THIS_TDZ) {
+            return captured != null ? captured : Undefined.value;
+        }
+        if (vm.thisRef.read() != THIS_TDZ && !vm.superInProgress) {
+            return vm.superReceiver;
+        }
+        return THIS_TDZ;
+    }
+
+    /** True while a super() call is executing: a captured-TDZ arrow
+     * must still throw on `this` until the binding is initialized. */
+    public boolean superInProgress;
 
     /**
      * The saved {@code this} stack for class static field initializers
@@ -513,11 +548,12 @@ public class Machine {
                 // the plain call path); link constructor/prototype so the
                 // constructor body can use `this instanceof Ctor`
                 thisRef.write(frame);
+                superReceiver = frame;
                 frame.setConstructor(c);
                 frame.setPrototype(c.getPrototypeObject());
             } else {
                 thisRef.write(c.arrow
-                        ? (c.capturedThis != null ? c.capturedThis : Undefined.value)
+                        ? resolveArrowThis(c, this)
                         : (receiver != null ? receiver : Machine.globalThis));
             }
             stack.push(receiver != null ? receiver : null);

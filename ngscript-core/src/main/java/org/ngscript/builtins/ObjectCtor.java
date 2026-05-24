@@ -163,7 +163,8 @@ public class ObjectCtor implements Invokable {
                         desc.set("writable", Boolean.TRUE);
                         desc.set("enumerable", Boolean.FALSE);
                         desc.set("configurable", Boolean.TRUE);
-                        if (("name".equals(name) || "prototype".equals(name))
+                        if (("name".equals(name) || "prototype".equals(name)
+                                || "length".equals(name))
                                 && f.deletedProps != null
                                 && f.deletedProps.contains(name)) {
                             // the property was deleted: no own descriptor
@@ -223,18 +224,81 @@ public class ObjectCtor implements Invokable {
                     int i = 0;
                     if (args.length > 0 && args[0] instanceof org.ngscript.value.ScriptFunction) {
                         org.ngscript.value.ScriptFunction f = (org.ngscript.value.ScriptFunction) args[0];
-                        // intrinsic function properties first, then the
-                        // class-defined static members (hostProps)
-                        for (String k : functionPropertyNames()) {
-                            out.set("" + i++, k);
-                        }
+                        // ES OrdinaryOwnPropertyKeys: array-index keys in
+                        // ascending numeric order first, then string keys
+                        // in creation order (function intrinsics length/
+                        // name/prototype, then class-defined statics)
                         java.util.Map<String, MemRef> own = vm2.hostProps.get(f);
+                        java.util.List<String> indexKeys = new java.util.ArrayList<>();
+                        java.util.List<String> otherKeys = new java.util.ArrayList<>();
                         if (own != null) {
                             for (String k : own.keySet()) {
                                 if (k.startsWith("@@")) {
                                     continue; // symbol keys are not string keys
                                 }
-                                out.set("" + i++, k);
+                                (isArrayIndexKey(k) ? indexKeys : otherKeys).add(k);
+                            }
+                        }
+                        java.util.Collections.sort(indexKeys,
+                                (a, b) -> Integer.compare(Integer.parseInt(a),
+                                        Integer.parseInt(b)));
+                        for (String k : indexKeys) {
+                            out.set("" + i++, k);
+                        }
+                        for (String k : functionPropertyNames()) {
+                            if (f.deletedProps != null
+                                    && f.deletedProps.contains(k)) {
+                                continue;
+                            }
+                            out.set("" + i++, k);
+                        }
+                        for (String k : otherKeys) {
+                            out.set("" + i++, k);
+                        }
+                        out.setPrototype(vm2.arrayPrototype);
+                        vm2.eax.write(out);
+                        return;
+                    }
+                    NgsObject o = objectArg(vm2, args, 0);
+                    java.util.List<String> indexKeys = new java.util.ArrayList<>();
+                    java.util.List<String> otherKeys = new java.util.ArrayList<>();
+                    for (String k : o.keys()) {
+                        if (k.startsWith("@@")) {
+                            continue; // symbol keys are not string keys
+                        }
+                        (isArrayIndexKey(k) ? indexKeys : otherKeys).add(k);
+                    }
+                    java.util.Collections.sort(indexKeys,
+                            (a, b) -> Integer.compare(Integer.parseInt(a),
+                                    Integer.parseInt(b)));
+                    for (String k : indexKeys) {
+                        out.set("" + i++, k);
+                    }
+                    for (String k : otherKeys) {
+                        out.set("" + i++, k);
+                    }
+                    if (o instanceof org.ngscript.runtime.NgsArray
+                            && !o.has("length")) {
+                        out.set("" + i++, "length");
+                    }
+                    out.setPrototype(vm2.arrayPrototype);
+                    vm2.eax.write(out);
+                });
+            case "getOwnPropertySymbols":
+                return new MemRef((Invokable) (vm2, args) -> {
+                    NgsArray out = new NgsArray(null);
+                    int i = 0;
+                    if (args.length > 0 && args[0] instanceof org.ngscript.value.ScriptFunction) {
+                        java.util.Map<String, MemRef> own = vm2.hostProps.get(args[0]);
+                        if (own != null) {
+                            for (String k : own.keySet()) {
+                                if (k.startsWith("@@")) {
+                                    org.ngscript.value.SymbolValue sv =
+                                            org.ngscript.value.SymbolValue.byId(k);
+                                    if (sv != null) {
+                                        out.set("" + i++, sv);
+                                    }
+                                }
                             }
                         }
                         out.setPrototype(vm2.arrayPrototype);
@@ -242,12 +306,12 @@ public class ObjectCtor implements Invokable {
                         return;
                     }
                     NgsObject o = objectArg(vm2, args, 0);
-                    for (String k : o.keys()) {
-                        out.set("" + i++, k);
-                    }
-                    if (o instanceof org.ngscript.runtime.NgsArray
-                            && !o.has("length")) {
-                        out.set("" + i++, "length");
+                    for (String k : o.symbolKeys()) {
+                        org.ngscript.value.SymbolValue sv =
+                                org.ngscript.value.SymbolValue.byId(k);
+                        if (sv != null) {
+                            out.set("" + i++, sv);
+                        }
                     }
                     out.setPrototype(vm2.arrayPrototype);
                     vm2.eax.write(out);
@@ -381,5 +445,23 @@ public class ObjectCtor implements Invokable {
         // ES own-property order for function objects: length, name,
         // prototype (chronological creation order)
         return new String[]{"length", "name", "prototype"};
+    }
+
+    /**
+     * True for canonical array-index keys ("0", "42", ...), which ES
+     * OrdinaryOwnPropertyKeys orders before all other string keys.
+     */
+    static boolean isArrayIndexKey(String k) {
+        if (k.isEmpty() || k.length() > 10) {
+            return false;
+        }
+        long v;
+        try {
+            v = Long.parseLong(k);
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        // canonical form (no leading zeros) and < 2^32 - 1
+        return v >= 0 && v < 4294967295L && Long.toString(v).equals(k);
     }
 }

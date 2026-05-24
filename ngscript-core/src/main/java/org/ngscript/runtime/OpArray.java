@@ -58,6 +58,16 @@ public class OpArray {
         if (objs[0] instanceof NgsObject) {
             NgsObject env = (NgsObject) objs[0];
             String member = keyString(objs[1]);
+            if (objs[0] instanceof NgsArray
+                    && !"length".equals(member)
+                    && NgsArray.isNumericKey(member)) {
+                // numeric index access on an array: resolve in write mode so
+                // a write (a[3] = v) goes through set() and invalidates the
+                // virtual length cache; reads of missing indices still yield
+                // undefined (the transient reference reads as undefined)
+                vm.eax.write(((NgsArray) objs[0]).lookupForWrite(member, vm));
+                return;
+            }
             MemRef ref = env.lookup(member, vm, true);
             vm.eax.write(ref);
             return;

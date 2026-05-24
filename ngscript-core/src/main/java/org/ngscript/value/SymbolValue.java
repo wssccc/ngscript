@@ -29,6 +29,10 @@ public class SymbolValue {
 
     private static final AtomicInteger COUNTER = new AtomicInteger();
 
+    /** id -> SymbolValue registry (for Object.getOwnPropertySymbols). */
+    private static final java.util.Map<String, SymbolValue> BY_ID =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     /**
      * The canonical property key for well-known symbols (e.g. "@@iterator"),
      * or null for user symbols.
@@ -41,6 +45,12 @@ public class SymbolValue {
         this.key = key;
         this.description = description;
         this.id = key != null ? key : "@@user#" + COUNTER.incrementAndGet();
+        BY_ID.put(id, this);
+    }
+
+    /** Looks up the SymbolValue for a canonical internal key, if known. */
+    public static SymbolValue byId(String id) {
+        return BY_ID.get(id);
     }
 
     /** The canonical property key of a well-known symbol. */

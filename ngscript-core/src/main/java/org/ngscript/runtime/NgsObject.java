@@ -945,6 +945,28 @@ public class NgsObject implements Scope {
     }
 
     /**
+     * The own symbol keys (their canonical {@code @@...} ids) in creation
+     * order: used by Object.getOwnPropertySymbols. Private names are
+     * excluded (they live in a separate private environment).
+     */
+    public java.util.List<String> symbolKeys() {
+        java.util.List<String> all = new java.util.ArrayList<>();
+        for (String k : data.keySet()) {
+            if (!isPrivateKey(k) && isSymbolKey(k)) {
+                all.add(k);
+            }
+        }
+        if (accessors != null && !accessors.isEmpty()) {
+            for (String k : accessors.keySet()) {
+                if (!isPrivateKey(k) && isSymbolKey(k)) {
+                    all.add(k);
+                }
+            }
+        }
+        return all;
+    }
+
+    /**
      * The enumerable own property names (ES [[OwnPropertyKeys]] filtered
      * by enumerability): used by Object.keys, for-in and object rest.
      */
