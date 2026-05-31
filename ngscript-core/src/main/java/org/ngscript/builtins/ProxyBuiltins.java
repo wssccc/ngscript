@@ -120,7 +120,10 @@ public class ProxyBuiltins {
     }
 
     private static Object requireObject(Machine vm, Object o, String what) {
-        if (o == null || o == Undefined.value || !(o instanceof NgsObject)) {
+        boolean isObject = o instanceof NgsObject
+                || o instanceof org.ngscript.value.ScriptFunction
+                || o instanceof org.ngscript.value.Invokable;
+        if (o == null || o == Undefined.value || !isObject) {
             throw new NgScriptRuntimeException(vm, what + " must be an object");
         }
         return o;

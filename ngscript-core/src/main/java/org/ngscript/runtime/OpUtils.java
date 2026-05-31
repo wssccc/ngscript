@@ -46,69 +46,89 @@ public class OpUtils {
             // (when present and callable) wins; a present but non-callable
             // @@toPrimitive is a TypeError. Otherwise OrdinaryToPrimitive
             // tries toString, then valueOf; a missing pair is a TypeError.
+            // Only the *lookup* is guarded: an exception thrown by the
+            // @@toPrimitive call itself must propagate (a swallowed
+            // NgScriptRuntimeException would turn a thrown value into a
+            // string key).
+            MemRef tpRef = null;
             try {
-                MemRef tpRef = obj.lookup("@@toPrimitive", vm, true);
-                Object tp = tpRef.read();
-                if (tp != null && tp != Undefined.value) {
-                    if (tp instanceof ScriptFunction || tp instanceof Invokable) {
-                        Object r;
-                        try {
-                            r = callValue(vm, tp, obj, new Object[]{"string"});
-                        } catch (Exception ex) {
-                            throw ex instanceof RuntimeException
-                                    ? (RuntimeException) ex
-                                    : new RuntimeException(ex.getMessage() == null
-                                            ? ex.toString() : ex.getMessage());
-                        }
-                        if (!(r instanceof NgsObject)
-                                && !(r instanceof org.ngscript.value.ScriptFunction)
-                                && !(r instanceof org.ngscript.value.Invokable)
-                                && !(r instanceof org.ngscript.value.SymbolValue)
-                                && !(r instanceof org.ngscript.value.BigIntValue)
-                                && r != null && r != Undefined.value) {
-                            // primitives other than symbols/objects are fine
-                            return toStringValue(r);
-                        }
-                        if (r instanceof org.ngscript.value.SymbolValue) {
-                            return ((org.ngscript.value.SymbolValue) r).getId();
-                        }
-                        if (r instanceof org.ngscript.value.BigIntValue) {
-                            return r.toString();
-                        }
-                        if (r instanceof String) {
-                            return (String) r;
-                        }
-                        if (r instanceof Number || r instanceof Boolean) {
-                            return toStringValue(r);
-                        }
-                        // a non-primitive result is a TypeError
-                        throw new IllegalArgumentException(
-                                "Cannot convert object to primitive value");
-                    }
-                    throw new IllegalArgumentException(
-                            "Symbol.toPrimitive is not callable");
-                }
-            } catch (NgScriptRuntimeException ignored) {
+                tpRef = obj.lookup("@@toPrimitive", vm, true);
+            } catch (NgScriptRuntimeException nge) {
                 // no @@toPrimitive on the object or its prototype chain
+            }
+            Object tp = tpRef == null ? null : tpRef.read();
+            if (tp != null && tp != Undefined.value) {
+                if (tp instanceof ScriptFunction || tp instanceof Invokable) {
+                    Object r;
+                    try {
+                        r = callValue(vm, tp, obj, new Object[]{"string"});
+                    } catch (RuntimeException re) {
+                        // propagate the thrown value / TypeError untouched
+                        throw re;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e.getMessage() == null
+                                ? e.toString() : e.getMessage());
+                    }
+                    if (!(r instanceof NgsObject)
+                            && !(r instanceof org.ngscript.value.ScriptFunction)
+                            && !(r instanceof org.ngscript.value.Invokable)
+                            && !(r instanceof org.ngscript.value.SymbolValue)
+                            && !(r instanceof org.ngscript.value.BigIntValue)
+                            && r != null && r != Undefined.value) {
+                        // primitives other than symbols/objects are fine
+                        return toStringValue(r);
+                    }
+                    if (r instanceof org.ngscript.value.SymbolValue) {
+                        return ((org.ngscript.value.SymbolValue) r).getId();
+                    }
+                    if (r instanceof org.ngscript.value.BigIntValue) {
+                        return r.toString();
+                    }
+                    if (r instanceof String) {
+                        return (String) r;
+                    }
+                    if (r instanceof Number || r instanceof Boolean) {
+                        return toStringValue(r);
+                    }
+                    // a non-primitive result is a TypeError
+                    throw new IllegalArgumentException(
+                            "Cannot convert object to primitive value");
+                }
+                throw new IllegalArgumentException(
+                        "Symbol.toPrimitive is not callable");
             }
             for (String methodName : new String[]{"toString", "valueOf"}) {
                 Object method = null;
                 try {
                     MemRef ref = obj.lookup(methodName, vm, true);
                     method = ref.read();
-                } catch (NgScriptRuntimeException ignored) {
+                } catch (NgScriptRuntimeException nge) {
                     // no method on the object or its prototype chain
                 }
                 if (method instanceof ScriptFunction || method instanceof Invokable) {
+                    Object r;
                     try {
-                        return toStringValue(
-                                callValue(vm, method, obj, new Object[0]));
+                        r = callValue(vm, method, obj, new Object[0]);
                     } catch (Exception e) {
                         throw e instanceof RuntimeException
                                 ? (RuntimeException) e
                                 : new RuntimeException(e.getMessage() == null
                                         ? e.toString() : e.getMessage());
                     }
+                    if (r instanceof org.ngscript.value.SymbolValue) {
+                        // a symbol result is used directly as the key
+                        return ((org.ngscript.value.SymbolValue) r).getId();
+                    }
+                    if (r instanceof org.ngscript.value.BigIntValue) {
+                        return r.toString();
+                    }
+                    if (!(r instanceof NgsObject)
+                            && !(r instanceof org.ngscript.value.ScriptFunction)
+                            && !(r instanceof org.ngscript.value.Invokable)) {
+                        // a primitive result ends the search
+                        return toStringValue(r);
+                    }
+                    // a non-primitive result: try the next method
                 }
             }
             throw new IllegalArgumentException(

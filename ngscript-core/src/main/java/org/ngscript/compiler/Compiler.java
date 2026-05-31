@@ -1594,7 +1594,7 @@ public class Compiler {
             if (seg instanceof Seg.Member) {
                 assembler.emit("peek", "0");
                 assembler.emit("push_eax");
-                assembler.emit("string", ((Seg.Member) seg).name);
+                emitKey(((Seg.Member) seg).name);
                 assembler.emit("member_ref");
                 assembler.emit("deref", "%eax");
             } else if (seg instanceof Seg.Index) {
@@ -2470,7 +2470,16 @@ public class Compiler {
             }
         }
         List<Stmt> fieldStmts = new ArrayList<>();
-        int keyIndex = 0;
+        // computed keys (static and instance alike) are evaluated at class
+        // definition time, in declaration order — ES ClassFieldDefinition
+        // Evaluation: an error in any key aborts the class definition, and
+        // static/instance interleaving must not reorder the evaluation
+        int computedKeys = 0;
+        for (ClassExpr.FieldDef f : cls.fields) {
+            if (f.computedKey != null) {
+                f.keyIndex = computedKeys++;
+            }
+        }
         for (ClassExpr.FieldDef f : instFields) {
             // ES: a field initializer defines the field on the instance
             // (CreateDataProperty) — the prototype chain is not consulted,
@@ -2480,8 +2489,7 @@ public class Compiler {
                     : new LiteralExpr(LiteralExpr.Kind.UNDEFINED, "undefined", cls.line);
             if (f.computedKey != null) {
                 fieldStmts.add(new ExprStmt(new DefinePropExpr(
-                        target, f.computedKey, null, value, cls.line, keyIndex), cls.line));
-                ++keyIndex;
+                        target, f.computedKey, null, value, cls.line, f.keyIndex), cls.line));
             } else {
                 fieldStmts.add(new ExprStmt(new DefinePropExpr(
                         target, null, f.name, value, cls.line), cls.line));
@@ -2581,25 +2589,19 @@ public class Compiler {
             emitAssignToName(cls.name);
             assembler.emit("push_eax");
         }
-        // instance field *names* are computed at class definition time
-        // (ES ClassFieldDefinitionEvaluation): evaluate the computed keys
-        // now — an error here aborts the class definition — and store them
-        // in the class's %fieldKeys array for the constructor
-        int computedKeys = 0;
-        for (ClassExpr.FieldDef f : instFields) {
-            if (f.computedKey != null) {
-                ++computedKeys;
-            }
-        }
+        // all field *names* are computed at class definition time
+        // (ES ClassFieldDefinitionEvaluation), in declaration order across
+        // static and instance fields: evaluate the computed keys now — an
+        // error here aborts the class definition — and store them in the
+        // class's %fieldKeys array (consumed by the static initializer
+        // loop and the constructor via field_key)
         if (computedKeys > 0) {
             assembler.emit("field_keys_init", computedKeys + "");
-            int ki = 0;
-            for (ClassExpr.FieldDef f : instFields) {
+            for (ClassExpr.FieldDef f : cls.fields) {
                 if (f.computedKey != null) {
                     compileExpr(f.computedKey);
                     assembler.emit("to_string");
-                    assembler.emit("store_field_key", ki + "");
-                    ++ki;
+                    assembler.emit("store_field_key", f.keyIndex + "");
                 }
             }
         }
@@ -2630,12 +2632,22 @@ public class Compiler {
                         // constructor (the computed-key form is allowed)
                         throw compileError("Class static fields may not be named 'constructor'");
                     }
+                    if (f.name != null && "prototype".equals(f.name) && f.computedKey == null) {
+                        // ES early error: a static field may not be named
+                        // prototype
+                        throw compileError("Class static fields may not be named 'prototype'");
+                    }
                     assembler.emit("peek", "0");
                     assembler.emit("push_eax");
                     assembler.emit("set_this");
                     if (f.computedKey != null) {
-                        compileExpr(f.computedKey);
-                        assembler.emit("to_string");
+                        // the computed key was evaluated at class definition
+                        // time (declaration order across static and instance
+                        // fields): read it from the class's %fieldKeys array
+                        assembler.emit("field_key", f.keyIndex + "");
+                        // a computed key resolving to "prototype" is a
+                        // runtime TypeError (ES Static Semantics)
+                        assembler.emit("static_name_check");
                     } else {
                         emitKey(f.name, true);
                     }

@@ -94,6 +94,9 @@ public class ClassExpr extends Expr {
         public final boolean isStatic;
         public final Expr computedKey;
         public final Expr initializer;
+        /** Index into the class's %fieldKeys array (computed keys, in
+         * declaration order across static and instance fields). */
+        public int keyIndex = -1;
 
         public FieldDef(String name, boolean isStatic, Expr computedKey,
                         Expr initializer) {

@@ -1604,6 +1604,13 @@ public class OpObject {
                 ((NgsObject) t).set(key, v);
                 return;
             }
+            if (t instanceof ScriptFunction) {
+                // a static-field arrow's super.x = v writes the class
+                // constructor (CreateDataProperty on the static receiver)
+                vm.hostProps.computeIfAbsent(t,
+                        k -> new java.util.LinkedHashMap<>()).put(key, new MemRef(v));
+                return;
+            }
             throw new NgScriptRuntimeException(vm,
                     "Cannot set property '" + key + "' of "
                             + (t == null ? "null"
@@ -1901,26 +1908,29 @@ public class OpObject {
      */
     public static void set_this_tdz(Machine vm, String param, String param_extend) {
         vm.thisRef.write(Machine.THIS_TDZ);
+        ++vm.thisTdzCount;
     }
 
     /**
      * Pushes the instance of the current constructor call as the receiver
      * of super(): the `this` binding is still uninitialized, but the
-     * superclass constructor receives the new object itself.
+     * superclass constructor receives the new object itself. A second
+     * super() is still performed (ES invokes the super constructor, then
+     * BindThisValue throws) — the throw happens in init_this.
      */
     public static void push_super_this(Machine vm, String param, String param_extend) {
-        // ES: super() may only be called while the this binding is still
-        // uninitialized; a second call throws a ReferenceError
-        if (vm.thisRef.read() != Machine.THIS_TDZ) {
-            throw new RuntimeException("Super constructor may only be called once");
-        }
-        vm.superInProgress = true;
         vm.stack.push(vm.superReceiver);
     }
 
     /** Initializes the `this` binding after super() returns. */
     public static void init_this(Machine vm, String param, String param_extend) {
-        vm.superInProgress = false;
+        // ES BindThisValue: binding an already-initialized this throws a
+        // ReferenceError (a second super() call). The super constructor
+        // was invoked (and ran) before this check.
+        if (vm.thisTdzCount <= 0) {
+            throw new RuntimeException("Super constructor may only be called once");
+        }
+        --vm.thisTdzCount;
         Object result = vm.eax.read();
         if (result instanceof NgsArray && vm.superReceiver instanceof NgsObject) {
             // super() invoked a built-in array constructor (class A extends

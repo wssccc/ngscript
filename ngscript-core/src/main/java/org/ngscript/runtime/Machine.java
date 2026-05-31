@@ -147,6 +147,16 @@ public class Machine {
     public static final Object THIS_TDZ = new Object();
 
     /**
+     * The nesting depth of derived constructors whose `this` binding is
+     * still uninitialized: incremented by set_this_tdz (constructor
+     * entry), decremented by init_this (after super() returns). Arrow
+     * invocations consult it to decide whether a captured TDZ sentinel
+     * still throws (a member call may have overwritten thisRef, so the
+     * sentinel itself is not a reliable test).
+     */
+    public int thisTdzCount;
+
+    /**
      * The this binding for an arrow invocation. Arrows capture the value
      * at creation time; a captured TDZ sentinel is resolved lazily: after
      * the enclosing super() returns, the binding holds the instance, and
@@ -160,10 +170,13 @@ public class Machine {
         if (captured != THIS_TDZ) {
             return captured != null ? captured : Undefined.value;
         }
-        if (vm.thisRef.read() != THIS_TDZ && !vm.superInProgress) {
-            return vm.superReceiver;
+        // the binding is uninitialized while any enclosing derived
+        // constructor is before its super() (a member call may have
+        // overwritten thisRef, so the sentinel test alone is unreliable)
+        if (vm.thisTdzCount > 0) {
+            return THIS_TDZ;
         }
-        return THIS_TDZ;
+        return vm.superReceiver;
     }
 
     /** True while a super() call is executing: a captured-TDZ arrow
