@@ -708,7 +708,19 @@ public class NgsObject implements Scope {
                 }
                 MemRef ref = p.getRef(member);
                 if (ref != null) {
-                    return ref;
+                    // ES PropertyReference semantics: the binding is the
+                    // object plus the key, so a write (x = v) performs Set
+                    // on the object — even after the property was deleted
+                    // by the right-hand side (x = (delete o.x, 2) recreates
+                    // o.x). Reading still sees the current slot value.
+                    final NgsObject target = p;
+                    final String key = member;
+                    return new MemRef(ref.read()) {
+                        @Override
+                        public void write(Object v) {
+                            target.set(key, v);
+                        }
+                    };
                 }
                 p = p.getPrototype();
             }

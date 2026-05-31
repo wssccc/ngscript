@@ -434,6 +434,36 @@ public class OpCall {
     }
 
     public static void restore_machine_state(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        // ES IteratorClose: a throw while destructuring (a key expression,
+        // a nested pattern, an element default) must call return() on
+        // every iterator still in flight, innermost first; a throwing
+        // return() is swallowed (the original exception wins). This runs
+        // on every exception route (throw opcode and runInner's catch).
+        if (!vm.destrIterators.isEmpty()) {
+            // return() may throw (or run arbitrary code): the exception
+            // register must survive so the original error wins
+            Object savedException = vm.exception.read();
+            try {
+                while (!vm.destrIterators.isEmpty()) {
+                    Object it = vm.destrIterators.pop();
+                    if (it instanceof org.ngscript.runtime.NgsObject) {
+                        try {
+                            Object ret = ((org.ngscript.runtime.NgsObject) it).get("return");
+                            if (ret instanceof Invokable
+                                    || ret instanceof org.ngscript.value.ScriptFunction) {
+                                OpUtils.callValue(vm, ret, it, new Object[0]);
+                            }
+                        } catch (Throwable ignored) {
+                            // IteratorClose swallows return() errors
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {
+                // never mask the original exception
+            } finally {
+                vm.exception.write(savedException);
+            }
+        }
         if (vm.machineStateStack.isEmpty()) {
             Object ex = vm.exception.read();
             if (ex instanceof NgScriptRuntimeException) {

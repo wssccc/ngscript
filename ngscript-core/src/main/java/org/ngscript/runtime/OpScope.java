@@ -86,8 +86,31 @@ public class OpScope {
 
     public static void assign(Machine vm, String param, String param_extend) {
         Object[] objs = OpUtils.get2OpParam(vm);
+        MemRef ref = (MemRef) objs[0];
+        checkTdzWrite(ref);
+        ref.write(objs[1]);
+        vm.eax.write(objs[1]);
+    }
+
+    /**
+     * Initializing write (declarations, parameter defaults, class-name
+     * bindings): like {@link #assign} but the TDZ check is skipped — a
+     * declaration's first write initializes the binding.
+     */
+    public static void assign_init(Machine vm, String param, String param_extend) {
+        Object[] objs = OpUtils.get2OpParam(vm);
         ((MemRef) objs[0]).write(objs[1]);
         vm.eax.write(objs[1]);
+    }
+
+    /** ES PutValue on an uninitialized let/const binding throws. */
+    private static void checkTdzWrite(MemRef ref) {
+        if (ref instanceof org.ngscript.value.LetBinding
+                && !((org.ngscript.value.LetBinding) ref).isInitialized()) {
+            throw new RuntimeException("Cannot access '"
+                    + ((org.ngscript.value.LetBinding) ref).getName()
+                    + "' before initialization");
+        }
     }
 
     /**
@@ -120,6 +143,7 @@ public class OpScope {
         Object val = vm.eax.read();
         Object ref = vm.stack.peek(0);
         if (ref instanceof MemRef) {
+            checkTdzWrite((MemRef) ref);
             ((MemRef) ref).write(val);
         } else {
             ((NgsObject) vm.env.read()).rootFrame().putRef(param, new MemRef(val));
@@ -138,6 +162,7 @@ public class OpScope {
         Object val = vm.eax.read();
         try {
             MemRef ref = vm.lookup(param);
+            checkTdzWrite(ref);
             ref.write(val);
         } catch (NgScriptRuntimeException e) {
             if (e.getMessage() != null && e.getMessage().endsWith(" is not declared")) {

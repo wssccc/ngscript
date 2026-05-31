@@ -53,11 +53,37 @@ public class OpArray {
         vm.eax.write(list);
     }
 
+    /**
+     * Write-mode bracket reference ({@code a[k] = v}): like
+     * {@link #array_ref} but a null/undefined base resolves the reference
+     * without throwing — the TypeError fires at the assignment (PutValue),
+     * after the right-hand side has evaluated (ES evaluation order).
+     */
+    public static void array_ref_w(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
+        Object[] objs = OpUtils.get2OpParam(vm);
+        if (objs[0] == null || objs[0] == Undefined.value) {
+            final Object base = objs[0];
+            final String key = keyString(objs[1]);
+            vm.eax.write(new MemRef(Undefined.value) {
+                @Override
+                public void write(Object v) {
+                    throw new IllegalArgumentException("Cannot set property '" + key
+                            + "' of " + (base == null ? "null" : "undefined"));
+                }
+            });
+            return;
+        }
+        arrayRefInner(vm, objs, keyString(objs[1]));
+    }
+
     public static void array_ref(Machine vm, String param, String param_extend) throws NgScriptRuntimeException {
         Object[] objs = OpUtils.get2OpParam(vm);
+        arrayRefInner(vm, objs, keyString(objs[1]));
+    }
+
+    private static void arrayRefInner(Machine vm, Object[] objs, String member) throws NgScriptRuntimeException {
         if (objs[0] instanceof NgsObject) {
             NgsObject env = (NgsObject) objs[0];
-            String member = keyString(objs[1]);
             if (objs[0] instanceof NgsArray
                     && !"length".equals(member)
                     && NgsArray.isNumericKey(member)) {
@@ -74,15 +100,15 @@ public class OpArray {
         }
         if (objs[0] instanceof ArrayList) {
             ArrayList env = (ArrayList) objs[0];
-            int member = (int) Double.parseDouble("" + objs[1]);
-            MemRef ref = (MemRef) env.get(member);
+            int idx = (int) Double.parseDouble(member);
+            MemRef ref = (MemRef) env.get(idx);
             vm.eax.write(ref);
             return;
         }
         if (objs[0] instanceof String) {
             // string indexing by code unit ('xyz'[1] === 'y')
             String s = (String) objs[0];
-            int idx = (int) Double.parseDouble("" + objs[1]);
+            int idx = (int) Double.parseDouble(member);
             if (idx >= 0 && idx < s.length()) {
                 vm.eax.write(new MemRef(s.substring(idx, idx + 1)));
             } else {
@@ -94,12 +120,11 @@ public class OpArray {
             // ES: reading a property of null/undefined is a TypeError
             throw new IllegalArgumentException(
                     "Cannot read properties of " + (objs[0] == null ? "null" : "undefined")
-                            + " (reading '" + keyString(objs[1]) + "')");
+                            + " (reading '" + member + "')");
         }
         if (objs[0] instanceof ScriptFunction) {
             // bracket access on a script function: class-defined static
             // members first, then the intrinsic function properties
-            String member = keyString(objs[1]);
             java.util.Map<String, MemRef> own = vm.hostProps.get(objs[0]);
             if (own != null) {
                 MemRef dyn = own.get(member);

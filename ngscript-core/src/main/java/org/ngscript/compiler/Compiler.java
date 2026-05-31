@@ -319,11 +319,23 @@ public class Compiler {
      * strict mode throws a ReferenceError instead.
      */
     private void emitAssignToName(String name) {
+        emitAssignToName(name, true);
+    }
+
+    /**
+     * Stores eax into the named binding, pushed as a reference (assign runs,
+     * TDZ/const checks apply). {@code init} marks a declaration's first
+     * write (declarations, parameter defaults, class-name bindings): those
+     * use assign_init, which skips the TDZ check (the write initializes).
+     * An undeclared name creates an implicit global (sloppy-mode semantics);
+     * strict mode throws a ReferenceError instead.
+     */
+    private void emitAssignToName(String name, boolean init) {
         assembler.emit("push_eax");
         assembler.emit(currentStrict ? "mov_eax" : "mov_eax_or_create", name);
         assembler.emit("push_eax");
         assembler.emit("peek", "1");
-        assembler.emit("assign");
+        assembler.emit(init ? "assign_init" : "assign");
         assembler.emit("pop");
     }
 
@@ -350,7 +362,9 @@ public class Compiler {
                 compileExpr(decl.inits.get(i));
                 inferredClassName = null;
                 maybeInferFuncName(decl.inits.get(i), decl.names.get(i));
-                assembler.emit("assign");
+                // a declaration's first write initializes the binding:
+                // the TDZ check is skipped (assign_init)
+                assembler.emit("assign_init");
             } else {
                 // let x; initializes the binding to undefined
                 assembler.emit("undefined");
@@ -399,7 +413,11 @@ public class Compiler {
      * undefined.
      */
     private void compilePattern(Pattern p) throws CompilerException {
-        compilePattern(p, null);
+        compilePattern(p, null, true);
+    }
+
+    private void compilePattern(Pattern p, String inferredName) throws CompilerException {
+        compilePattern(p, inferredName, true);
     }
 
     /**
@@ -438,9 +456,12 @@ public class Compiler {
      * be in eax. {@code inferredName} is the binding name for ES
      * SetFunctionName: an anonymous function expression used as the
      * pattern's default ({@code [gen = function* () {}] = vals}) takes the
-     * bound name.
+     * bound name. {@code initWrite} selects the binding write mode:
+     * declaration initializers use the initializing write (no TDZ check);
+     * assignment targets check the TDZ (writing an uninitialized let
+     * throws a ReferenceError).
      */
-    private void compilePattern(Pattern p, String inferredName) throws CompilerException {
+    private void compilePattern(Pattern p, String inferredName, boolean initWrite) throws CompilerException {
         if (p == null) {
             return; // hole
         }
@@ -458,7 +479,7 @@ public class Compiler {
             emitLabel(skip);
         }
         if (p instanceof Pattern.IdentP) {
-            emitAssignToName(((Pattern.IdentP) p).name);
+            emitAssignToName(((Pattern.IdentP) p).name, initWrite);
         } else if (p instanceof Pattern.RefP) {
             // a member reference target ([obj.x, arr[0]] = vals): the
             // reference is resolved (not read) and the matched value is
@@ -482,16 +503,65 @@ public class Compiler {
         } else if (p instanceof Pattern.ArrayP) {
             Pattern.ArrayP arr = (Pattern.ArrayP) p;
             assembler.emit("push_eax");
+            boolean restRef = arr.rest instanceof Pattern.RefP;
+            Expr restRefTarget = restRef ? ((Pattern.RefP) arr.rest).target : null;
             assembler.emit("destr_iter_init");
             for (int i = 0; i < arr.items.size(); i++) {
-                assembler.emit("destr_iter_next");
-                compilePattern(arr.items.get(i), arr.items.get(i) instanceof Pattern.IdentP
-                        ? ((Pattern.IdentP) arr.items.get(i)).name : null);
+                Pattern item = arr.items.get(i);
+                if (item instanceof Pattern.RefP) {
+                    // ES: a member-reference element resolves (key
+                    // expressions evaluate) BEFORE the iterator advances —
+                    // an error aborts and closes the iterator (no next())
+                    Expr refTarget = ((Pattern.RefP) item).target;
+                    if (refTarget instanceof MemberExpr) {
+                        MemberExpr m = (MemberExpr) refTarget;
+                        compileExpr(m.object);
+                        assembler.emit("push_eax");
+                        emitKey(m.name);
+                        assembler.emit("member_ref_w");
+                    } else {
+                        compileExpr(refTarget, true);
+                    }
+                    assembler.emit("push_eax"); // [.., iterator, ref]
+                    assembler.emit("peek", "1"); // eax = iterator
+                    assembler.emit("push_eax"); // [.., iterator, ref, iterator]
+                    assembler.emit("destr_iter_next"); // eax = value
+                    assembler.emit("pop");      // the iterator copy
+                    assembler.emit("assign");   // ref.write(value)
+                } else {
+                    assembler.emit("destr_iter_next");
+                    compilePattern(item, item instanceof Pattern.IdentP
+                            ? ((Pattern.IdentP) item).name : null, initWrite);
+                }
             }
             if (arr.rest != null) {
-                assembler.emit("destr_iter_rest");
-                compilePattern(arr.rest, arr.rest instanceof Pattern.IdentP
-                        ? ((Pattern.IdentP) arr.rest).name : null);
+                if (restRef) {
+                    // ES AssignmentRestElement: a member-reference rest
+                    // target resolves (key expressions evaluate) AFTER the
+                    // elements are matched but BEFORE the remaining values
+                    // are collected — an error here closes the iterator
+                    // (already obtained by destr_iter_init), so return()
+                    // runs with no further next() calls
+                    if (restRefTarget instanceof MemberExpr) {
+                        MemberExpr m = (MemberExpr) restRefTarget;
+                        compileExpr(m.object);
+                        assembler.emit("push_eax");
+                        emitKey(m.name);
+                        assembler.emit("member_ref_w");
+                    } else {
+                        compileExpr(restRefTarget, true);
+                    }
+                    assembler.emit("push_eax"); // [.., iterator, ref]
+                    assembler.emit("peek", "1"); // eax = iterator
+                    assembler.emit("push_eax"); // [.., iterator, ref, iterator]
+                    assembler.emit("destr_iter_rest"); // pops the iterator
+                    assembler.emit("destr_rest_assign"); // ref.write(arr)
+                    assembler.emit("pop"); // the iterator (rest exhausted)
+                } else {
+                    assembler.emit("destr_iter_rest");
+                    compilePattern(arr.rest, arr.rest instanceof Pattern.IdentP
+                            ? ((Pattern.IdentP) arr.rest).name : null, initWrite);
+                }
             } else {
                 assembler.emit("destr_iter_done");
             }
@@ -528,7 +598,7 @@ public class Compiler {
                 }
                 assembler.emit("deref", "%eax");
                 compilePattern(prop.pattern, prop.pattern instanceof Pattern.IdentP
-                        ? ((Pattern.IdentP) prop.pattern).name : null);
+                        ? ((Pattern.IdentP) prop.pattern).name : null, initWrite);
                 if (prop.keyExpr == null) {
                     // only static keys travel in the param list; computed
                     // keys are pushed on the stack for destr_obj_rest
@@ -545,7 +615,7 @@ public class Compiler {
                 // destr_obj_rest (static keys travel in param)
                 assembler.emit("destr_obj_rest", consumed.toString() + ";" + computedKeys);
                 compilePattern(obj.rest, obj.rest instanceof Pattern.IdentP
-                        ? ((Pattern.IdentP) obj.rest).name : null);
+                        ? ((Pattern.IdentP) obj.rest).name : null, initWrite);
                 // only the object itself remains (destr_obj_rest popped
                 // the computed key strings)
                 assembler.emit("pop");
@@ -624,6 +694,11 @@ public class Compiler {
     }
 
     private void compileProgram(Program program) throws CompilerException {
+        // ES: let/const bindings exist (uninitialized, TDZ) from the moment
+        // the scope is entered — pre-bind them so a closure created before
+        // the declaration sees the TDZ binding instead of falling through
+        // to an implicit global (or the outer scope)
+        prebindLexicalDecls(program.statements);
         for (Stmt stmt : program.statements) {
             compileStmt(stmt);
         }
@@ -634,11 +709,61 @@ public class Compiler {
         if (scoped) {
             enterBlock();
         }
+        prebindLexicalDecls(block.statements);
         for (Stmt stmt : block.statements) {
             compileStmt(stmt);
         }
         if (scoped) {
             leaveBlock();
+        }
+    }
+
+    /** Pre-binds the direct let/const declarations of a statement list. */
+    private void prebindLexicalDecls(List<Stmt> statements) {
+        for (Stmt stmt : statements) {
+            if (!(stmt instanceof ExprStmt)
+                    || !(((ExprStmt) stmt).expr instanceof LetDeclExpr)) {
+                continue;
+            }
+            LetDeclExpr decl = (LetDeclExpr) ((ExprStmt) stmt).expr;
+            String flag = decl.isConst ? "1" : "0";
+            for (int i = 0; i < decl.names.size(); i++) {
+                if (decl.patterns != null && decl.patterns.get(i) != null) {
+                    for (String n : patternBindingNames(decl.patterns.get(i))) {
+                        assembler.emit("decl_let", n, flag);
+                    }
+                } else {
+                    assembler.emit("decl_let", decl.names.get(i), flag);
+                }
+            }
+        }
+    }
+
+    /** The binding names of a destructuring pattern (IdentP leaves). */
+    private static java.util.List<String> patternBindingNames(Pattern p) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        collectPatternNames(p, out);
+        return out;
+    }
+
+    private static void collectPatternNames(Pattern p, java.util.List<String> out) {
+        if (p == null) {
+            return;
+        }
+        if (p instanceof Pattern.IdentP) {
+            out.add(((Pattern.IdentP) p).name);
+        } else if (p instanceof Pattern.ArrayP) {
+            Pattern.ArrayP arr = (Pattern.ArrayP) p;
+            for (Pattern item : arr.items) {
+                collectPatternNames(item, out);
+            }
+            collectPatternNames(arr.rest, out);
+        } else if (p instanceof Pattern.ObjectP) {
+            Pattern.ObjectP obj = (Pattern.ObjectP) p;
+            for (Pattern.Prop prop : obj.props) {
+                collectPatternNames(prop.pattern, out);
+            }
+            collectPatternNames(obj.rest, out);
         }
     }
 
@@ -1017,10 +1142,11 @@ public class Compiler {
             if (!assign.op.equals("assign")) {
                 compileCompoundAssign(assign);
             } else if (assign.target instanceof DestructureExpr) {
-                // destructuring assignment: [a, b] = value (expression value = RHS)
+                // destructuring assignment: [a, b] = value (expression value = RHS);
+                // the writes are real assignments — TDZ checks apply
                 compileExpr(assign.value);
                 assembler.emit("push_eax");
-                compilePattern(((DestructureExpr) assign.target).pattern);
+                compilePattern(((DestructureExpr) assign.target).pattern, null, false);
                 assembler.emit("pop_eax");
             } else if (assign.target instanceof VarDeclExpr
                     && ((VarDeclExpr) assign.target).pattern != null) {
@@ -1195,7 +1321,10 @@ public class Compiler {
                 compileExpr(indexExpr.object);
                 assembler.emit("push_eax");
                 compileExpr(indexExpr.index);
-                assembler.emit("array_ref");
+                // write-mode (assignment target): a null/undefined base
+                // resolves without throwing — the TypeError fires at
+                // PutValue, after the RHS evaluated (ES evaluation order)
+                assembler.emit(byref ? "array_ref_w" : "array_ref");
                 if (!byref) {
                     assembler.emit("deref", "%eax");
                 }

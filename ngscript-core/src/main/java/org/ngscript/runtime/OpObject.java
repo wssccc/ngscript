@@ -249,6 +249,23 @@ public class OpObject {
         if (System.getProperty("dbg.mrw") != null) {
             System.err.println("MRW member=" + member + " obj=" + (objs[0] == null ? "null" : objs[0].getClass().getSimpleName()));
         }
+        if (objs[0] == null || objs[0] == Undefined.value) {
+            // ES: an assignment target's base is evaluated and the reference
+            // resolved *before* the right-hand side runs; the TypeError for
+            // a null/undefined base fires at PutValue, so the RHS side
+            // effects must already have happened. Return a write-only
+            // reference that throws on assignment.
+            final Object base = objs[0];
+            final String key = member;
+            vm.eax.write(new MemRef(Undefined.value) {
+                @Override
+                public void write(Object v) {
+                    throw new IllegalArgumentException("Cannot set property '" + key
+                            + "' of " + (base == null ? "null" : "undefined"));
+                }
+            });
+            return;
+        }
         if (objs[0] instanceof NgsObject) {
             vm.eax.write(((NgsObject) objs[0]).lookupForWrite(member, vm));
             return;
@@ -1178,7 +1195,9 @@ public class OpObject {
 
     /** Pushes an iterator for the value in eax (destructuring array patterns). */
     public static void destr_iter_init(Machine vm, String param, String param_extend) throws Exception {
-        vm.stack.push(OpUtils.getIterator(vm, vm.eax.read()));
+        Object it = OpUtils.getIterator(vm, vm.eax.read());
+        vm.stack.push(it);
+        vm.destrIterators.push(it);
     }
 
     /**
@@ -1188,29 +1207,71 @@ public class OpObject {
     public static void destr_iter_next(Machine vm, String param, String param_extend) throws Exception {
         Object iterator = vm.stack.peek(0);
         vm.destrDone = false;
-        if (iterator instanceof java.util.Iterator) {
-            java.util.Iterator it = (java.util.Iterator) iterator;
-            if (it.hasNext()) {
-                vm.eax.write(it.next());
+        try {
+            if (iterator instanceof java.util.Iterator) {
+                java.util.Iterator it = (java.util.Iterator) iterator;
+                if (it.hasNext()) {
+                    vm.eax.write(it.next());
+                } else {
+                    vm.destrDone = true;
+                    vm.eax.write(Undefined.value);
+                }
+                return;
+            }
+            Object method = OpUtils.getMember(vm, iterator, "next");
+            if (method == null || method == Undefined.value) {
+                vm.destrDone = true;
+                vm.eax.write(Undefined.value);
+                return;
+            }
+            // while next() runs, the iterator is not in the close registry:
+            // an iterator step error must NOT trigger IteratorClose (ES)
+            boolean wasRegistered = !vm.destrIterators.isEmpty()
+                    && vm.destrIterators.peek() == iterator;
+            if (wasRegistered) {
+                vm.destrIterators.pop();
+            }
+            Object result;
+            try {
+                result = OpUtils.callValue(vm, method, iterator, new Object[0]);
+            } finally {
+                if (wasRegistered) {
+                    vm.destrIterators.push(iterator);
+                }
+            }
+            if (result instanceof NgsObject && !OpUtils.testValue(((NgsObject) result).get("done"))) {
+                vm.eax.write(((NgsObject) result).get("value"));
             } else {
                 vm.destrDone = true;
                 vm.eax.write(Undefined.value);
             }
-            return;
+        } catch (RuntimeException e) {
+            // ES: an iterator step error propagates WITHOUT IteratorClose
+            // (return() is not called) — drop the iterator from the
+            // close registry so restore_machine_state does not close it
+            if (!vm.destrIterators.isEmpty()
+                    && vm.destrIterators.peek() == iterator) {
+                vm.destrIterators.pop();
+            }
+            throw e;
+        } catch (Error e) {
+            if (!vm.destrIterators.isEmpty()
+                    && vm.destrIterators.peek() == iterator) {
+                vm.destrIterators.pop();
+            }
+            throw e;
         }
-        Object method = OpUtils.getMember(vm, iterator, "next");
-        if (method == null || method == Undefined.value) {
-            vm.destrDone = true;
-            vm.eax.write(Undefined.value);
-            return;
-        }
-        Object result = OpUtils.callValue(vm, method, iterator, new Object[0]);
-        if (result instanceof NgsObject && !OpUtils.testValue(((NgsObject) result).get("done"))) {
-            vm.eax.write(((NgsObject) result).get("value"));
-        } else {
-            vm.destrDone = true;
-            vm.eax.write(Undefined.value);
-        }
+    }
+
+    /**
+     * Stores the collected rest array (eax) through the pre-resolved rest
+     * reference on the stack top (ES PutValue of AssignmentRestElement).
+     */
+    public static void destr_rest_assign(Machine vm, String param, String param_extend) {
+        Object val = vm.eax.read();
+        Object ref = vm.stack.pop();
+        ((MemRef) ref).write(val);
+        vm.eax.write(val);
     }
 
     /** Collects the remaining iterator values into an array (rest pattern). */
@@ -1225,37 +1286,64 @@ public class OpObject {
         boolean completed = false;
         try {
             if (iterator instanceof java.util.Iterator) {
-            java.util.Iterator it = (java.util.Iterator) iterator;
-            while (it.hasNext()) {
-                if (budget >= 0 && ++n > budget) {
-                    throw new NgScriptRuntimeException(vm,
-                            "instruction budget exceeded while destructuring rest");
+                java.util.Iterator it = (java.util.Iterator) iterator;
+                while (it.hasNext()) {
+                    if (budget >= 0 && ++n > budget) {
+                        throw new NgScriptRuntimeException(vm,
+                                "instruction budget exceeded while destructuring rest");
+                    }
+                    arr.set("" + i++, it.next());
                 }
-                arr.set("" + i++, it.next());
+                done = true;
+            } else {
+                while (true) {
+                    if (budget >= 0 && ++n > budget) {
+                        throw new NgScriptRuntimeException(vm,
+                                "instruction budget exceeded while destructuring rest");
+                    }
+                    Object method = OpUtils.getMember(vm, iterator, "next");
+                    boolean wasRegistered = !vm.destrIterators.isEmpty()
+                            && vm.destrIterators.peek() == iterator;
+                    if (wasRegistered) {
+                        vm.destrIterators.pop();
+                    }
+                    Object result;
+                    try {
+                        result = OpUtils.callValue(vm, method, iterator, new Object[0]);
+                    } finally {
+                        if (wasRegistered) {
+                            vm.destrIterators.push(iterator);
+                        }
+                    }
+                    if (result instanceof NgsObject && !OpUtils.testValue(((NgsObject) result).get("done"))) {
+                        arr.set("" + i++, ((NgsObject) result).get("value"));
+                    } else {
+                        done = true;
+                        break;
+                    }
+                }
             }
-            done = true;
-        } else {
-            while (true) {
-                if (budget >= 0 && ++n > budget) {
-                    throw new NgScriptRuntimeException(vm,
-                            "instruction budget exceeded while destructuring rest");
-                }
-                Object method = OpUtils.getMember(vm, iterator, "next");
-                Object result = OpUtils.callValue(vm, method, iterator, new Object[0]);
-                if (result instanceof NgsObject && !OpUtils.testValue(((NgsObject) result).get("done"))) {
-                    arr.set("" + i++, ((NgsObject) result).get("value"));
-                } else {
-                    done = true;
-                    break;
-                }
-            }
-        }
             // a rest pattern exhausts the iterator: IteratorClose applies
             // only when the iteration is abandoned early (done means completed)
             if (!done) {
                 closeIterator(vm, iterator);
             }
             completed = true;
+        } catch (RuntimeException e) {
+            // ES: an iterator step error propagates WITHOUT IteratorClose
+            // — drop the iterator from the close registry so
+            // restore_machine_state does not call return()
+            if (!vm.destrIterators.isEmpty()
+                    && vm.destrIterators.peek() == iterator) {
+                vm.destrIterators.pop();
+            }
+            throw e;
+        } catch (Error e) {
+            if (!vm.destrIterators.isEmpty()
+                    && vm.destrIterators.peek() == iterator) {
+                vm.destrIterators.pop();
+            }
+            throw e;
         } finally {
             if (!completed) {
                 // the iterator stays on the stack when the iteration throws,
@@ -1264,11 +1352,19 @@ public class OpObject {
             }
         }
         vm.eax.write(arr);
+        if (!vm.destrIterators.isEmpty()
+                && vm.destrIterators.peek() == iterator) {
+            vm.destrIterators.pop();
+        }
     }
 
     /** Drops the iterator left on the stack by destr_iter_init. */
     public static void destr_iter_done(Machine vm, String param, String param_extend) {
         Object iterator = vm.stack.pop();
+        if (!vm.destrIterators.isEmpty()
+                && vm.destrIterators.peek() == iterator) {
+            vm.destrIterators.pop();
+        }
         if (!vm.destrDone) {
             // the iterator is not exhausted: ES IteratorClose calls return()
             closeIterator(vm, iterator);

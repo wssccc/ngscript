@@ -157,6 +157,14 @@ public class Machine {
     public int thisTdzCount;
 
     /**
+     * Active destructuring iterators (innermost last): when a pattern
+     * element's evaluation throws (key expressions, nested patterns), ES
+     * IteratorClose must call return() on every iterator still in flight.
+     * runInner closes them before routing the exception.
+     */
+    public final java.util.ArrayDeque<Object> destrIterators = new java.util.ArrayDeque<>();
+
+    /**
      * The this binding for an arrow invocation. Arrows capture the value
      * at creation time; a captured TDZ sentinel is resolved lazily: after
      * the enclosing super() returns, the binding holds the instance, and

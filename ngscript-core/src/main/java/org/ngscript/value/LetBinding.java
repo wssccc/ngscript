@@ -57,6 +57,16 @@ public class LetBinding extends MemRef {
         return super.read();
     }
 
+    /** The binding name (for TDZ error messages). */
+    public String getName() {
+        return name;
+    }
+
+    /** Whether the binding has been initialized (TDZ write checks). */
+    public boolean isInitialized() {
+        return initialized;
+    }
+
     @Override
     public String toString() {
         return String.format("LetBinding[%s, const=%b, initialized=%b]", name, isConst, initialized);
