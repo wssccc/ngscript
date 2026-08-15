@@ -163,7 +163,12 @@ public class Test262Runner {
         }
         runner.printReport();
         if (report != null) {
-            Files.write(new File(report).toPath(), runner.reportText().getBytes(StandardCharsets.UTF_8));
+            File reportFile = new File(report);
+            File parent = reportFile.getAbsoluteFile().getParentFile();
+            if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+                throw new IOException("cannot create report directory " + parent);
+            }
+            Files.write(reportFile.toPath(), runner.reportText().getBytes(StandardCharsets.UTF_8));
         }
         double rate = runner.total == 0 ? 0 : 100.0 * runner.passed / runner.total;
         if (failBelow != null && rate < failBelow) {
